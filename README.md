@@ -105,6 +105,13 @@ https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/ch
 * 예시: `plugins/tts.js` (누가 불렀는지 음성 안내).
 * 제한: 사용자 스크립트 허용이 꺼진 격리 환경에서는 플러그인이 안 뜬다.
 
+## 개발 (베타 작업 시)
+
+* 본체는 `src/` 모듈로 나눠져 있다. 직접 고치지 말고 모듈을 고친 뒤 빌드:
+  `node src/build.js` → `beta/chzzk-keyword-alert.beta.user.js` 재생성.
+* 빌드 후 하네스로 검증하고 커밋한다. (`src/` + 빌드 결과물 함께 커밋)
+* 정식(`chzzk-keyword-alert.user.js`)은 릴리즈 때만 베타 내용으로 갈아엎는다.
+
 ---
 
 ## 2. 기능 설명
