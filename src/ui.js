@@ -307,14 +307,16 @@ function renderSettings() {
         <div id="__kw_set_general" style="display:${setTab === 'general' ? 'block' : 'none'}">
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_auto" ${autoOn() ? 'checked' : ''}> 방송 들어가면 묻지 않고 자동으로 켜기</label></div>
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_hist" ${histOn() ? 'checked' : ''}> 불린 대화 목록 별도 표시 (클릭 이동)</label></div>
-          <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_dedup" ${dedupOn() ? 'checked' : ''}> 이미 울린 대화 재알림 방지</label></div>
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_drops" ${dropsOn() ? 'checked' : ''}> 드롭스 보기 (진행 중인 드롭스가 있을 때만 표시)</label></div>
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_mute" ${muted() ? 'checked' : ''}> 알람 끄기 (감지·기록은 유지)</label></div>
           <div class="__kw_lbl">알림 소리 <select class="__kw_in" id="__kw_snd"><option value="dingdong">딩동</option><option value="custom">내 파일</option></select> <button class="__kw_b" id="__kw_snd_test" style="background:#444;color:#fff">들어보기</button></div>
           <div class="__kw_lbl" id="__kw_snd_row" style="display:${sndMode() === 'custom' ? 'block' : 'none'}"><input type="file" id="__kw_snd_file" accept="audio/*" style="max-width:150px;font-size:11px"> <span id="__kw_snd_name" style="color:#aaa"></span></div>
           <div class="__kw_lbl" id="__kw_snd_msg" style="color:#ffd400"></div>
-          <div class="__kw_lbl">같은 호출 다시 울리기까지 (초, 0이면 항상 울림)</div>
-          <input class="__kw_in" id="__kw_redup" type="number" min="0" max="7200" step="1" style="width:80px" value="${redupSec()}">
+          <div class="__kw_lbl"><label style="cursor:pointer;display:flex;align-items:center;gap:6px"><input type="checkbox" id="__kw_dedup" style="margin:0" ${dedupOn() ? 'checked' : ''}> 이미 울린 대화 재알림 방지</label></div>
+          <div id="__kw_redup_grp" style="padding-left:20px;opacity:${dedupOn() ? 1 : 0.45}">
+            <div class="__kw_lbl" style="margin-top:2px">같은 호출 다시 울리기까지 (초, 0이면 항상 울림)</div>
+            <input class="__kw_in" id="__kw_redup" type="number" min="0" max="7200" step="1" style="width:80px" value="${redupSec()}" ${dedupOn() ? '' : 'disabled'}>
+          </div>
         </div>
         <div id="__kw_set_words" style="display:${setTab === 'words' ? 'block' : 'none'}">
           <div class="__kw_lbl">호출 단어 (×로 삭제, 페이지 글자를 드래그해서도 추가 가능)</div>
@@ -383,6 +385,9 @@ function renderSettings() {
   };
   setPanel.querySelector('#__kw_dedup').onchange = (e) => {
     try { localStorage.setItem(LS_DEDUP, e.target.checked ? '1' : '0'); } catch (err) {}
+    // 재알림 방지를 끄면 "다시 울리기까지" 숫자는 입력할 수 없게 한다
+    setPanel.querySelector('#__kw_redup').disabled = !e.target.checked;
+    setPanel.querySelector('#__kw_redup_grp').style.opacity = e.target.checked ? '1' : '0.45';
   };
   setPanel.querySelectorAll('.__kw_plug').forEach((c) => {
     c.onchange = () => {
