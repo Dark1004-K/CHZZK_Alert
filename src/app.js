@@ -61,11 +61,35 @@ function checkRoute() {
 // 플러그인은 window.__KW.on('hit', ({nick, text, kw}) => ...) 형태로 구독한다.
 const PLUGIN_MANIFEST_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/plugins.json';
 const __kwListeners = {};
+// 설정 > 확장에서 켜고 끈다. 끄면 해당 플러그인이 등록한 리스너로 이벤트 전달을 멈춘다 (주입된 코드는 새로고침 시 완전히 해제).
+const LS_PLUG = '__kw_plugins'; // { [id]: true|false } 사용자가 고른 상태. 없으면 매니페스트의 on 값
+let pluginList = null; // 매니페스트에서 받은 목록 (null이면 아직 못 받음)
+const pluginLoaded = {};
+let pluginInjecting = '';
+function pluginStateMap() {
+  try { return JSON.parse(localStorage.getItem(LS_PLUG)) || {}; } catch (e) { return {}; }
+}
+function pluginIsOn(p) {
+  const m = pluginStateMap();
+  return p.id in m ? !!m[p.id] : p.on !== false;
+}
+function pluginIdIsOn(id) {
+  const p = (pluginList || []).find((x) => x && x.id === id);
+  return p ? pluginIsOn(p) : true;
+}
+function setPluginOn(p, on) {
+  const m = pluginStateMap();
+  m[p.id] = !!on;
+  try { localStorage.setItem(LS_PLUG, JSON.stringify(m)); } catch (e) {}
+  if (on && !pluginLoaded[p.id] && !limitedMode) injectPlugin(p);
+  dlog('plugin-' + (on ? 'on' : 'off'), p.id);
+}
 try {
   window.__KW = window.__KW || {
     version: SCRIPT_VERSION,
     on(evt, fn) {
       if (typeof fn !== 'function') return;
+      fn.__kwPlugin = pluginInjecting;
       (__kwListeners[evt] = __kwListeners[evt] || []).push(fn);
     },
     toast(nick, body) { showCallToast(nick, body); },
@@ -74,7 +98,10 @@ try {
 function kwEmit(evt, data) {
   try {
     const arr = __kwListeners[evt] || [];
-    for (const fn of arr) { try { fn(data); } catch (e) {} }
+    for (const fn of arr) {
+      if (fn.__kwPlugin && !pluginIdIsOn(fn.__kwPlugin)) continue;
+      try { fn(data); } catch (e) {}
+    }
   } catch (e) {}
 }
 function loadPlugins() {
@@ -83,11 +110,12 @@ function loadPlugins() {
     fetch(PLUGIN_MANIFEST_URL + '?t=' + Math.floor(Date.now() / 3600000), { cache: 'no-store' })
       .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
       .then((j) => {
-        const list = j && Array.isArray(j.plugins) ? j.plugins : [];
+        const list = j && Array.isArray(j.plugins) ? j.plugins.filter((p) => p && p.id && p.url) : [];
+        pluginList = list;
         for (const p of list) {
-          if (!p || !p.url || p.on === false) continue;
-          injectPlugin(p);
+          if (pluginIsOn(p)) injectPlugin(p);
         }
+        if (setTab === 'ext') renderSettings();
       })
       .catch(() => {});
   } catch (e) {}
@@ -100,7 +128,9 @@ function injectPlugin(p) {
         if (!code || code.length < 10) return;
         const s = document.createElement('script');
         s.textContent = '\n;try{\n' + code + '\n}catch(e){}';
-        (document.head || document.documentElement).appendChild(s);
+        pluginInjecting = p.id || '';
+        pluginLoaded[p.id] = true;
+        try { (document.head || document.documentElement).appendChild(s); } finally { pluginInjecting = ''; }
         try { s.remove(); } catch (e) {}
         dlog('plugin-loaded', p.id || p.url);
       })

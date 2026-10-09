@@ -14,7 +14,7 @@ let setPanel = null;
 let setOpen = false;
 try { setOpen = localStorage.getItem(LS_SET) === '1'; } catch (e) {}
 let setTab = 'general';
-try { const st = localStorage.getItem(LS_TAB); if (st === 'words' || st === 'general' || st === 'about') setTab = st; } catch (e) {}
+try { const st = localStorage.getItem(LS_TAB); if (st === 'words' || st === 'general' || st === 'ext' || st === 'about') setTab = st; } catch (e) {}
 function ensureStack() {
   if (stackEl && stackEl.isConnected) return stackEl;
   let ex = null;
@@ -269,6 +269,13 @@ function checkUpdate() {
     done();
   }
 }
+function extListHtml() {
+  if (limitedMode) return '<div class="__kw_lbl" style="color:#ffd400">사용자 스크립트 허용이 꺼져 있어 확장을 쓸 수 없습니다</div>';
+  if (pluginList === null) return '<div class="__kw_lbl">목록을 불러오는 중...</div>';
+  if (!pluginList.length) return '<div class="__kw_lbl">등록된 확장이 없습니다</div>';
+  return pluginList.map((p) => `<div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" ${pluginIsOn(p) ? 'checked' : ''}> ${escapeHtml(p.name || p.id)}</label></div>`).join('') +
+    '<div class="__kw_lbl" style="color:#888">끄면 이벤트 전달이 멈추고, 완전한 해제는 새로고침 후 적용됩니다</div>';
+}
 function renderSettings() {
   if (!setPanel) return;
   setPanel.innerHTML = `
@@ -276,6 +283,7 @@ function renderSettings() {
       <div class="__kw_tabs">
         <button class="__kw_tab${setTab === 'general' ? ' on' : ''}" data-tab="general">일반설정</button>
         <button class="__kw_tab${setTab === 'words' ? ' on' : ''}" data-tab="words">단어설정</button>
+        <button class="__kw_tab${setTab === 'ext' ? ' on' : ''}" data-tab="ext">확장</button>
         <button class="__kw_tab${setTab === 'about' ? ' on' : ''}" data-tab="about">앱 정보</button>
       </div>
       <div id="__kw_set_body" style="flex:1;min-width:0;min-height:0;overflow-y:auto">
@@ -295,6 +303,10 @@ function renderSettings() {
             <button class="__kw_b" id="__kw_add" style="background:#00ffa3;color:#000">추가</button></div>
           <div class="__kw_lbl">내 닉네임 (이 닉네임의 채팅은 알림 제외)</div>
           <input class="__kw_in" id="__kw_nick" style="width:130px" value="${escapeHtml(myNick)}">
+        </div>
+        <div id="__kw_set_ext" style="display:${setTab === 'ext' ? 'block' : 'none'}">
+          <div class="__kw_lbl">등록된 확장 (체크하면 켜짐)</div>
+          ${extListHtml()}
         </div>
         <div id="__kw_set_about" style="display:${setTab === 'about' ? 'block' : 'none'}">
           <div class="__kw_lbl">프로그램</div>
@@ -348,6 +360,12 @@ function renderSettings() {
   setPanel.querySelector('#__kw_dedup').onchange = (e) => {
     try { localStorage.setItem(LS_DEDUP, e.target.checked ? '1' : '0'); } catch (err) {}
   };
+  setPanel.querySelectorAll('.__kw_plug').forEach((c) => {
+    c.onchange = () => {
+      const p = (pluginList || []).find((x) => x.id === c.dataset.id);
+      if (p) setPluginOn(p, c.checked);
+    };
+  });
   setPanel.querySelector('#__kw_drops').onchange = (e) => {
     try { localStorage.setItem(LS_DROPS, e.target.checked ? '1' : '0'); } catch (err) {}
     if (e.target.checked) startDrops(); else stopDrops();
