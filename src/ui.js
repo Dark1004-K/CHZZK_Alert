@@ -650,6 +650,17 @@ function fetchDropsServer(cid, no) {
     renderDrops();
   });
 }
+// 진단용: 서버 시청 분을 가짜 값으로 바꿔 시간 충족 알림/다음 보상 전환을 바로 시험한다 (다음 서버 갱신 때 원래 값으로 복귀)
+function dropsSimMin(n) {
+  if (!dropsInfo) return '드롭스 정보 없음 (드롭스가 있는 방송에서 창이 보일 때 사용)';
+  const min = Math.max(0, Number(n) || 0);
+  dropsSrv = { min, claimed: new Set() };
+  dropsSrvSynced = true;
+  dropsRewards().forEach((r) => { if (min < r.conditionForMinutes) dropsDone.delete(r.rewardNo); }); // 다시 넘으면 또 울리도록
+  renderDrops();
+  dropsCheck();
+  return '드롭스 시청 ' + min + '분으로 시뮬레이션 (1분 안에 서버 값으로 복귀)';
+}
 function pollDrops() {
   if (!dropsOn() || !isLivePage()) { dropsInfo = null; removeDropsPanel(); return; }
   const cid = pageChannelId();

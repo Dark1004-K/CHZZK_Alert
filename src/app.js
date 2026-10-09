@@ -195,7 +195,7 @@ function initApp() {
 }
 
 // 베타 진단용 후크 (정식에서는 제거): 콘솔에서 __kwDebug.jump(0) 등으로 직접 검증 가능
-try { window.__kwDebug = { jump: jumpToHit, find: findElBySig, log: () => hitLog }; } catch (e) {}
+try { window.__kwDebug = { jump: jumpToHit, find: findElBySig, log: () => hitLog, dropsMin: dropsSimMin }; } catch (e) {}
 
 if (!window.__kwAlertLoaded) {
   window.__kwAlertLoaded = true;

@@ -44,6 +44,16 @@
     return out;
   }
 
+  // 테스트: 콘솔에서 __kwBdoTest(초) 를 호출하면 그 시간 뒤에 출현하는 가짜 우두머리 알림을 바로 띄운다 (옵션/필터 무시)
+  const tests = [];
+  window.__kwBdoTest = (sec) => {
+    const s = Math.max(5, Number(sec) || 60);
+    const t = Date.now() + s * 1000;
+    tests.push({ t, hhmm: '테스트', bosses: ['가짜 보스'], test: true });
+    tick();
+    return '테스트 알림: ' + s + '초 뒤 출현';
+  };
+
   let box = null;
   const items = new Map(); // t -> { el, txt }
   const dismissed = new Set();
@@ -105,10 +115,11 @@
       const lead = Math.max(1, Math.min(30, Number(opt('lead', 3)) || 3)) * 60000;
       const sel = opt('bosses', null);
       const active = new Set();
-      for (const o of occurrences(now)) {
-        if (now < o.t - lead || now >= o.t) continue; // 알림 구간: 출현 N분 전 ~ 출현 시각
+      for (let i = tests.length - 1; i >= 0; i--) if (tests[i].t < now - 60000) tests.splice(i, 1);
+      for (const o of occurrences(now).concat(tests)) {
+        if (now >= o.t || (!o.test && now < o.t - lead)) continue; // 알림 구간: 출현 N분 전 ~ 출현 시각
         if (dismissed.has(o.t)) continue;
-        const bosses = Array.isArray(sel) ? o.bosses.filter((b) => sel.includes(b)) : o.bosses;
+        const bosses = Array.isArray(sel) && !o.test ? o.bosses.filter((b) => sel.includes(b)) : o.bosses;
         if (!bosses.length) continue;
         active.add(o.t);
         if (!items.has(o.t)) {
