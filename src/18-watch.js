@@ -4,14 +4,31 @@
     try { const m = location.pathname.match(/\/live\/([0-9a-f]{32})/i); return m ? m[1].toLowerCase() : ''; } catch (e) { return ''; }
   };
   const isLivePage = () => !!pageChannelId();
-  // 패널에 굵게 보여줄 채널명. 탭 제목 "채널명 - ... - CHZZK"의 첫 토막을 쓴다.
-  const pageChannelName = () => {
+  // 페이지에 보이는 채널명. 채널 프로필 링크(`/채널ID`) 텍스트 우선, 없으면 탭 제목 첫 토막.
+  const cleanChName = (t) => (t || '').replace(/\s*채널로 이동\s*/g, '').replace(/\s*LIVE\s*$/, '').trim();
+  const getPageChannelName = () => {
+    const cid = pageChannelId();
+    try {
+      if (cid) {
+        const a = document.querySelector('a[href="/' + cid + '"]') || document.querySelector('a[href$="/' + cid + '"]');
+        if (a) {
+          const n = cleanChName(a.textContent);
+          if (n) return n;
+        }
+      }
+    } catch (e) {}
     try {
       const t = (document.title || '').split(' - ')[0].trim();
       if (t && t !== '치지직' && !/CHZZK/i.test(t)) return t;
     } catch (e) {}
-    const cid = pageChannelId();
-    return cid ? cid.slice(0, 8) + '…' : '';
+    return '';
+  };
+  // 등록명-페이지명 비교 (공백 제거/소문자 정규화 양쪽 시도)
+  const sameName = (a, b) => {
+    if (!a || !b) return false;
+    if (norm(a) === norm(b)) return true;
+    const la = normLoose(a), lb = normLoose(b);
+    return !!la && la === lb;
   };
 
   // 우리 자체 UI(패널/프롬프트/토스트/선택버튼)에서 발생한 변화는 절대 관리하지 않아야 무한루프를 막을 수 있음

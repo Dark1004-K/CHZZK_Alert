@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CHZZK Alert (Beta)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-beta29
+// @version      2.8-beta30
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
 // @match        https://chzzk.naver.com/live/*
@@ -27,7 +27,7 @@
   const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
   const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
   // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-  const SCRIPT_VERSION = '2.8-beta29';
+  const SCRIPT_VERSION = '2.8-beta30';
   const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js';
   const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
   const HITS_MAX = 30;
@@ -266,7 +266,9 @@
   #__kw_panel.off{border-color:#777}
   #__kw_row{display:flex;align-items:center;gap:8px}
   #__kw_dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:#00ffa3;animation:__kwpulse 1.4s infinite;margin-right:8px;vertical-align:middle}
-  #__kw_ch{font-weight:bold;font-size:13px;margin-bottom:1px}
+  #__kw_ch{display:flex;align-items:center;justify-content:space-between;gap:6px;font-weight:bold;font-size:13px;margin-bottom:1px}
+  #__kw_links{display:inline-flex;gap:2px;align-items:center}
+  #__kw_titlerow{display:flex;align-items:center;gap:8px}
   #__kw_panel.off #__kw_dot{background:#ff4d4d;animation:none}
   #__kw_sub{font-size:11px;color:#aaa;margin-top:2px}
   .__kw_b{border:0;border-radius:8px;padding:5px 9px;font:bold 12px sans-serif;cursor:pointer}
@@ -570,14 +572,31 @@
     try { const m = location.pathname.match(/\/live\/([0-9a-f]{32})/i); return m ? m[1].toLowerCase() : ''; } catch (e) { return ''; }
   };
   const isLivePage = () => !!pageChannelId();
-  // 패널에 굵게 보여줄 채널명. 탭 제목 "채널명 - ... - CHZZK"의 첫 토막을 쓴다.
-  const pageChannelName = () => {
+  // 페이지에 보이는 채널명. 채널 프로필 링크(`/채널ID`) 텍스트 우선, 없으면 탭 제목 첫 토막.
+  const cleanChName = (t) => (t || '').replace(/\s*채널로 이동\s*/g, '').replace(/\s*LIVE\s*$/, '').trim();
+  const getPageChannelName = () => {
+    const cid = pageChannelId();
+    try {
+      if (cid) {
+        const a = document.querySelector('a[href="/' + cid + '"]') || document.querySelector('a[href$="/' + cid + '"]');
+        if (a) {
+          const n = cleanChName(a.textContent);
+          if (n) return n;
+        }
+      }
+    } catch (e) {}
     try {
       const t = (document.title || '').split(' - ')[0].trim();
       if (t && t !== '치지직' && !/CHZZK/i.test(t)) return t;
     } catch (e) {}
-    const cid = pageChannelId();
-    return cid ? cid.slice(0, 8) + '…' : '';
+    return '';
+  };
+  // 등록명-페이지명 비교 (공백 제거/소문자 정규화 양쪽 시도)
+  const sameName = (a, b) => {
+    if (!a || !b) return false;
+    if (norm(a) === norm(b)) return true;
+    const la = normLoose(a), lb = normLoose(b);
+    return !!la && la === lb;
   };
 
   // 우리 자체 UI(패널/프롬프트/토스트/선택버튼)에서 발생한 변화는 절대 관리하지 않아야 무한루프를 막을 수 있음
@@ -733,6 +752,40 @@
     showToast('인가되지 않은 채널입니다');
     dlog('allow-denied-notice', cid);
   }
+  // 항목 정규화: "id" 문자열 또는 {id, name, discord, home} 객체
+  const normEntry = (e) => {
+    if (typeof e === 'string') return { id: e, name: '', discord: '', home: '' };
+    if (e && typeof e === 'object') {
+      return {
+        id: String(e.id || ''),
+        name: String(e.name || ''),
+        discord: String(e.discord || ''),
+        home: String(e.home || ''),
+      };
+    }
+    return null;
+  };
+  let allowEntry = null; // 현재 채널의 인가 항목 (표시명·링크 버튼용)
+  // id 일치 + (등록명이 있으면) 페이지 표시명 일치해야 통과.
+  // 페이지명을 못 읽으면 id만으로 허용 (DOM 변경 대비, 로그 남김).
+  function judgeAllow(entries, cid, silent, tag) {
+    const entry = entries.find((e) => e.id && e.id.toLowerCase() === cid) || null;
+    allowEntry = entry;
+    let ok = !!entry;
+    let why = ok ? 'id' : 'no-id';
+    if (ok && entry.name) {
+      const pn = getPageChannelName();
+      if (pn) {
+        ok = sameName(entry.name, pn);
+        why = ok ? 'name' : 'mismatch';
+      } else {
+        why = 'noname-page';
+      }
+    }
+    if (!silent) dlog(tag + ':' + why, cid);
+    if (!ok) noteDenied(cid);
+    return ok;
+  }
   function refreshAllowlist(silent, done) {
     const cid = pageChannelId();
     const finish = (st) => { allowState = st; if (done) { try { done(); } catch (e) {} } };
@@ -740,21 +793,17 @@
       fetch(ALLOW_URL + '?t=' + Math.floor(Date.now() / 3600000), { cache: 'no-store' })
         .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
         .then((j) => {
-          const list = j && Array.isArray(j.channels) ? j.channels.map(String) : null;
-          if (!list) throw new Error('format');
-          try { localStorage.setItem(LS_ALLOW, JSON.stringify({ channels: list, at: Date.now() })); } catch (e) {}
-          const ok = list.map((s) => s.toLowerCase()).includes(cid);
-          if (!silent) dlog(ok ? 'allow-ok' : 'allow-denied', cid);
-          if (!ok) noteDenied(cid);
-          finish(ok ? 'ok' : 'denied');
+          const raw = j && Array.isArray(j.channels) ? j.channels : null;
+          if (!raw) throw new Error('format');
+          const entries = raw.map(normEntry).filter(Boolean);
+          try { localStorage.setItem(LS_ALLOW, JSON.stringify({ channels: entries, at: Date.now() })); } catch (e) {}
+          finish(judgeAllow(entries, cid, silent, 'allow') ? 'ok' : 'denied');
         })
         .catch(() => {
           const c = readAllowCache();
           if (c) {
-            const ok = c.channels.map(String).map((s) => s.toLowerCase()).includes(cid);
-            if (!silent) dlog(ok ? 'allow-cache-ok' : 'allow-cache-denied', cid);
-            if (!ok) noteDenied(cid);
-            finish(ok ? 'ok' : 'denied');
+            const entries = (c.channels || []).map(normEntry).filter(Boolean);
+            finish(judgeAllow(entries, cid, silent, 'allow-cache') ? 'ok' : 'denied');
           } else {
             if (!silent) { dlog('allow-offline-open', cid); showToast('인가 목록 확인 불가(오프라인), 이번만 허용'); }
             finish('ok');
@@ -979,15 +1028,36 @@
     trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l.9 12.1a1 1 0 0 0 1 .9h7.2a1 1 0 0 0 1-.9L17.5 7M10 11v6M14 11v6"/></svg>',
     refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 3v5h-5"/></svg>',
     down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>',
+    house: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7M6 9.5V20h12V9.5"/></svg>',
+    chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4V5z"/></svg>',
   };
+  // 채널 표시명: 인가 목록 등록명 우선, 없으면 페이지에서 읽고, 그것도 없으면 ID 앞자리
+  function chDisplayName() {
+    try {
+      if (allowEntry && allowEntry.name) return allowEntry.name;
+    } catch (e) {}
+    const n = getPageChannelName();
+    if (n) return n;
+    const cid = pageChannelId();
+    return cid ? cid.slice(0, 8) + '…' : '';
+  }
+  const okLinkUrl = (u) => /^(https?:|discord:)/i.test(u || '');
+  function chLinksHtml() {
+    let e = null;
+    try { e = allowEntry; } catch (err) {}
+    if (!e) return '';
+    let h = '';
+    if (e.home && okLinkUrl(e.home)) h += `<button class="__kw_ic" data-url="${escapeHtml(e.home)}" title="홈">${IC.house}</button>`;
+    if (e.discord && okLinkUrl(e.discord)) h += `<button class="__kw_ic" data-url="${escapeHtml(e.discord)}" title="디스코드">${IC.chat}</button>`;
+    return h;
+  }
+
   function renderPanel() {
     if (!panel) return;
     panel.className = 'show' + (running ? '' : ' off');
 
     panel.innerHTML = `
-      <div id="__kw_row"><div style="flex:1"><div id="__kw_ch">${escapeHtml(pageChannelName())}</div><div id="__kw_title"><span id="__kw_dot"></span><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b> · 단어 ${keywords.length}개</div></div>
-        <button class="__kw_ic" id="__kw_gear" title="설정" style="color:#ccc">${IC.sliders}</button>
-        <button class="__kw_ic" id="__kw_btn" title="${running ? '정지' : '시작'}" style="color:${running ? '#ff6b6b' : '#00ffa3'}">${running ? IC.pause : IC.play}</button></div>
+      <div id="__kw_row"><div style="flex:1;min-width:0"><div id="__kw_ch"><b>${escapeHtml(chDisplayName())}</b><span id="__kw_links">${chLinksHtml()}<button class="__kw_ic" id="__kw_gear" title="설정" style="color:#ccc">${IC.sliders}</button></span></div><div id="__kw_titlerow"><div id="__kw_title" style="flex:1;min-width:0"><span id="__kw_dot"></span><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b> · 단어 ${keywords.length}개</div><button class="__kw_ic" id="__kw_btn" title="${running ? '정지' : '시작'}" style="color:${running ? '#ff6b6b' : '#00ffa3'}">${running ? IC.pause : IC.play}</button></div></div></div>
       <div id="__kw_warn" style="display:${limitedMode ? 'block' : 'none'};font-size:11px;color:#ffd400;margin-top:4px">⚠ 사용자 스크립트 허용 꺼짐: WS 감시 불가, DOM 감시만 동작. chrome://extensions → Tampermonkey 상세에서 허용 후 새로고침</div>`;
 
     panel.querySelector('#__kw_btn').onclick = () => (running ? stop() : start());
@@ -995,6 +1065,13 @@
       setOpen = !setOpen;
       try { localStorage.setItem(LS_SET, setOpen ? '1' : '0'); } catch (e) {}
       renderSettings();
+    };
+    const chRow = panel.querySelector('#__kw_ch');
+    if (chRow) chRow.onclick = (ev) => {
+      const b = ev.target && ev.target.closest ? ev.target.closest('[data-url]') : null;
+      if (!b) return;
+      const u = b.getAttribute ? b.getAttribute('data-url') : (b.dataset && b.dataset.url);
+      if (u && okLinkUrl(u)) { try { window.open(u, '_blank', 'noopener'); } catch (e) {} }
     };
     updateWarn();
   }
@@ -1262,6 +1339,7 @@
         if (cid !== lastCid) { // 다른 채널로 이동: 감시 중단 + 인가 재확인
           lastCid = cid;
           allowState = 'pending';
+          allowEntry = null;
           try { stop(); } catch (e) {}
         }
         buildUi();

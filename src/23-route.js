@@ -40,6 +40,7 @@
         if (cid !== lastCid) { // 다른 채널로 이동: 감시 중단 + 인가 재확인
           lastCid = cid;
           allowState = 'pending';
+          allowEntry = null;
           try { stop(); } catch (e) {}
         }
         buildUi();

@@ -137,15 +137,36 @@
     trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l.9 12.1a1 1 0 0 0 1 .9h7.2a1 1 0 0 0 1-.9L17.5 7M10 11v6M14 11v6"/></svg>',
     refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 3v5h-5"/></svg>',
     down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>',
+    house: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7M6 9.5V20h12V9.5"/></svg>',
+    chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4V5z"/></svg>',
   };
+  // 채널 표시명: 인가 목록 등록명 우선, 없으면 페이지에서 읽고, 그것도 없으면 ID 앞자리
+  function chDisplayName() {
+    try {
+      if (allowEntry && allowEntry.name) return allowEntry.name;
+    } catch (e) {}
+    const n = getPageChannelName();
+    if (n) return n;
+    const cid = pageChannelId();
+    return cid ? cid.slice(0, 8) + '…' : '';
+  }
+  const okLinkUrl = (u) => /^(https?:|discord:)/i.test(u || '');
+  function chLinksHtml() {
+    let e = null;
+    try { e = allowEntry; } catch (err) {}
+    if (!e) return '';
+    let h = '';
+    if (e.home && okLinkUrl(e.home)) h += `<button class="__kw_ic" data-url="${escapeHtml(e.home)}" title="홈">${IC.house}</button>`;
+    if (e.discord && okLinkUrl(e.discord)) h += `<button class="__kw_ic" data-url="${escapeHtml(e.discord)}" title="디스코드">${IC.chat}</button>`;
+    return h;
+  }
+
   function renderPanel() {
     if (!panel) return;
     panel.className = 'show' + (running ? '' : ' off');
 
     panel.innerHTML = `
-      <div id="__kw_row"><div style="flex:1"><div id="__kw_ch">${escapeHtml(pageChannelName())}</div><div id="__kw_title"><span id="__kw_dot"></span><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b> · 단어 ${keywords.length}개</div></div>
-        <button class="__kw_ic" id="__kw_gear" title="설정" style="color:#ccc">${IC.sliders}</button>
-        <button class="__kw_ic" id="__kw_btn" title="${running ? '정지' : '시작'}" style="color:${running ? '#ff6b6b' : '#00ffa3'}">${running ? IC.pause : IC.play}</button></div>
+      <div id="__kw_row"><div style="flex:1;min-width:0"><div id="__kw_ch"><b>${escapeHtml(chDisplayName())}</b><span id="__kw_links">${chLinksHtml()}<button class="__kw_ic" id="__kw_gear" title="설정" style="color:#ccc">${IC.sliders}</button></span></div><div id="__kw_titlerow"><div id="__kw_title" style="flex:1;min-width:0"><span id="__kw_dot"></span><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b> · 단어 ${keywords.length}개</div><button class="__kw_ic" id="__kw_btn" title="${running ? '정지' : '시작'}" style="color:${running ? '#ff6b6b' : '#00ffa3'}">${running ? IC.pause : IC.play}</button></div></div></div>
       <div id="__kw_warn" style="display:${limitedMode ? 'block' : 'none'};font-size:11px;color:#ffd400;margin-top:4px">⚠ 사용자 스크립트 허용 꺼짐: WS 감시 불가, DOM 감시만 동작. chrome://extensions → Tampermonkey 상세에서 허용 후 새로고침</div>`;
 
     panel.querySelector('#__kw_btn').onclick = () => (running ? stop() : start());
@@ -153,6 +174,13 @@
       setOpen = !setOpen;
       try { localStorage.setItem(LS_SET, setOpen ? '1' : '0'); } catch (e) {}
       renderSettings();
+    };
+    const chRow = panel.querySelector('#__kw_ch');
+    if (chRow) chRow.onclick = (ev) => {
+      const b = ev.target && ev.target.closest ? ev.target.closest('[data-url]') : null;
+      if (!b) return;
+      const u = b.getAttribute ? b.getAttribute('data-url') : (b.dataset && b.dataset.url);
+      if (u && okLinkUrl(u)) { try { window.open(u, '_blank', 'noopener'); } catch (e) {} }
     };
     updateWarn();
   }

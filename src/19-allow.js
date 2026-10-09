@@ -16,6 +16,40 @@
     showToast('인가되지 않은 채널입니다');
     dlog('allow-denied-notice', cid);
   }
+  // 항목 정규화: "id" 문자열 또는 {id, name, discord, home} 객체
+  const normEntry = (e) => {
+    if (typeof e === 'string') return { id: e, name: '', discord: '', home: '' };
+    if (e && typeof e === 'object') {
+      return {
+        id: String(e.id || ''),
+        name: String(e.name || ''),
+        discord: String(e.discord || ''),
+        home: String(e.home || ''),
+      };
+    }
+    return null;
+  };
+  let allowEntry = null; // 현재 채널의 인가 항목 (표시명·링크 버튼용)
+  // id 일치 + (등록명이 있으면) 페이지 표시명 일치해야 통과.
+  // 페이지명을 못 읽으면 id만으로 허용 (DOM 변경 대비, 로그 남김).
+  function judgeAllow(entries, cid, silent, tag) {
+    const entry = entries.find((e) => e.id && e.id.toLowerCase() === cid) || null;
+    allowEntry = entry;
+    let ok = !!entry;
+    let why = ok ? 'id' : 'no-id';
+    if (ok && entry.name) {
+      const pn = getPageChannelName();
+      if (pn) {
+        ok = sameName(entry.name, pn);
+        why = ok ? 'name' : 'mismatch';
+      } else {
+        why = 'noname-page';
+      }
+    }
+    if (!silent) dlog(tag + ':' + why, cid);
+    if (!ok) noteDenied(cid);
+    return ok;
+  }
   function refreshAllowlist(silent, done) {
     const cid = pageChannelId();
     const finish = (st) => { allowState = st; if (done) { try { done(); } catch (e) {} } };
@@ -23,21 +57,17 @@
       fetch(ALLOW_URL + '?t=' + Math.floor(Date.now() / 3600000), { cache: 'no-store' })
         .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
         .then((j) => {
-          const list = j && Array.isArray(j.channels) ? j.channels.map(String) : null;
-          if (!list) throw new Error('format');
-          try { localStorage.setItem(LS_ALLOW, JSON.stringify({ channels: list, at: Date.now() })); } catch (e) {}
-          const ok = list.map((s) => s.toLowerCase()).includes(cid);
-          if (!silent) dlog(ok ? 'allow-ok' : 'allow-denied', cid);
-          if (!ok) noteDenied(cid);
-          finish(ok ? 'ok' : 'denied');
+          const raw = j && Array.isArray(j.channels) ? j.channels : null;
+          if (!raw) throw new Error('format');
+          const entries = raw.map(normEntry).filter(Boolean);
+          try { localStorage.setItem(LS_ALLOW, JSON.stringify({ channels: entries, at: Date.now() })); } catch (e) {}
+          finish(judgeAllow(entries, cid, silent, 'allow') ? 'ok' : 'denied');
         })
         .catch(() => {
           const c = readAllowCache();
           if (c) {
-            const ok = c.channels.map(String).map((s) => s.toLowerCase()).includes(cid);
-            if (!silent) dlog(ok ? 'allow-cache-ok' : 'allow-cache-denied', cid);
-            if (!ok) noteDenied(cid);
-            finish(ok ? 'ok' : 'denied');
+            const entries = (c.channels || []).map(normEntry).filter(Boolean);
+            finish(judgeAllow(entries, cid, silent, 'allow-cache') ? 'ok' : 'denied');
           } else {
             if (!silent) { dlog('allow-offline-open', cid); showToast('인가 목록 확인 불가(오프라인), 이번만 허용'); }
             finish('ok');

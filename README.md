@@ -188,9 +188,11 @@ https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/ch
 
 1. GitHub 리포지토리 → Issues → New issue.
 2. 제목은 `[채널 추가 요청] 채널명` 형식으로 쓴다.
-3. 본문에 아래 3개를 적는다.
+3. 본문에 아래를 적는다.
    * 방송 URL (예: `https://chzzk.naver.com/live/xxxxxxxx`)
    * 채널 ID (URL의 `/live/` 뒤 32자리. 모르면 URL만 적어도 됨)
+   * 채널명 (방송 화면에 보이는 그대로)
+   * 디스코드 초대 URL, 채널 홈 URL (버튼으로 달아줌. 없으면 생략)
    * 요청 사유 한 줄
 4. 등록되면 `allowlist.json`에 채널 ID가 추가되고, 빠르면 수 분 안에 적용된다.
    (목록은 1시간 단위로 묶어서 내려받고 방송 중에도 10분마다 재확인하므로,

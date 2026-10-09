@@ -12,7 +12,9 @@
   #__kw_panel.off{border-color:#777}
   #__kw_row{display:flex;align-items:center;gap:8px}
   #__kw_dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:#00ffa3;animation:__kwpulse 1.4s infinite;margin-right:8px;vertical-align:middle}
-  #__kw_ch{font-weight:bold;font-size:13px;margin-bottom:1px}
+  #__kw_ch{display:flex;align-items:center;justify-content:space-between;gap:6px;font-weight:bold;font-size:13px;margin-bottom:1px}
+  #__kw_links{display:inline-flex;gap:2px;align-items:center}
+  #__kw_titlerow{display:flex;align-items:center;gap:8px}
   #__kw_panel.off #__kw_dot{background:#ff4d4d;animation:none}
   #__kw_sub{font-size:11px;color:#aaa;margin-top:2px}
   .__kw_b{border:0;border-radius:8px;padding:5px 9px;font:bold 12px sans-serif;cursor:pointer}
