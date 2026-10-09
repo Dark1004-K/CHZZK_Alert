@@ -66,6 +66,7 @@ function getTransparency() {
 }
 function applyOpacity() {
   try { if (stackEl) stackEl.style.opacity = String((100 - getTransparency()) / 100); } catch (e) {}
+  try { const ow = document.getElementById('__kw_optwin'); if (ow) ow.style.opacity = String((100 - getTransparency()) / 100); } catch (e) {}
 }
 function ensureStack() {
   if (stackEl && stackEl.isConnected) return stackEl;
@@ -404,8 +405,14 @@ function renderOptWin() {
   if (!p || !pluginHasOpts(p) || !pluginIsOn(p)) { if (old) old.remove(); optWinId = null; return; }
   const w = old || document.createElement('div');
   w.id = '__kw_optwin';
-  w.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2147483647;width:min(440px,92vw);max-height:80vh;overflow-y:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:10px 14px 14px;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.6);border:1px solid #777;scrollbar-width:thin';
-  w.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;min-height:26px;margin-bottom:8px"><b>${escapeHtml(p.name || p.id)} · 옵션</b><button class="__kw_ic" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button></div>${extOptHtml(p)}`;
+  // 설정 창 오른쪽에 붙여서 연다 (설정 창이 없으면 화면 가운데)
+  let pos = 'top:50%;left:50%;transform:translate(-50%,-50%)';
+  try {
+    const r = setPanel && setPanel.isConnected && setPanel.style.display !== 'none' ? setPanel.getBoundingClientRect() : null;
+    if (r && r.width > 0 && r.right + 330 < window.innerWidth) pos = 'bottom:' + Math.max(8, Math.round(window.innerHeight - r.bottom)) + 'px;left:' + Math.round(r.right + 8) + 'px';
+  } catch (e) {}
+  w.style.cssText = 'position:fixed;' + pos + ';z-index:2147483647;width:min(320px,92vw);max-height:80vh;overflow-y:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777;scrollbar-width:thin;opacity:' + ((100 - getTransparency()) / 100);
+  w.innerHTML = `<div style="display:flex;align-items:center;min-height:26px;padding-right:26px;margin-bottom:8px"><b>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button>${extOptHtml(p)}`;
   if (!old) document.body.appendChild(w);
   w.querySelector('#__kw_optwin_x').onclick = closeOptWin;
   bindPluginOpts(w);
@@ -417,7 +424,7 @@ function extListHtml() {
   return pluginList.map((p) => {
     const blocked = !!(p.noOwner && isOwner()); // 방장은 이 확장을 켤 수 없다
     const note = blocked ? ' <span style="color:#ffd400">(방장은 사용할 수 없음)</span>' : (p.desc ? ` <span style="color:#888">${escapeHtml(p.desc)}</span>` : '');
-    const optBtn = pluginIsOn(p) && pluginHasOpts(p) ? ` <button class="__kw_b __kw_popen" data-id="${escapeHtml(p.id)}" style="background:#444;color:#fff;margin:0 0 0 6px;padding:2px 10px;font-size:11px">옵션</button>` : '';
+    const optBtn = pluginIsOn(p) && pluginHasOpts(p) ? ` <button class="__kw_ic __kw_popen" data-id="${escapeHtml(p.id)}" title="옵션" style="color:#ccc;padding:3px">${IC.sliders}</button>` : '';
     return `<div class="__kw_lbl"><label style="cursor:${blocked ? 'default' : 'pointer'}${blocked ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${note}</div>`;
   }).join('');
 }
