@@ -1,8 +1,9 @@
 // 검은사막 "시간표 > 월드 우두머리 레이드" 위키 페이지의 시간표 이미지가 바뀌었는지 확인한다.
 //   node scripts/check-boss-schedule.js
 // 시간표는 글자가 아니라 이미지로 올라와 있어서 값을 자동으로 읽을 수 없다(OCR 안 함).
-// 대신 이미지 주소와 "최근 수정 일시"가 이전과 다르면 새 이미지를 data/boss-schedule.png로 저장하고
-// data/boss-schedule-state.json을 갱신한 뒤, GitHub Actions에 changed=true를 알려 Issue를 만들게 한다.
+// 대신 이미지 주소와 "최근 수정 일시"가 이전과 다르면 data/boss-schedule-state.json을 갱신하고
+// GitHub Actions에 changed=true를 알려 Issue를 만들게 한다. 이미지는 저장소에 복사하지 않고(공식 사이트의 것이므로)
+// Issue에 공식 사이트의 이미지 주소만 적는다.
 // 시간표 값(bosses.json)은 새 이미지를 보고 사람이(또는 도우미가) 고친다.
 // 처음 실행(상태 파일 없음)이거나 변경이 없으면 changed=false.
 const fs = require('fs');
@@ -11,7 +12,6 @@ const path = require('path');
 const SOURCE = 'https://www.kr.playblackdesert.com/ko-kr/Wiki?wikiNo=167';
 const ROOT = path.join(__dirname, '..');
 const STATE = path.join(ROOT, 'data', 'boss-schedule-state.json');
-const IMAGE = path.join(ROOT, 'data', 'boss-schedule.png');
 const UA = 'Mozilla/5.0 (compatible; ChzzkAlertBossScheduleBot)';
 
 function setOutput(k, v) {
@@ -36,11 +36,8 @@ async function main() {
   const changed = !!prev && (prev.imageUrl !== imageUrl || prev.modified !== modified);
   if (prev && !changed) { console.log('변경 없음 (' + modified + ')'); setOutput('changed', 'false'); return; }
 
-  // 처음 기록하거나 바뀐 경우: 이미지를 저장하고 상태를 갱신
-  const imgRes = await fetch(imageUrl, { headers: { 'User-Agent': UA } });
-  if (!imgRes.ok) throw new Error('이미지 HTTP ' + imgRes.status);
-  fs.mkdirSync(path.dirname(IMAGE), { recursive: true });
-  fs.writeFileSync(IMAGE, Buffer.from(await imgRes.arrayBuffer()));
+  // 처음 기록하거나 바뀐 경우: 상태만 갱신 (이미지 파일은 저장하지 않음)
+  fs.mkdirSync(path.dirname(STATE), { recursive: true });
   fs.writeFileSync(STATE, JSON.stringify({ source: SOURCE, imageUrl, modified, checkedAt: Date.now() }, null, 2) + '\n');
 
   if (!prev) { console.log('상태 처음 기록 (' + modified + ')'); setOutput('changed', 'false'); return; }

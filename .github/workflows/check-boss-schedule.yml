@@ -2,7 +2,7 @@ name: check-boss-schedule
 
 # 매주 수요일 18:00(한국시간)에 검은사막 위키의 월드 우두머리 시간표 이미지가 바뀌었는지 확인한다.
 # GitHub의 예약은 UTC 기준이라 한국 18:00 = UTC 09:00. (실행이 몇 분 늦어질 수 있음)
-# 이미지가 바뀌었으면 새 이미지를 data/에 저장하고 Issue로 알린다. 시간표 값(bosses.json)은 새 이미지를 보고 고친다.
+# 이미지가 바뀌었으면 Issue로 알린다(이미지는 저장소에 복사하지 않고 공식 사이트 주소만 적는다). 시간표 값(bosses.json)은 새 이미지를 보고 고친다.
 on:
   schedule:
     - cron: '0 9 * * 3'
@@ -23,15 +23,15 @@ jobs:
       - name: Check boss schedule image
         id: chk
         run: node scripts/check-boss-schedule.js
-      - name: Commit state and image
+      - name: Commit state
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/boss-schedule-state.json data/boss-schedule.png
+          git add data/boss-schedule-state.json
           if git diff --cached --quiet; then
             echo "nothing to commit"
           else
-            git commit -m "chore: update boss schedule image/state"
+            git commit -m "chore: update boss schedule state"
             git push
           fi
       - name: Open an issue when the timetable changed
@@ -46,8 +46,7 @@ jobs:
             --body "검은사막 위키의 월드 우두머리 레이드 시간표 이미지가 바뀌었습니다.
 
           - 위키: https://www.kr.playblackdesert.com/ko-kr/Wiki?wikiNo=167
-          - 새 이미지: ${IMAGE_URL}
-          - 저장본: data/boss-schedule.png
+          - 새 이미지(공식 사이트): ${IMAGE_URL}
           - 수정 일시: ${MODIFIED}
 
           이미지를 보고 \`bosses.json\`의 시간표를 고쳐 주세요. (앱은 6시간마다 이 파일을 다시 받습니다)"

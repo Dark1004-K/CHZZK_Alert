@@ -417,5 +417,5 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
   * **난독화**: `javascript-obfuscator`(개발용 의존성). 먼저 `npm install`이 필요합니다. 모듈들이 최상위 함수·변수 이름을 서로 공유하므로 최상위 이름은 바꾸지 않고(`renameGlobals: false`),
     문자열(RC4)·지역 이름·제어 흐름·죽은 코드 삽입 등을 적용합니다. 결과는 원본보다 훨씬 커집니다(약 100KB → 1.2MB). 디버깅용으로 `--no-obfuscate`를 줄 수 있지만 그 결과는 배포하지 않습니다.
 * **쿠폰 크롤러**: `node scripts/crawl-coupons.js`가 검은사막 쿠폰 글을 읽어 `coupons.json`을 만듭니다. `.github/workflows/crawl-coupons.yml`이 1시간마다 실행해서 바뀐 경우에만 커밋합니다(수동 실행도 가능). 읽기에 실패하거나 쿠폰이 하나도 없으면 기존 파일을 그대로 둡니다.
-* **시간표 변경 감지**: `node scripts/check-boss-schedule.js`가 위키 시간표 이미지의 주소와 "최근 수정 일시"를 이전 기록(`data/boss-schedule-state.json`)과 비교합니다. 바뀌었으면 새 이미지를 `data/boss-schedule.png`로 저장하고 Issue를 만듭니다. `.github/workflows/check-boss-schedule.yml`이 매주 수요일 18:00(한국시간, UTC 09:00)에 실행합니다. 시간표 값 자체는 `bosses.json`을 사람이 고칩니다(이미지를 글자로 읽는 OCR은 쓰지 않음).
+* **시간표 변경 감지**: `node scripts/check-boss-schedule.js`가 위키 시간표 이미지의 주소와 "최근 수정 일시"를 이전 기록(`data/boss-schedule-state.json`)과 비교합니다. 바뀌었으면 공식 사이트의 새 이미지 주소를 적은 Issue를 만듭니다(이미지는 저장소에 복사하지 않습니다). `.github/workflows/check-boss-schedule.yml`이 매주 수요일 18:00(한국시간, UTC 09:00)에 실행합니다. 시간표 값 자체는 `bosses.json`을 사람이 고칩니다(이미지를 글자로 읽는 OCR은 쓰지 않음).
 * 콘솔 로그(`[KW-BETA]`) 등 진단 정보는 베타에만 있습니다.
