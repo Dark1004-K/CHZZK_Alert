@@ -339,6 +339,10 @@ function renderSettings() {
           <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span><button class="__kw_ic" id="__kw_update_check" title="업데이트 확인">${IC.refresh}</button><button class="__kw_upbtn" id="__kw_update_go" disabled>업데이트</button></div>
           <div id="__kw_update_msg" class="__kw_lbl"></div>
           <div class="__kw_lbl"><a href="https://github.com/Dark1004-K/Chzzk_Alert" target="_blank" rel="noopener" style="color:#00ffa3">GitHub 리포지토리</a> · <a href="https://github.com/Dark1004-K/Chzzk_Alert/blob/main/UPDATE.md" target="_blank" rel="noopener" style="color:#00ffa3">업데이트 내용</a></div>
+          <!-- [BETA-TEST-ONLY] 정식 릴리즈에서는 이 블록과 아래 핸들러를 제거 -->
+          <div class="__kw_lbl" style="margin-top:10px">베타 테스트 (정식 제외)</div>
+          <div><button class="__kw_b" id="__kw_t_drops" style="background:#ff9f1a;color:#000">드롭스 알림 테스트</button> <button class="__kw_b" id="__kw_t_boss" style="background:#ff9f1a;color:#000">보스 알람 테스트</button></div>
+          <div id="__kw_t_msg" class="__kw_lbl"></div>
         </div>
       </div>
     </div>`;
@@ -420,6 +424,15 @@ function renderSettings() {
     try { localStorage.setItem(LS_REDUP, String(v)); } catch (err) {}
     e.target.value = v;
     dlog('redup', v);
+  };
+  // [BETA-TEST-ONLY] 테스트 버튼 (정식 릴리즈에서 제거)
+  const tMsg = setPanel.querySelector('#__kw_t_msg');
+  const tSay = (t) => { if (tMsg) tMsg.textContent = t; };
+  const tDrops = setPanel.querySelector('#__kw_t_drops');
+  if (tDrops) tDrops.onclick = () => tSay(dropsSimNext());
+  const tBoss = setPanel.querySelector('#__kw_t_boss');
+  if (tBoss) tBoss.onclick = () => {
+    tSay(typeof window.__kwBdoTest === 'function' ? window.__kwBdoTest(30) : '검은사막 확장이 켜져 있어야 합니다 (설정 > 확장)');
   };
   const updateCheckBtn = setPanel.querySelector('#__kw_update_check');
   if (updateCheckBtn) updateCheckBtn.onclick = () => checkUpdate();
@@ -660,6 +673,13 @@ function dropsSimMin(n) {
   renderDrops();
   dropsCheck();
   return '드롭스 시청 ' + min + '분으로 시뮬레이션 (1분 안에 서버 값으로 복귀)';
+}
+// [BETA-TEST-ONLY] 테스트 버튼용: 누를 때마다 다음 보상 시간이 찬 것으로 가정, 모두 찼으면 처음으로 되돌림
+function dropsSimNext() {
+  if (!dropsInfo) return '드롭스 정보 없음 (드롭스가 있는 방송에서 창이 보일 때 사용)';
+  const cur = dropsNextReward(dropsElapsed());
+  if (!cur) { dropsSimMin(0); return '모두 달성 상태였음 → 처음으로 되돌림 (다시 누르면 첫 보상부터 시험)'; }
+  return dropsSimMin(cur.conditionForMinutes) + ' [' + cur.conditionForMinutes + '분 보상]';
 }
 function pollDrops() {
   if (!dropsOn() || !isLivePage()) { dropsInfo = null; removeDropsPanel(); return; }
