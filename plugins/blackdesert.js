@@ -79,7 +79,7 @@
     window.__kwBdoTest = (sec) => {
       const s = Math.max(5, Number(sec) || 60);
       const t = Date.now() + s * 1000;
-      tests.push({ t, hhmm: '테스트', bosses: ['가짜 보스'], test: true });
+      tests.push({ t, hhmm: '테스트', bosses: ['카란다', '우투리'], test: true });
       tick();
       return '테스트 알림: ' + s + '초 뒤 출현';
     };
