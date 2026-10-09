@@ -254,15 +254,16 @@ function renderPanel() {
 // ---------- 설정 별도 화면 (#__kw_setp, 감시 패널 아래) ----------
 // 버전 비교: 같은 계열이면 숫자/베타번호로, 정식은 같은 번호의 베타보다 항상 새로움
 function parseVer(v) {
-  const m = String(v || '').match(/(\d+)\.(\d+)(?:[-_]([A-Za-z]+)(\d*))?/);
+  const m = String(v || '').match(/(\d+)\.(\d+)(?:\.(\d+))?(?:[-_.]?([A-Za-z]+)\.?(\d*))?/);
   if (!m) return null;
-  return { major: +m[1], minor: +m[2], pre: m[3] || '', preN: m[4] === '' || m[4] == null ? 0 : +m[4] };
+  return { major: +m[1], minor: +m[2], patch: m[3] ? +m[3] : 0, pre: m[4] || '', preN: m[5] === '' || m[5] == null ? 0 : +m[5] };
 }
 function isNewer(remote, local) {
   const r = parseVer(remote), l = parseVer(local);
   if (!r || !l) return false;
   if (r.major !== l.major) return r.major > l.major;
   if (r.minor !== l.minor) return r.minor > l.minor;
+  if (r.patch !== l.patch) return r.patch > l.patch;
   const rs = r.pre === '', ls = l.pre === '';
   if (rs !== ls) return rs;
   if (r.pre !== l.pre) return false;
