@@ -699,7 +699,20 @@ function renderSettings() {
       lastSoundAt = 0; playAlertSound();
     };
     setPanel.querySelector('#__kw_sink_pick').onclick = () => { // 장치 이름을 보려면 브라우저의 선택창으로 고른다
-      if (!navigator.mediaDevices || typeof navigator.mediaDevices.selectAudioOutput !== 'function') { sinkMsg.textContent = '이 브라우저는 장치 선택창을 지원하지 않습니다'; return; }
+      if (!navigator.mediaDevices) { sinkMsg.textContent = '이 브라우저는 장치 목록을 가져올 수 없습니다 (보안 연결 필요)'; return; }
+      if (typeof navigator.mediaDevices.selectAudioOutput !== 'function') {
+        // 선택창이 없는 브라우저(대부분의 Chrome): 장치 이름은 마이크 권한을 한 번 허용해야 보인다. 마이크는 바로 끄고 소리는 듣지 않는다.
+        sinkMsg.textContent = '장치 이름을 보려면 브라우저의 마이크 허용이 한 번 필요합니다 (바로 해제하며 녹음하지 않습니다)';
+        navigator.mediaDevices.getUserMedia({ audio: true }).then((st) => {
+          try { st.getTracks().forEach((t) => t.stop()); } catch (e) {}
+          return navigator.mediaDevices.enumerateDevices();
+        }).then((l) => {
+          const outs = l.filter((d) => d.kind === 'audiooutput' && d.label);
+          fillSinks(outs);
+          sinkMsg.textContent = outs.length ? '장치를 골라 주세요. 알림음이 나갈 장치입니다. 음성 읽기(TTS)는 시스템 기본 장치로 나갑니다.' : '출력 장치를 찾지 못했습니다';
+        }).catch(() => { sinkMsg.textContent = '마이크 허용이 거부되어 장치 이름을 볼 수 없습니다'; });
+        return;
+      }
       navigator.mediaDevices.selectAudioOutput().then((d) => {
         try { localStorage.setItem(LS_SINK, d.deviceId === 'default' ? '' : d.deviceId); localStorage.setItem(LS_SINK_NAME, d.label || ''); } catch (e) {}
         fillSinks([d]); applySink(sharedCtx);
