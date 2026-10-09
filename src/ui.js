@@ -293,6 +293,42 @@ function extListHtml() {
   if (!pluginList.length) return '<div class="__kw_lbl">등록된 확장이 없습니다</div>';
   return pluginList.map((p) => `<div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" ${pluginIsOn(p) ? 'checked' : ''}> ${escapeHtml(p.name || p.id)}</label>${p.desc ? ` <span style="color:#888">${escapeHtml(p.desc)}</span>` : ''}</div>${extOptHtml(p)}`).join('');
 }
+// 업데이트 설치(Tampermonkey 설치 창) 후 새로고침 안내 팝업.
+// 설치 완료 여부는 직접 알 수 없어서, 설치 창이 닫히면 자동으로, 아니면 버튼으로 새로고침한다.
+function showReloadPopup(installWin) {
+  if (document.getElementById('__kw_upd')) return;
+  const box = document.createElement('div');
+  box.id = '__kw_upd';
+  box.style.cssText = 'position:fixed;top:28%;left:50%;transform:translateX(-50%);z-index:2147483647;background:rgba(20,20,24,.97);color:#fff;font:13px sans-serif;padding:16px 18px;border-radius:12px;border:2px solid #1f6feb;box-shadow:0 8px 28px rgba(0,0,0,.6);max-width:340px;text-align:left';
+  box.innerHTML = '<div style="font-size:14px"><b>🔄 업데이트 설치 후 새로고침</b></div>' +
+    '<div style="font-size:12px;color:#bbb;margin:8px 0 10px;line-height:1.5">새로 열린 Tampermonkey 창에서 <b>설치/업데이트</b> 버튼을 눌러 주세요.<br>설치 창이 닫히면 자동으로 새로고침하고, 아니면 아래 버튼을 누르세요.</div>' +
+    '<button class="__kw_b" id="__kw_upd_go" style="background:#1f6feb;color:#fff">새로고침</button> ' +
+    '<button class="__kw_b" id="__kw_upd_x" style="background:#444;color:#fff">나중에</button>' +
+    '<div id="__kw_upd_msg" style="font-size:12px;color:#ffd400;margin-top:8px"></div>';
+  document.body.appendChild(box);
+  let timer = null;
+  const reload = () => { try { location.reload(); } catch (e) {} };
+  const close = () => { if (timer) { clearInterval(timer); timer = null; } try { box.remove(); } catch (e) {} };
+  box.querySelector('#__kw_upd_go').onclick = reload;
+  box.querySelector('#__kw_upd_x').onclick = close;
+  if (!installWin) return; // 팝업이 막혀 창 상태를 볼 수 없으면 버튼으로만
+  timer = setInterval(() => {
+    let closed = false;
+    try { closed = !!installWin.closed; } catch (e) {}
+    if (!closed) return;
+    clearInterval(timer);
+    timer = null;
+    const msg = box.querySelector('#__kw_upd_msg');
+    let n = 3;
+    const tick = () => {
+      if (!box.isConnected) return;
+      if (msg) msg.textContent = '설치 창이 닫혔습니다. ' + n + '초 뒤 새로고침합니다...';
+      if (n-- <= 0) { reload(); return; }
+      setTimeout(tick, 1000);
+    };
+    tick();
+  }, 1000);
+}
 function renderSettings() {
   if (!setPanel) return;
   setPanel.innerHTML = `
@@ -490,7 +526,11 @@ function renderSettings() {
   const updateCheckBtn = setPanel.querySelector('#__kw_update_check');
   if (updateCheckBtn) updateCheckBtn.onclick = () => checkUpdate();
   const updateGoBtn = setPanel.querySelector('#__kw_update_go');
-  if (updateGoBtn) updateGoBtn.onclick = () => { try { window.open(UPDATE_URL, '_blank'); } catch (e) {} };
+  if (updateGoBtn) updateGoBtn.onclick = () => {
+    let w = null;
+    try { w = window.open(UPDATE_URL, '_blank'); } catch (e) {}
+    showReloadPopup(w);
+  };
   applySetVisibility();
 }
 function applySetVisibility() {
