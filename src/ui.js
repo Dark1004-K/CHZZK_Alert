@@ -371,10 +371,13 @@ function showReloadPopup(installWin) {
     clearInterval(timer);
     timer = null;
     const msg = box.querySelector('#__kw_upd_msg');
-    let n = 7;
+    let n = 17;
+    box.classList.add('blink'); // 카운트다운 동안 깜빡임
     const tick = () => {
       if (!box.isConnected) return;
       if (msg) msg.textContent = '설치 창이 닫혔습니다. ' + n + '초 뒤 새로고침합니다...';
+      // 시작할 때와 마지막 3초에 알림음 (알람 끄기 상태면 소리 생략)
+      if ((n === 17 || (n <= 3 && n > 0)) && !muted()) { lastSoundAt = 0; playAlertSound(); }
       if (n-- <= 0) { reload(); return; }
       setTimeout(tick, 1000);
     };
