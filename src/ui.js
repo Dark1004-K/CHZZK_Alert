@@ -599,6 +599,7 @@ function renderSettings() {
 function applySetVisibility() {
   if (!setPanel) return;
   setPanel.style.display = (setOpen && panel && panel.classList.contains('show')) ? 'block' : 'none';
+  try { const tb = document.getElementById('__kw_box'); if (tb) placeToastBox(tb); } catch (e) {} // 열려 있는 알람 토스트 위치 갱신
 }
 
 // start()/stop()이나 단어 추가/삭제처럼 구조가 바뀌는 경우만 renderPanel()을 쓰고,

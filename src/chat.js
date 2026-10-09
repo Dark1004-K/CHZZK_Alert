@@ -109,6 +109,9 @@ function unlockAudio() {
 function toastTarget() {
   try { if (document.fullscreenElement) return document.fullscreenElement; } catch (e) {}
   try {
+    // 평소: 녹색 창 오른쪽(설정 창이 열리는 자리)에 길게 붙인다. 없으면 예전처럼 스택 맨 위.
+    const m = document.getElementById('__kw_midrow');
+    if (m) return m;
     const s = document.getElementById('__kw_stack');
     if (s) return s;
   } catch (e) {}
@@ -124,6 +127,17 @@ function placeToastBox(box) {
       else target.appendChild(box);
     }
     if (box.classList) box.classList.toggle('fs', !!fsEl);
+    // 녹색 창 옆에 붙일 때: 설정 창이 열려 있으면 그 바로 위로, 화면 오른쪽을 넘지 않게 폭 제한
+    if (target.id === '__kw_midrow' && !fsEl) {
+      const sp = document.getElementById('__kw_setp');
+      const open = !!(sp && sp.style.display !== 'none' && sp.offsetHeight > 0);
+      box.style.bottom = open ? (sp.offsetHeight + 8) + 'px' : '0';
+      const r = target.getBoundingClientRect();
+      box.style.maxWidth = Math.max(220, window.innerWidth - r.right - 8 - 14) + 'px';
+    } else {
+      box.style.bottom = '';
+      box.style.maxWidth = '';
+    }
   } catch (e) {}
 }
 let fsListenerAdded = false;
