@@ -351,15 +351,38 @@ function checkUpdate() {
   }
 }
 // 플러그인 옵션 입력칸 (type: bool | number | multi)
+function bindPluginOpts(root) {
+  root.querySelectorAll('.__kw_popt').forEach((c) => {
+    c.onchange = () => {
+      const def = pluginOptDef(c.dataset.pid, c.dataset.key) || {};
+      let v;
+      if (c.type === 'checkbox') v = c.checked;
+      else {
+        v = parseFloat(c.value);
+        if (!isFinite(v)) v = def.default;
+        if (isFinite(def.min)) v = Math.max(def.min, v);
+        if (isFinite(def.max)) v = Math.min(def.max, v);
+        c.value = v;
+      }
+      pluginOptSet(c.dataset.pid, c.dataset.key, v);
+    };
+  });
+  root.querySelectorAll('.__kw_popt_m').forEach((c) => {
+    c.onchange = () => {
+      const all = [...root.querySelectorAll('.__kw_popt_m')].filter((x) => x.dataset.pid === c.dataset.pid && x.dataset.key === c.dataset.key);
+      pluginOptSet(c.dataset.pid, c.dataset.key, all.filter((x) => x.checked).map((x) => x.dataset.val));
+    };
+  });
+}
+const pluginHasOpts = (p) => Array.isArray(p.options) && p.options.length > 0;
 function extOptHtml(p) {
-  if (!pluginIsOn(p)) return ''; // 켜져 있을 때만 옵션을 보여준다
-  if (!Array.isArray(p.options) || !p.options.length) return '';
+  if (!pluginHasOpts(p)) return '';
   const rows = p.options.map((o) => {
     const v = pluginOptGet(p.id, o.key);
     const at = `data-pid="${escapeHtml(p.id)}" data-key="${escapeHtml(o.key)}"`;
     const lb = escapeHtml(o.label || o.key);
     if (o.type === 'bool') return `<div><label style="cursor:pointer"><input type="checkbox" class="__kw_popt" ${at} ${v ? 'checked' : ''}> ${lb}</label></div>`;
-    if (o.type === 'number') return `<div>${lb} <input class="__kw_in __kw_popt" type="number" ${at} min="${Number(o.min) || 0}" max="${Number(o.max) || 999}" step="1" style="width:60px" value="${escapeHtml(String(v))}"></div>`;
+    if (o.type === 'number') return `<div>${lb} <input class="__kw_in __kw_popt" type="number" ${at} min="${Number(o.min) || 0}" max="${Number(o.max) || 999}" step="1" style="width:46px;text-align:center;padding:4px 2px" value="${escapeHtml(String(v))}">${o.unit ? ' ' + escapeHtml(o.unit) : ''}</div>`;
     if (o.type === 'multi') {
       const sel = Array.isArray(v) ? v : [];
       const box = (c) => `<label style="cursor:pointer;white-space:nowrap"><input type="checkbox" class="__kw_popt_m" ${at} data-val="${escapeHtml(c)}" ${sel.includes(c) ? 'checked' : ''}> ${escapeHtml(c)}</label>`;
@@ -370,7 +393,22 @@ function extOptHtml(p) {
     }
     return '';
   }).join('');
-  return `<div style="margin:0 0 6px 18px;font-size:12px;color:#ccc;display:flex;flex-direction:column;gap:4px">${rows}</div>`;
+  return `<div style="font-size:12px;color:#ddd;display:flex;flex-direction:column;gap:8px">${rows}</div>`;
+}
+// 확장 옵션 창: 설정 > 확장의 [옵션] 버튼으로 여는 별도 창 (옵션이 있는 확장만)
+let optWinId = null;
+function closeOptWin() { optWinId = null; const w = document.getElementById('__kw_optwin'); if (w) w.remove(); }
+function renderOptWin() {
+  const old = document.getElementById('__kw_optwin');
+  const p = optWinId && (pluginList || []).find((x) => x.id === optWinId);
+  if (!p || !pluginHasOpts(p) || !pluginIsOn(p)) { if (old) old.remove(); optWinId = null; return; }
+  const w = old || document.createElement('div');
+  w.id = '__kw_optwin';
+  w.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2147483647;width:min(440px,92vw);max-height:80vh;overflow-y:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:10px 14px 14px;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.6);border:1px solid #777;scrollbar-width:thin';
+  w.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;min-height:26px;margin-bottom:8px"><b>${escapeHtml(p.name || p.id)} · 옵션</b><button class="__kw_ic" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button></div>${extOptHtml(p)}`;
+  if (!old) document.body.appendChild(w);
+  w.querySelector('#__kw_optwin_x').onclick = closeOptWin;
+  bindPluginOpts(w);
 }
 function extListHtml() {
   if (limitedMode) return '<div class="__kw_lbl" style="color:#ffd400">사용자 스크립트 허용이 꺼져 있어 확장을 쓸 수 없습니다</div>';
@@ -379,7 +417,8 @@ function extListHtml() {
   return pluginList.map((p) => {
     const blocked = !!(p.noOwner && isOwner()); // 방장은 이 확장을 켤 수 없다
     const note = blocked ? ' <span style="color:#ffd400">(방장은 사용할 수 없음)</span>' : (p.desc ? ` <span style="color:#888">${escapeHtml(p.desc)}</span>` : '');
-    return `<div class="__kw_lbl"><label style="cursor:${blocked ? 'default' : 'pointer'}${blocked ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${note}</div>${extOptHtml(p)}`;
+    const optBtn = pluginIsOn(p) && pluginHasOpts(p) ? ` <button class="__kw_b __kw_popen" data-id="${escapeHtml(p.id)}" style="background:#444;color:#fff;margin:0 0 0 6px;padding:2px 10px;font-size:11px">옵션</button>` : '';
+    return `<div class="__kw_lbl"><label style="cursor:${blocked ? 'default' : 'pointer'}${blocked ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${note}</div>`;
   }).join('');
 }
 // 업데이트 설치(Tampermonkey 설치 창) 후 새로고침 안내 팝업.
@@ -556,27 +595,9 @@ function renderSettings() {
       if (p) { setPluginOn(p, c.checked); renderSettings(); } // 옵션 보임/숨김을 다시 그림
     };
   });
-  setPanel.querySelectorAll('.__kw_popt').forEach((c) => {
-    c.onchange = () => {
-      const def = pluginOptDef(c.dataset.pid, c.dataset.key) || {};
-      let v;
-      if (c.type === 'checkbox') v = c.checked;
-      else {
-        v = parseFloat(c.value);
-        if (!isFinite(v)) v = def.default;
-        if (isFinite(def.min)) v = Math.max(def.min, v);
-        if (isFinite(def.max)) v = Math.min(def.max, v);
-        c.value = v;
-      }
-      pluginOptSet(c.dataset.pid, c.dataset.key, v);
-    };
-  });
-  setPanel.querySelectorAll('.__kw_popt_m').forEach((c) => {
-    c.onchange = () => {
-      const all = [...setPanel.querySelectorAll('.__kw_popt_m')].filter((x) => x.dataset.pid === c.dataset.pid && x.dataset.key === c.dataset.key);
-      pluginOptSet(c.dataset.pid, c.dataset.key, all.filter((x) => x.checked).map((x) => x.dataset.val));
-    };
-  });
+  setPanel.querySelectorAll('.__kw_popen').forEach((b) => { b.onclick = () => { optWinId = b.dataset.id; renderOptWin(); }; });
+  bindPluginOpts(setPanel);
+  renderOptWin(); // 열려 있으면 최신 값으로 다시 그림
   const opInput = setPanel.querySelector('#__kw_op');
   if (opInput) opInput.oninput = () => {
     const v = Math.max(0, Math.min(90, parseInt(opInput.value, 10) || 0)); // 최대 90%
