@@ -458,7 +458,7 @@ function renderSettings() {
           <div id="__kw_redup_grp" style="padding-left:20px;opacity:${dedupOn() ? 1 : 0.45}">
             <div class="__kw_lbl" style="margin-top:2px">같은 호출 다시 울리기까지 (0이면 항상 울림)</div>
             <div style="display:flex;align-items:center;gap:6px">
-              <input class="__kw_in" id="__kw_redup" type="number" min="0" max="7200" step="1" style="width:80px;${redupInf() ? 'opacity:.45' : ''}" value="${redupSec()}" ${dedupOn() && !redupInf() ? '' : 'disabled'}>
+              <input class="__kw_in" id="__kw_redup" type="number" min="0" max="999" maxlength="3" oninput="if(this.value.length>3)this.value=this.value.slice(0,3)" step="1" style="width:52px;${redupInf() ? 'opacity:.45' : ''}" value="${redupSec()}" ${dedupOn() && !redupInf() ? '' : 'disabled'}>
               <span>초</span>
               <label style="cursor:pointer;display:flex;align-items:center;gap:4px;margin-left:6px" title="켜면 시간이 아무리 지나도 같은 내용(같은 단어)은 다시 울리지 않습니다"><input type="checkbox" id="__kw_redup_inf" style="margin:0" ${redupInf() ? 'checked' : ''} ${dedupOn() ? '' : 'disabled'}> 무제한</label>
             </div>
@@ -639,7 +639,7 @@ function renderSettings() {
   setPanel.querySelector('#__kw_redup').onchange = (e) => {
     let v = parseFloat(e.target.value);
     if (!isFinite(v) || v < 0) v = 0;
-    if (v > 7200) v = 7200;
+    if (v > 999) v = 999;
     try { localStorage.setItem(LS_REDUP, String(v)); } catch (err) {}
     e.target.value = v;
     dlog('redup', v);
