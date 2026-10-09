@@ -425,9 +425,10 @@ function renderSettings() {
         <div id="__kw_set_about" style="display:${setTab === 'about' ? 'block' : 'none'}">
           <div class="__kw_lbl">프로그램</div>
           <div><b>CHZZK Alert</b></div>
-          <!-- [BETA-TEST-ONLY] 정식 릴리즈에서는 이 블록과 아래 핸들러를 제거 -->
+          <!-- [BETA-TEST-ONLY:start] -->
           <div style="margin-top:4px"><button class="__kw_b" id="__kw_t_drops" style="background:#ff9f1a;color:#000">드롭스 알림 테스트</button> <button class="__kw_b" id="__kw_t_boss" style="background:#ff9f1a;color:#000">보스 알람 테스트</button></div>
           <div id="__kw_t_msg" class="__kw_lbl"></div>
+          <!-- [BETA-TEST-ONLY:end] -->
           <div class="__kw_lbl">제작자</div>
           <div><b>비류라미</b></div>
           <div style="margin-top:6px;font-size:12px;color:#eee">"검은사막에서 미리내ES 님과 놀다 겁나 심심해서 만듬"</div>
@@ -569,7 +570,7 @@ function renderSettings() {
     e.target.value = v;
     dlog('redup', v);
   };
-  // [BETA-TEST-ONLY] 테스트 버튼 (정식 릴리즈에서 제거)
+  // [BETA-TEST-ONLY:start] 테스트 버튼
   const tMsg = setPanel.querySelector('#__kw_t_msg');
   const tSay = (t) => { if (tMsg) tMsg.textContent = t; };
   const tDrops = setPanel.querySelector('#__kw_t_drops');
@@ -578,6 +579,7 @@ function renderSettings() {
   if (tBoss) tBoss.onclick = () => {
     tSay(typeof window.__kwBdoTest === 'function' ? window.__kwBdoTest(30) : '검은사막 확장이 켜져 있어야 합니다 (설정 > 확장)');
   };
+  // [BETA-TEST-ONLY:end]
   const updateCheckBtn = setPanel.querySelector('#__kw_update_check');
   if (updateCheckBtn) updateCheckBtn.onclick = () => checkUpdate();
   const updateGoBtn = setPanel.querySelector('#__kw_update_go');
@@ -811,6 +813,7 @@ function fetchDropsServer(cid, no) {
     renderDrops();
   });
 }
+// [BETA-TEST-ONLY:start]
 // 진단용: 서버 시청 분을 가짜 값으로 바꿔 시간 충족 알림/다음 보상 전환을 바로 시험한다 (다음 서버 갱신 때 원래 값으로 복귀)
 function dropsSimMin(n) {
   if (!dropsInfo) return '드롭스 정보 없음 (드롭스가 있는 방송에서 창이 보일 때 사용)';
@@ -829,6 +832,7 @@ function dropsSimNext() {
   if (!cur) { dropsSimMin(0); return '모두 달성 상태였음 → 처음으로 되돌림 (다시 누르면 첫 보상부터 시험)'; }
   return dropsSimMin(cur.conditionForMinutes) + ' [' + cur.conditionForMinutes + '분 보상]';
 }
+// [BETA-TEST-ONLY:end]
 function pollDrops() {
   if (!dropsOn() || !isLivePage()) { dropsInfo = null; removeDropsPanel(); return; }
   const cid = pageChannelId();

@@ -107,6 +107,7 @@ function setPluginOn(p, on) {
 try {
   window.__KW = window.__KW || {
     version: SCRIPT_VERSION,
+    beta: true, // [BETA-ONLY-LINE] 베타 빌드 표시 (플러그인이 테스트 후크를 켤지 판단)
     on(evt, fn) {
       if (typeof fn !== 'function') return;
       fn.__kwPlugin = pluginInjecting;
@@ -196,8 +197,9 @@ function initApp() {
   setInterval(checkRoute, 1000);
 }
 
-// 베타 진단용 후크 (정식에서는 제거): 콘솔에서 __kwDebug.jump(0) 등으로 직접 검증 가능
+// [BETA-TEST-ONLY:start] 베타 진단용 후크 (정식에서는 제거): 콘솔에서 __kwDebug.jump(0) 등으로 직접 검증 가능
 try { window.__kwDebug = { jump: jumpToHit, find: findElBySig, log: () => hitLog, dropsMin: dropsSimMin }; } catch (e) {}
+// [BETA-TEST-ONLY:end]
 
 if (!window.__kwAlertLoaded) {
   window.__kwAlertLoaded = true;

@@ -46,13 +46,15 @@
 
   // 테스트: 콘솔에서 __kwBdoTest(초) 를 호출하면 그 시간 뒤에 출현하는 가짜 우두머리 알림을 바로 띄운다 (옵션/필터 무시)
   const tests = [];
-  window.__kwBdoTest = (sec) => {
-    const s = Math.max(5, Number(sec) || 60);
-    const t = Date.now() + s * 1000;
-    tests.push({ t, hhmm: '테스트', bosses: ['가짜 보스'], test: true });
-    tick();
-    return '테스트 알림: ' + s + '초 뒤 출현';
-  };
+  if (KW.beta) { // 정식 앱에서는 테스트 후크를 만들지 않는다
+    window.__kwBdoTest = (sec) => {
+      const s = Math.max(5, Number(sec) || 60);
+      const t = Date.now() + s * 1000;
+      tests.push({ t, hhmm: '테스트', bosses: ['가짜 보스'], test: true });
+      tick();
+      return '테스트 알림: ' + s + '초 뒤 출현';
+    };
+  }
 
   // 감시 화면(#__kw_stack)의 드롭스 창 바로 아래에 파란색 "다음 우두머리" 창을 둔다
   let nextEl = null;
