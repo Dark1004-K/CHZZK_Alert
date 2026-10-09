@@ -162,6 +162,7 @@ function showToast(text) {
 // ---------- 불린 대화 목록 (저장/표시/클릭 이동) ----------
 function saveHits() {
   try {
+    localStorage.setItem(LS_HITS_CID, pageChannelId());
     localStorage.setItem(LS_HITS, JSON.stringify(
       hitLog.slice(0, HITS_MAX).map(({ t, nick, text, kw, sig, gone }) => ({ t, nick, text, kw, sig, gone: !!gone }))
     ));

@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '2.8-beta39';
+const SCRIPT_VERSION = '2.8-beta40';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -47,8 +47,12 @@ function redupSec() {
   return 300;
 }
 const redupMs = () => redupSec() * 1000;
+const LS_HITS_CID = '__kw_hits_cid'; // 불린 대화가 속한 채널 (다른 채널이면 초기화)
 const loadHits = () => {
   try {
+    const m = location.pathname.match(/\/live\/([0-9a-f]{32})/i);
+    const stored = localStorage.getItem(LS_HITS_CID);
+    if (m && stored && stored !== m[1].toLowerCase()) return [];
     const a = JSON.parse(localStorage.getItem(LS_HITS)) || [];
     return Array.isArray(a) ? a.filter((h) => h && h.sig).slice(0, HITS_MAX).map((h) => ({ ...h, el: null })) : [];
   } catch (e) { return []; }

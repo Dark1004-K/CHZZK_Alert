@@ -46,6 +46,7 @@ function checkRoute() {
         allowState = 'pending';
         allowEntry = null;
         try { stop(); } catch (e) {}
+        hitLog = []; hitTimes.clear(); saveHits(); renderHitsList(); // 다른 채널: 불린 대화 초기화
       }
       buildUi();
     } else {
