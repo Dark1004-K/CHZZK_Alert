@@ -535,7 +535,7 @@ function renderSettings() {
           <div class="__kw_lbl">볼륨 <b id="__kw_vol_val">${volPct()}%</b></div>
           <input type="range" id="__kw_vol" min="0" max="100" step="5" value="${volPct()}" style="width:220px;cursor:pointer">
           <div class="__kw_lbl" style="color:#888">딩동·내 파일·검은사막 알림음에 적용됩니다. 0이면 소리가 나지 않습니다.</div>
-          <div class="__kw_lbl">출력 장치</div>
+          <div class="__kw_lbl">알람 소리 출력 장치</div>
           <div style="display:flex;align-items:center;gap:6px"><select class="__kw_in" id="__kw_sink" style="max-width:210px"><option value="">시스템 기본</option></select><button class="__kw_ic" id="__kw_sink_pick" title="스피커 목록 불러오기" style="color:#ccc">${IC.refresh}</button></div>
           <div class="__kw_lbl" id="__kw_sink_msg" style="color:#888"></div>
         </div>
@@ -714,8 +714,11 @@ function renderSettings() {
       first.then((l) => {
         const outs = l.filter((d) => d.kind === 'audiooutput' && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications');
         fillSinks(outs.map((d, i) => ({ deviceId: d.deviceId, label: d.label || ('스피커 ' + (i + 1)) })));
-        sinkMsg.textContent = outs.length ? '알림음이 나갈 스피커입니다. 고르면 바로 소리가 납니다. 음성 읽기(TTS)는 시스템 기본 장치로 나갑니다.' : '다른 스피커가 보이지 않습니다. 오른쪽 버튼을 눌러 스피커 목록을 불러오세요 (브라우저가 마이크 허용을 한 번 묻습니다. 마이크는 바로 끄고 녹음하지 않으며, 스피커 이름을 읽기 위한 것입니다).';
-      }).catch(() => { sinkMsg.textContent = '허용되지 않아 스피커 목록을 읽을 수 없습니다. 주소창 왼쪽 자물쇠에서 마이크를 허용하거나, 시스템 기본 장치를 쓰세요.'; });
+        sinkMsg.textContent = outs.length ? '알림음이 나갈 스피커입니다. 고르면 바로 알람 소리가 납니다.' : '다른 스피커가 보이지 않습니다. 오른쪽 버튼을 눌러 스피커 목록을 불러오세요 (브라우저가 마이크 허용을 한 번 묻습니다. 마이크는 바로 끄고 녹음하지 않으며, 스피커 이름을 읽기 위한 것입니다).';
+      }).catch((err) => { // 거부/차단 이유를 보여준다 (사이트 설정에서 마이크가 "차단"이면 물어보지 않고 바로 실패함)
+        const nm = (err && err.name) || '';
+        sinkMsg.textContent = '스피커 목록을 읽지 못했습니다 (' + (nm || '오류') + '). ' + (nm === 'NotAllowedError' ? '마이크가 차단되어 있으면 물어보지 않습니다. 주소창 왼쪽 자물쇠 → 사이트 설정에서 마이크를 "허용"(또는 "묻기")으로 바꾼 뒤 다시 눌러 주세요.' : nm === 'NotFoundError' ? '마이크 장치가 없어서 목록 권한을 받을 수 없습니다.' : '시스템 기본 장치를 쓰세요.');
+      });
     } catch (e) {}
   }
   if (!canSink) {
