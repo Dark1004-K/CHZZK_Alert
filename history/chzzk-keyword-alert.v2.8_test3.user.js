@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CHZZK 채팅 호출 알림 (Keyword Alert)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-test10
+// @version      2.8-test3
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
 // @match        https://chzzk.naver.com/live/0a3deecf0fa1652445e3c97bc118272e*
@@ -22,8 +22,6 @@
   const LS_AUTO = '__kw_auto_start';
   const LS_HITS = '__kw_hits'; // 불린 대화 기록 (최대 30개, 새로고침 후에도 유지)
   const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외=켬)
-  const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
-  const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
   const HITS_MAX = 30;
 
   const loadKeywords = () => {
@@ -54,7 +52,7 @@
   }
 
   // ---------- TEST1 진단 로그 (콘솔 입력 없이 보기용, 10s 하트비트) ----------
-  const KW_TEST_TAG = '[KW-2.8T10]';
+  const KW_TEST_TAG = '[KW-2.8T3]';
   function dlog(...a) { try { console.log(KW_TEST_TAG, ...a); } catch (e) {} }
   function domMsgCount() {
     try { return document.querySelectorAll('[class*="chatting_message"]').length; }
@@ -70,7 +68,7 @@
       dom: domMsgCount(), folded: isChatFolded(),
       watched: !!watchedContainer, kw: keywords.length,
       mut: mutBatches, mutNodes, catchup: catchupFound,
-      ws: wsTracked, wsMsgs, hist: hitLog.length, limited: limitedMode, w: curWidth,
+      ws: wsTracked, wsMsgs, hist: hitLog.length,
     }));
     mutBatches = 0; mutNodes = 0; catchupFound = 0; wsMsgs = 0;
   }
@@ -104,12 +102,11 @@
       }
       if (hit) {
         const fullSig = sig + '|' + kt;
-        if (histOn() && histSigs.has(fullSig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kt })); return; }
         if (!takeHit(fullSig)) { dlog('DUP-ws-skip', JSON.stringify({ kw: kt })); return; }
         hits++;
         recordHit(nick, text, kt, fullSig, null);
         dlog('HIT-ws', JSON.stringify({ kw: kt, nick: (nick || '').slice(0, 30), text: text.slice(0, 60) }));
-        fireAlert(nick, text, null);
+        fireAlert(text, null);
         return;
       }
     }
@@ -163,33 +160,6 @@
     } catch (e) { try { dlog('ws-hook-fail'); } catch (e2) {} }
   }
   patchWebSocket(); // document-start 최우선 실행 (페이지 소켓 생성 전에 가로채야 함)
-
-  // ---------- 실행 환경 판별 (사용자 스크립트 허용 여부) ----------
-  // MAIN world면 주입 스크립트가 같은 window를 봐서 echo가 일치하고,
-  // 격리 월드(허용 꺼짐)면 주입 스크립트가 userscript의 window 확장을 못 봐서 불일치.
-  let limitedMode = false;
-  function runWorldProbe() {
-    try {
-      const k = '__kwWorldProbe';
-      const v = 'v' + Math.random().toString(36).slice(2);
-      window[k] = v;
-      const root = document.documentElement || document.head;
-      if (!root) return;
-      const s = document.createElement('script');
-      s.textContent = 'window["' + k + 'Echo"]=window["' + k + '"];';
-      root.appendChild(s);
-      try { s.remove(); } catch (e) {}
-      limitedMode = window[k + 'Echo'] !== v;
-      try { delete window[k]; delete window[k + 'Echo']; } catch (e) {}
-      dlog(limitedMode ? 'world-limited' : 'world-main');
-    } catch (e) { limitedMode = true; try { dlog('world-probe-fail'); } catch (e2) {} }
-    updateWarn();
-  }
-  function updateWarn() {
-    if (!panel) return;
-    const w = panel.querySelector('#__kw_warn');
-    if (w) w.style.display = limitedMode ? 'block' : 'none';
-  }
   let running = false;
   let checked = 0;
   let hits = 0;
@@ -205,6 +175,7 @@
   // 불린 대화 목록: 장기 중복 회피(재오픈 시 과거분 refill) + 클릭 이동용
   let hitLog = loadHits();
   const histSigs = new Set(hitLog.map((h) => h.sig).filter(Boolean));
+  let bulkScan = false; // true면 과거분 쓸어담기 중 → 기록에 있는 건 알림 생략
   function hitSig(text) { try { return norm(text).slice(0, 80); } catch (e) { return ''; } }
   function takeHit(sig) {
     const now = Date.now();
@@ -237,12 +208,14 @@
   #__kw_btn{background:#ff4d4d;color:#fff}
   #__kw_panel.off #__kw_btn{background:#00ffa3;color:#000}
   #__kw_gear{background:#444;color:#fff}
+  #__kw_edit{display:none;margin-top:8px;border-top:1px solid #444;padding-top:8px}
+  #__kw_panel.open #__kw_edit{display:block}
   .__kw_chip{display:inline-flex;align-items:center;gap:4px;background:#333;border-radius:12px;padding:3px 8px;margin:2px;font-size:12px}
   .__kw_chip b{cursor:pointer;color:#ff7b7b}
   .__kw_in{background:#222;border:1px solid #555;color:#fff;border-radius:6px;padding:4px 6px;font-size:12px;user-select:text}
   .__kw_lbl{font-size:11px;color:#aaa;margin:8px 0 3px}
   #__kw_box{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:2147483647;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
-  .__kw_toast{background:#ffd400;color:#000;font:bold 15px sans-serif;padding:12px 18px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:520px;pointer-events:auto;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .__kw_toast{background:#ffd400;color:#000;font:bold 15px sans-serif;padding:12px 18px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:520px;pointer-events:auto;cursor:pointer}
   #__kw_ask{position:fixed;bottom:14px;left:14px;z-index:2147483647;background:rgba(20,20,24,.96);color:#fff;font:13px sans-serif;padding:12px 14px;border-radius:12px;border:2px solid #ffd400;box-shadow:0 4px 16px rgba(0,0,0,.5);max-width:320px}
   #__kw_ask .__kw_b{margin-top:8px;margin-right:6px}
   #__kw_sel{position:absolute;z-index:2147483647;background:#00ffa3;color:#000;font:bold 12px sans-serif;padding:5px 9px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.5);cursor:pointer;display:none;white-space:nowrap}
@@ -252,14 +225,9 @@
   .__kw_hit:hover{background:#2c2c31}
   .__kw_hit_t{color:#888;font-size:11px;margin-right:4px}
   .__kw_hit_k{color:#00ffa3;font-size:11px;margin-left:4px}
-  #__kw_stack{position:fixed;bottom:14px;left:14px;z-index:2147483647;display:flex;flex-direction:column;gap:8px;align-items:stretch;width:350px;max-width:calc(100vw - 28px)}
-  #__kw_stack #__kw_panel{position:static;width:100%;box-sizing:border-box;min-width:0;max-width:none}
-  #__kw_histp{width:100%;box-sizing:border-box;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ffd400}
-  #__kw_setp{position:absolute;left:calc(100% + 8px);top:0;width:320px;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777}
-  #__kw_midrow{position:relative;width:100%}
-  #__kw_grip{position:absolute;top:0;bottom:0;right:-6px;width:12px;cursor:ew-resize;z-index:1}
-  #__kw_grip:hover{background:rgba(0,255,163,.25)}
-  #__kw_stack #__kw_box{position:static;transform:none;width:100%;max-width:none;margin:0;display:none;align-items:stretch}
+  #__kw_stack{position:fixed;bottom:14px;left:14px;z-index:2147483647;display:flex;flex-direction:column;gap:8px;align-items:stretch}
+  #__kw_stack #__kw_panel{position:static}
+  #__kw_histp{width:300px;max-width:330px;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ffd400}
   #__kw_hist_head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-weight:bold}
   #__kw_hits{max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;user-select:text}
   #__kw_hits_clear{background:#444;color:#fff;padding:2px 7px;font-size:11px}
@@ -313,71 +281,29 @@
     });
   }
 
-  // 본문 앞에 붙은 발신자명을 떼어냄 (DOM은 "닉넴+본문"이 붙어있고 WS는 "닉 본문" 형태)
-  function splitBody(nick, text) {
-    const t = text || '';
-    if (nick && t.startsWith(nick)) {
-      const rest = t.slice(nick.length).trim();
-      if (rest) return rest;
-    }
-    return t;
-  }
-  function fireAlert(nick, text, el) {
-    const body = splitBody(nick, text);
-    const title = nick ? '🔔 ' + nick : '🔔 CHZZK 채팅 호출';
+  function fireAlert(text, el) {
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      try { new Notification(title, { body: body.slice(0, 120) }); } catch (e) {}
+      new Notification('CHZZK 채팅 호출', { body: text });
     }
-    showCallToast(nick, body);
+    showToast(text);
     playAlertSound();
     highlightMessage(el);
   }
-  // 토스트 박스는 스택 맨 위(목록 위, 동일 너비)에 두고 비면 숨김
-  function ensureToastBox() {
-    let box = null;
-    try { box = document.getElementById('__kw_box'); } catch (e) {}
-    let stack = null;
-    try { stack = document.getElementById('__kw_stack'); } catch (e) {}
+  function showToast(text) {
+    let box = document.getElementById('__kw_box');
     if (!box) {
       box = document.createElement('div');
       box.id = '__kw_box';
-      if (stack) stack.prepend(box);
-      else document.body.appendChild(box);
-    } else if (stack && box.parentElement !== stack) {
-      stack.prepend(box);
+      document.body.appendChild(box);
     }
-    box.style.display = 'flex';
-    return box;
-  }
-  function hideBoxIfEmpty() {
-    try {
-      const box = document.getElementById('__kw_box');
-      if (box && box.children.length === 0) box.style.display = 'none';
-    } catch (e) {}
-  }
-  function showCallToast(nick, body) {
-    const box = ensureToastBox();
-    if (!box) return;
-    // 도배 시 DOM 비대화 방지: 최대 5개 유지
-    while (box.children.length >= 5) box.firstChild?.remove();
-    const t = document.createElement('div');
-    t.className = '__kw_toast';
-    t.innerHTML = '<b>🔔 ' + escapeHtml((nick || 'CHZZK').slice(0, 24)) + '</b><span style="font-weight:normal">: ' + escapeHtml((body || '').slice(0, 60)) + '</span>';
-    t.onclick = () => { t.remove(); hideBoxIfEmpty(); };
-    box.appendChild(t);
-    setTimeout(() => { t.remove(); hideBoxIfEmpty(); }, 5000);
-  }
-  function showToast(text) {
-    const box = ensureToastBox();
-    if (!box) return;
     // 도배 시 DOM 비대화 방지: 최대 5개 유지
     while (box.children.length >= 5) box.firstChild?.remove();
     const t = document.createElement('div');
     t.className = '__kw_toast';
     t.textContent = '🔔 ' + text.slice(0, 80);
-    t.onclick = () => { t.remove(); hideBoxIfEmpty(); };
+    t.onclick = () => t.remove();
     box.appendChild(t);
-    setTimeout(() => { t.remove(); hideBoxIfEmpty(); }, 5000);
+    setTimeout(() => t.remove(), 5000);
   }
 
   // ---------- 불린 대화 목록 (저장/표시/클릭 이동) ----------
@@ -420,13 +346,9 @@
       highlightMessage(el);
       dlog('jump', JSON.stringify({ i, text: (h.text || '').slice(0, 40) }));
     } else {
-      // 원본이 가상리스트에서 밀려남 (새로고침 전 기록 포함) → 목록에서 제거하고 알림
-      hitLog.splice(i, 1);
-      if (h.sig && !hitLog.some((x) => x.sig === h.sig)) histSigs.delete(h.sig);
-      saveHits();
-      renderHitsList();
-      showToast('이미 사라진 대화입니다' + (h.text ? ': ' + h.text.slice(0, 40) : ''));
-      dlog('jump-gone-pruned', JSON.stringify({ i }));
+      // 원본이 가상리스트에서 밀려남 (새로고침 전 기록 포함) → 내용이라도 토스트로
+      showToast((h.nick ? h.nick + ' ' : '') + h.text);
+      dlog('jump-gone', JSON.stringify({ i }));
     }
   }
 
@@ -436,7 +358,7 @@
 
   // 우리 자체 UI(패널/프롬프트/토스트/선택버튼)에서 발생한 변화는 절대 관리하지 않아야 무한루프를 막을 수 있음
   const isOwnUi = (node) =>
-    node.id && ['__kw_panel', '__kw_ask', '__kw_box', '__kw_sel', '__kw_stack', '__kw_histp', '__kw_setp', '__kw_midrow', '__kw_grip'].includes(node.id);
+    node.id && ['__kw_panel', '__kw_ask', '__kw_box', '__kw_sel', '__kw_stack', '__kw_histp'].includes(node.id);
 
   let statsRaf = null;
   function scheduleStatsUpdate() {
@@ -467,13 +389,13 @@
     for (const { tight: kt, loose: kl } of kwCache) {
       if (kl && tl.includes(kl)) {
         const sig = hitSig(text) + '|' + kt;
-        // 기록에 있는 건 경로/시점 불문 재알림 생략 (스크롤 백필·접힘 리렌더·WS 리플레이 대응)
-        if (histOn() && histSigs.has(sig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kl })); break; }
+        // 과거분 쓸어담기(시작/재접속/refill) 중 기록에 있으면 재알림 생략
+        if (bulkScan && histOn() && histSigs.has(sig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kl })); break; }
         if (!takeHit(sig)) { dlog('DUP-dom-skip', JSON.stringify({ kw: kl })); break; }
         hits++;
         recordHit(senderName, text, kl, sig, el);
-        dlog('HIT-loose', JSON.stringify({ kw: kl, nick: senderName.slice(0, 30), text: text.slice(0, 60) }));
-        fireAlert(senderName, text, el);
+        dlog('HIT-loose', JSON.stringify({ kw: kl, text: text.slice(0, 60) }));
+        fireAlert(text, el);
         break;
       }
       // 1차가 실패하면 같은 어절 안에서만 타이트 매칭 시도.
@@ -489,12 +411,12 @@
       }
       if (inToken) {
         const sig = hitSig(text) + '|' + kt;
-        if (histOn() && histSigs.has(sig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kt })); break; }
+        if (bulkScan && histOn() && histSigs.has(sig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kt })); break; }
         if (!takeHit(sig)) { dlog('DUP-dom-skip', JSON.stringify({ kw: kt })); break; }
         hits++;
         recordHit(senderName, text, kt, sig, el);
-        dlog('HIT-token', JSON.stringify({ kw: kt, nick: senderName.slice(0, 30), text: text.slice(0, 60) }));
-        fireAlert(senderName, text, el);
+        dlog('HIT-token', JSON.stringify({ kw: kt, text: text.slice(0, 60) }));
+        fireAlert(text, el);
         break;
       }
     }
@@ -503,7 +425,7 @@
 
   function scanNode(node) {
     if (!(node instanceof HTMLElement)) return;
-    if (isOwnUi(node) || node.closest?.('#__kw_panel,#__kw_ask,#__kw_box,#__kw_sel,#__kw_stack,#__kw_histp,#__kw_setp,#__kw_midrow,#__kw_grip')) return;
+    if (isOwnUi(node) || node.closest?.('#__kw_panel,#__kw_ask,#__kw_box,#__kw_sel,#__kw_stack,#__kw_histp')) return;
     // 가장 흔한 경로: 추가된 노드 자체가 메시지 1개
     if (node.matches?.('[class*="chatting_message"]')) {
       if (scanSingle(node)) scheduleStatsUpdate();
@@ -558,7 +480,7 @@
       mutBatches++;
       for (const m of muts) {
         // 패널/프롬프트 자체의 변화는 무시 (무한루프 방지)
-        if (m.target && (isOwnUi(m.target) || m.target.closest?.('#__kw_panel,#__kw_ask,#__kw_box,#__kw_sel,#__kw_stack,#__kw_histp,#__kw_setp,#__kw_midrow,#__kw_grip'))) continue;
+        if (m.target && (isOwnUi(m.target) || m.target.closest?.('#__kw_panel,#__kw_ask,#__kw_box,#__kw_sel,#__kw_stack,#__kw_histp'))) continue;
         for (const n of m.addedNodes) {
           if (!(n instanceof HTMLElement)) continue; // 텍스트노드 스킵
           mutNodes++;
@@ -581,7 +503,8 @@
     const first = findChatContainer();
     if (first && first !== document.body) {
       attachObserverTo(first);
-      scanNode(first); // 시작 전 쌓인 메시지 1회 회수 (기록에 있으면 재알림 생략됨)
+      bulkScan = true; // 시작 전 쌓인 과거분: 기록에 있으면 재알림 생략
+      try { scanNode(first); } finally { bulkScan = false; }
     } else {
       dlog('start-nocontainer', JSON.stringify({ dom: domMsgCount(), folded: isChatFolded() }));
     }
@@ -592,7 +515,8 @@
       if (better && better !== document.body && better !== watchedContainer) {
         dlog('reattach', JSON.stringify({ dom: domMsgCount(), folded: isChatFolded() }));
         attachObserverTo(better);
-        scanNode(better); // 재접속/refill 과거분: 기록에 있으면 재알림 생략됨
+        bulkScan = true; // 재접속/refill 과거분: 기록에 있으면 재알림 생략
+        try { scanNode(better); } finally { bulkScan = false; }
       } else if (!better && !watchedContainer) {
         dlog('nocontainer-tick', JSON.stringify({ dom: domMsgCount(), folded: isChatFolded() }));
       }
@@ -604,8 +528,10 @@
         for (const el of list) { if (!seen.has(el)) fresh++; }
         if (fresh > 0) {
           catchupFound += fresh;
+          bulkScan = fresh > 5; // 한꺼번에 많이 밀리면 과거분으로 간주
           let changed = false;
-          for (const el of list) { if (scanSingle(el)) changed = true; }
+          try { for (const el of list) { if (scanSingle(el)) changed = true; } }
+          finally { bulkScan = false; }
           if (changed) scheduleStatsUpdate();
           dlog('catchup', JSON.stringify({ fresh, dom: list.length, folded: isChatFolded() }));
         }
@@ -625,65 +551,16 @@
   // ---------- 패널 (#__kw_panel, 원본과 동일한 구조) + 목록 별도 화면 (#__kw_histp) ----------
   let panel;
   let stackEl = null, histPanel = null, histBox = null, histCount = null;
-  let midRowEl = null;
-  let curWidth = 350;
-  try { const wv = parseInt(localStorage.getItem(LS_W), 10); if (wv >= 240 && wv <= 600) curWidth = wv; } catch (e) {}
-  function setStackWidth(w) {
-    curWidth = Math.max(240, Math.min(600, Math.round(w)));
-    if (stackEl) stackEl.style.width = curWidth + 'px';
-  }
-  let setPanel = null;
-  let setOpen = false;
-  try { setOpen = localStorage.getItem(LS_SET) === '1'; } catch (e) {}
   function ensureStack() {
     if (stackEl && stackEl.isConnected) return stackEl;
     let ex = null;
     try { ex = document.getElementById('__kw_stack'); } catch (e) {}
-    if (ex) { stackEl = ex; setStackWidth(curWidth); return ex; }
+    if (ex) { stackEl = ex; return ex; }
     const s = document.createElement('div');
     s.id = '__kw_stack';
     document.body.appendChild(s);
     stackEl = s;
-    setStackWidth(curWidth);
     return s;
-  }
-  function ensureMidrow() {
-    ensureStack();
-    if (midRowEl && midRowEl.isConnected) return midRowEl;
-    let ex = null;
-    try { ex = document.getElementById('__kw_midrow'); } catch (e) {}
-    if (ex) { midRowEl = ex; wireGrip(); return ex; }
-    const r = document.createElement('div');
-    r.id = '__kw_midrow';
-    stackEl.appendChild(r);
-    midRowEl = r;
-    const g = document.createElement('div');
-    g.id = '__kw_grip';
-    g.title = '드래그로 가로 조절';
-    r.appendChild(g);
-    wireGrip();
-    return r;
-  }
-  function wireGrip() {
-    if (!midRowEl) return;
-    const g = midRowEl.querySelector('#__kw_grip');
-    if (!g || g.__kwWired) return;
-    g.__kwWired = true;
-    g.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      if (e.stopPropagation) e.stopPropagation();
-      const startX = e.clientX;
-      const startW = curWidth;
-      const move = (ev) => setStackWidth(startW + (ev.clientX - startX));
-      const up = () => {
-        document.removeEventListener('mousemove', move);
-        document.removeEventListener('mouseup', up);
-        try { localStorage.setItem(LS_W, String(curWidth)); } catch (err) {}
-        dlog('width', curWidth);
-      };
-      document.addEventListener('mousemove', move);
-      document.addEventListener('mouseup', up);
-    });
   }
   function attachHistHandlers() {
     if (!histPanel || histPanel.__kwWired) return;
@@ -729,23 +606,11 @@
     histPanel.style.display = show ? 'block' : 'none';
   }
   function buildPanel() {
-    ensureMidrow();
+    ensureStack();
     panel = document.createElement('div');
     panel.id = '__kw_panel';
-    midRowEl.appendChild(panel);
+    stackEl.appendChild(panel);
     renderPanel();
-  }
-  function ensureSettingsPanel() {
-    ensureMidrow();
-    if (setPanel && setPanel.isConnected) { applySetVisibility(); return; }
-    let ex = null;
-    try { ex = document.getElementById('__kw_setp'); } catch (e) {}
-    if (ex) { setPanel = ex; renderSettings(); return; }
-    const d = document.createElement('div');
-    d.id = '__kw_setp';
-    midRowEl.appendChild(d);
-    setPanel = d;
-    renderSettings();
   }
 
   // 채팅 카운트만 가벼게 갱신 (innerHTML 재생성 없음 → MutationObserver 루프 안 탈)
@@ -757,28 +622,15 @@
 
   function renderPanel() {
     if (!panel) return;
-    panel.className = 'show' + (running ? '' : ' off');
+    const wasOpen = panel.classList.contains('open');
+    panel.className = 'show' + (running ? '' : ' off') + (wasOpen ? ' open' : '');
 
     panel.innerHTML = `
       <div id="__kw_row"><div id="__kw_dot"></div>
         <div style="flex:1"><div id="__kw_title"><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b> · 단어 ${keywords.length}개</div><div id="__kw_sub">확인 ${checked}개 · 감지 ${hits}회 · 내 채팅 제외</div></div>
-        <button class="__kw_b" id="__kw_gear" title="설정">설정</button>
+        <button class="__kw_b" id="__kw_gear" title="설정">단어</button>
         <button class="__kw_b" id="__kw_btn">${running ? '정지' : '시작'}</button></div>
-      <div id="__kw_warn" style="display:${limitedMode ? 'block' : 'none'};font-size:11px;color:#ffd400;margin-top:4px">⚠ 사용자 스크립트 허용 꺼짐: WS 감시 불가, DOM 감시만 동작. chrome://extensions → Tampermonkey 상세에서 허용 후 새로고침</div>`;
-
-    panel.querySelector('#__kw_btn').onclick = () => (running ? stop() : start());
-    panel.querySelector('#__kw_gear').onclick = () => {
-      setOpen = !setOpen;
-      try { localStorage.setItem(LS_SET, setOpen ? '1' : '0'); } catch (e) {}
-      renderSettings();
-    };
-    updateWarn();
-  }
-
-  // ---------- 설정 별도 화면 (#__kw_setp, 감시 패널 아래) ----------
-  function renderSettings() {
-    if (!setPanel) return;
-    setPanel.innerHTML = `
+      <div id="__kw_edit">
         <div class="__kw_lbl">호출 단어 (×로 삭제, 페이지 글자를 드래그해서도 추가 가능)</div>
         <div id="__kw_chips">${keywords.map((k, i) => `<span class="__kw_chip"><span>${escapeHtml(k)}</span><b data-i="${i}" title="삭제">×</b></span>`).join('')}</div>
         <div style="margin-top:6px"><input class="__kw_in" id="__kw_in" placeholder="추가할 단어" style="width:150px">
@@ -786,37 +638,35 @@
         <div class="__kw_lbl">내 닉네임 (이 닉네임의 채팅은 알림 제외)</div>
         <input class="__kw_in" id="__kw_nick" style="width:150px" value="${escapeHtml(myNick)}">
         <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_auto" ${localStorage.getItem(LS_AUTO) === '1' ? 'checked' : ''}> 방송 들어가면 묻지 않고 자동으로 켜기</label></div>
-        <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_hist" ${histOn() ? 'checked' : ''}> 감시 패널 위에 불린 대화 목록 별도 표시 + 이미 울린 대화 재알림 방지 (클릭하면 해당 채팅으로 이동)</label></div>`;
+        <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_hist" ${histOn() ? 'checked' : ''}> 감시 패널 위에 불린 대화 목록 별도 표시 (클릭하면 해당 채팅으로 이동)</label></div>
+      </div>`;
 
-    setPanel.querySelectorAll('#__kw_chips b').forEach((b) => {
+    panel.querySelector('#__kw_btn').onclick = () => (running ? stop() : start());
+    panel.querySelector('#__kw_gear').onclick = () => panel.classList.toggle('open');
+    panel.querySelectorAll('#__kw_chips b').forEach((b) => {
       b.onclick = () => {
         keywords.splice(Number(b.dataset.i), 1);
         saveKeywords(keywords);
         refreshNormCache();
         renderPanel();
-        renderSettings();
       };
     });
-    const addBtn = setPanel.querySelector('#__kw_add');
-    const addInput = setPanel.querySelector('#__kw_in');
+    const addBtn = panel.querySelector('#__kw_add');
+    const addInput = panel.querySelector('#__kw_in');
     const doAdd = () => {
       const v = addInput.value.trim();
-      if (v && !keywords.includes(v)) { keywords.push(v); saveKeywords(keywords); refreshNormCache(); renderPanel(); renderSettings(); }
+      if (v && !keywords.includes(v)) { keywords.push(v); saveKeywords(keywords); refreshNormCache(); renderPanel(); }
     };
     addBtn.onclick = doAdd;
     addInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
-    setPanel.querySelector('#__kw_nick').onchange = (e) => { myNick = e.target.value; saveNick(myNick); refreshNormCache(); };
-    setPanel.querySelector('#__kw_auto').onchange = (e) => localStorage.setItem(LS_AUTO, e.target.checked ? '1' : '0');
-    setPanel.querySelector('#__kw_hist').onchange = (e) => {
+    panel.querySelector('#__kw_nick').onchange = (e) => { myNick = e.target.value; saveNick(myNick); refreshNormCache(); };
+    panel.querySelector('#__kw_auto').onchange = (e) => localStorage.setItem(LS_AUTO, e.target.checked ? '1' : '0');
+    panel.querySelector('#__kw_hist').onchange = (e) => {
       try { localStorage.setItem(LS_HIST, e.target.checked ? '1' : '0'); } catch (err) {}
       applyHistVisibility();
       renderHitsList();
     };
-    applySetVisibility();
-  }
-  function applySetVisibility() {
-    if (!setPanel) return;
-    setPanel.style.display = (setOpen && panel && panel.classList.contains('show')) ? 'block' : 'none';
+    renderHitsList();
   }
 
   // start()/stop()이나 단어 추가/삭제처럼 구조가 바뀌는 경우만 renderPanel()을 쓰고,
@@ -831,7 +681,6 @@
     if (localStorage.getItem(LS_AUTO) === '1') { start(); return; }
     if (panel) panel.classList.remove('show');
     applyHistVisibility(); // 질문창이 떠 있는 동안 목록 화면도 함께 숨김
-    applySetVisibility();
     const box = document.createElement('div');
     box.id = '__kw_ask';
     box.innerHTML = `<div><b>🔔 채팅 호출 알림을 켤까요?</b></div>
@@ -846,13 +695,11 @@
       box.remove();
       if (panel && isLivePage()) panel.classList.add('show');
       applyHistVisibility();
-      applySetVisibility();
     };
     box.querySelector('#__kw_no').onclick = () => {
       box.remove();
       if (panel && isLivePage()) panel.classList.add('show');
       applyHistVisibility();
-      applySetVisibility();
     };
   }
 
@@ -897,7 +744,7 @@
     dlog('teardown', location.pathname);
     stop();
     try { document.getElementById('__kw_stack')?.remove(); } catch (e) {}
-    panel = null; stackEl = null; midRowEl = null; histPanel = null; histBox = null; histCount = null; setPanel = null;
+    panel = null; stackEl = null; histPanel = null; histBox = null; histCount = null;
     document.getElementById('__kw_ask')?.remove();
     document.getElementById('__kw_box')?.remove();
     document.getElementById('__kw_sel')?.remove();
@@ -908,11 +755,9 @@
     ensureStack();
     ensureHistPanel();
     if (!panel || !panel.isConnected) buildPanel();
-    ensureSettingsPanel();
     setupDragToAdd();
     panel.classList.add('show');
     applyHistVisibility();
-    applySetVisibility();
     dlog('buildui', JSON.stringify({ running, dom: domMsgCount(), folded: isChatFolded() }));
     if (!running) showAskPrompt();
   }
@@ -936,7 +781,6 @@
     } else {
       dlog('init-notlive', location.pathname);
     }
-    runWorldProbe();
     setInterval(checkRoute, 1000);
   }
 

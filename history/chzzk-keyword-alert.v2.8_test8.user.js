@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CHZZK 채팅 호출 알림 (Keyword Alert)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-test10
+// @version      2.8-test8
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
 // @match        https://chzzk.naver.com/live/0a3deecf0fa1652445e3c97bc118272e*
@@ -23,7 +23,6 @@
   const LS_HITS = '__kw_hits'; // 불린 대화 기록 (최대 30개, 새로고침 후에도 유지)
   const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외=켬)
   const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
-  const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
   const HITS_MAX = 30;
 
   const loadKeywords = () => {
@@ -54,7 +53,7 @@
   }
 
   // ---------- TEST1 진단 로그 (콘솔 입력 없이 보기용, 10s 하트비트) ----------
-  const KW_TEST_TAG = '[KW-2.8T10]';
+  const KW_TEST_TAG = '[KW-2.8T8]';
   function dlog(...a) { try { console.log(KW_TEST_TAG, ...a); } catch (e) {} }
   function domMsgCount() {
     try { return document.querySelectorAll('[class*="chatting_message"]').length; }
@@ -70,7 +69,7 @@
       dom: domMsgCount(), folded: isChatFolded(),
       watched: !!watchedContainer, kw: keywords.length,
       mut: mutBatches, mutNodes, catchup: catchupFound,
-      ws: wsTracked, wsMsgs, hist: hitLog.length, limited: limitedMode, w: curWidth,
+      ws: wsTracked, wsMsgs, hist: hitLog.length, limited: limitedMode,
     }));
     mutBatches = 0; mutNodes = 0; catchupFound = 0; wsMsgs = 0;
   }
@@ -255,11 +254,7 @@
   #__kw_stack{position:fixed;bottom:14px;left:14px;z-index:2147483647;display:flex;flex-direction:column;gap:8px;align-items:stretch;width:350px;max-width:calc(100vw - 28px)}
   #__kw_stack #__kw_panel{position:static;width:100%;box-sizing:border-box;min-width:0;max-width:none}
   #__kw_histp{width:100%;box-sizing:border-box;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ffd400}
-  #__kw_setp{position:absolute;left:calc(100% + 8px);top:0;width:320px;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777}
-  #__kw_midrow{position:relative;width:100%}
-  #__kw_grip{position:absolute;top:0;bottom:0;right:-6px;width:12px;cursor:ew-resize;z-index:1}
-  #__kw_grip:hover{background:rgba(0,255,163,.25)}
-  #__kw_stack #__kw_box{position:static;transform:none;width:100%;max-width:none;margin:0;display:none;align-items:stretch}
+  #__kw_setp{width:100%;box-sizing:border-box;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777}
   #__kw_hist_head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-weight:bold}
   #__kw_hits{max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;user-select:text}
   #__kw_hits_clear{background:#444;color:#fff;padding:2px 7px;font-size:11px}
@@ -332,52 +327,37 @@
     playAlertSound();
     highlightMessage(el);
   }
-  // 토스트 박스는 스택 맨 위(목록 위, 동일 너비)에 두고 비면 숨김
-  function ensureToastBox() {
-    let box = null;
-    try { box = document.getElementById('__kw_box'); } catch (e) {}
-    let stack = null;
-    try { stack = document.getElementById('__kw_stack'); } catch (e) {}
+  function showCallToast(nick, body) {
+    let box = document.getElementById('__kw_box');
     if (!box) {
       box = document.createElement('div');
       box.id = '__kw_box';
-      if (stack) stack.prepend(box);
-      else document.body.appendChild(box);
-    } else if (stack && box.parentElement !== stack) {
-      stack.prepend(box);
+      document.body.appendChild(box);
     }
-    box.style.display = 'flex';
-    return box;
-  }
-  function hideBoxIfEmpty() {
-    try {
-      const box = document.getElementById('__kw_box');
-      if (box && box.children.length === 0) box.style.display = 'none';
-    } catch (e) {}
-  }
-  function showCallToast(nick, body) {
-    const box = ensureToastBox();
-    if (!box) return;
     // 도배 시 DOM 비대화 방지: 최대 5개 유지
     while (box.children.length >= 5) box.firstChild?.remove();
     const t = document.createElement('div');
     t.className = '__kw_toast';
     t.innerHTML = '<b>🔔 ' + escapeHtml((nick || 'CHZZK').slice(0, 24)) + '</b><span style="font-weight:normal">: ' + escapeHtml((body || '').slice(0, 60)) + '</span>';
-    t.onclick = () => { t.remove(); hideBoxIfEmpty(); };
+    t.onclick = () => t.remove();
     box.appendChild(t);
-    setTimeout(() => { t.remove(); hideBoxIfEmpty(); }, 5000);
+    setTimeout(() => t.remove(), 5000);
   }
   function showToast(text) {
-    const box = ensureToastBox();
-    if (!box) return;
+    let box = document.getElementById('__kw_box');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = '__kw_box';
+      document.body.appendChild(box);
+    }
     // 도배 시 DOM 비대화 방지: 최대 5개 유지
     while (box.children.length >= 5) box.firstChild?.remove();
     const t = document.createElement('div');
     t.className = '__kw_toast';
     t.textContent = '🔔 ' + text.slice(0, 80);
-    t.onclick = () => { t.remove(); hideBoxIfEmpty(); };
+    t.onclick = () => t.remove();
     box.appendChild(t);
-    setTimeout(() => { t.remove(); hideBoxIfEmpty(); }, 5000);
+    setTimeout(() => t.remove(), 5000);
   }
 
   // ---------- 불린 대화 목록 (저장/표시/클릭 이동) ----------
@@ -436,7 +416,7 @@
 
   // 우리 자체 UI(패널/프롬프트/토스트/선택버튼)에서 발생한 변화는 절대 관리하지 않아야 무한루프를 막을 수 있음
   const isOwnUi = (node) =>
-    node.id && ['__kw_panel', '__kw_ask', '__kw_box', '__kw_sel', '__kw_stack', '__kw_histp', '__kw_setp', '__kw_midrow', '__kw_grip'].includes(node.id);
+    node.id && ['__kw_panel', '__kw_ask', '__kw_box', '__kw_sel', '__kw_stack', '__kw_histp', '__kw_setp'].includes(node.id);
 
   let statsRaf = null;
   function scheduleStatsUpdate() {
@@ -503,7 +483,7 @@
 
   function scanNode(node) {
     if (!(node instanceof HTMLElement)) return;
-    if (isOwnUi(node) || node.closest?.('#__kw_panel,#__kw_ask,#__kw_box,#__kw_sel,#__kw_stack,#__kw_histp,#__kw_setp,#__kw_midrow,#__kw_grip')) return;
+    if (isOwnUi(node) || node.closest?.('#__kw_panel,#__kw_ask,#__kw_box,#__kw_sel,#__kw_stack,#__kw_histp,#__kw_setp')) return;
     // 가장 흔한 경로: 추가된 노드 자체가 메시지 1개
     if (node.matches?.('[class*="chatting_message"]')) {
       if (scanSingle(node)) scheduleStatsUpdate();
@@ -558,7 +538,7 @@
       mutBatches++;
       for (const m of muts) {
         // 패널/프롬프트 자체의 변화는 무시 (무한루프 방지)
-        if (m.target && (isOwnUi(m.target) || m.target.closest?.('#__kw_panel,#__kw_ask,#__kw_box,#__kw_sel,#__kw_stack,#__kw_histp,#__kw_setp,#__kw_midrow,#__kw_grip'))) continue;
+        if (m.target && (isOwnUi(m.target) || m.target.closest?.('#__kw_panel,#__kw_ask,#__kw_box,#__kw_sel,#__kw_stack,#__kw_histp,#__kw_setp'))) continue;
         for (const n of m.addedNodes) {
           if (!(n instanceof HTMLElement)) continue; // 텍스트노드 스킵
           mutNodes++;
@@ -625,13 +605,6 @@
   // ---------- 패널 (#__kw_panel, 원본과 동일한 구조) + 목록 별도 화면 (#__kw_histp) ----------
   let panel;
   let stackEl = null, histPanel = null, histBox = null, histCount = null;
-  let midRowEl = null;
-  let curWidth = 350;
-  try { const wv = parseInt(localStorage.getItem(LS_W), 10); if (wv >= 240 && wv <= 600) curWidth = wv; } catch (e) {}
-  function setStackWidth(w) {
-    curWidth = Math.max(240, Math.min(600, Math.round(w)));
-    if (stackEl) stackEl.style.width = curWidth + 'px';
-  }
   let setPanel = null;
   let setOpen = false;
   try { setOpen = localStorage.getItem(LS_SET) === '1'; } catch (e) {}
@@ -639,51 +612,12 @@
     if (stackEl && stackEl.isConnected) return stackEl;
     let ex = null;
     try { ex = document.getElementById('__kw_stack'); } catch (e) {}
-    if (ex) { stackEl = ex; setStackWidth(curWidth); return ex; }
+    if (ex) { stackEl = ex; return ex; }
     const s = document.createElement('div');
     s.id = '__kw_stack';
     document.body.appendChild(s);
     stackEl = s;
-    setStackWidth(curWidth);
     return s;
-  }
-  function ensureMidrow() {
-    ensureStack();
-    if (midRowEl && midRowEl.isConnected) return midRowEl;
-    let ex = null;
-    try { ex = document.getElementById('__kw_midrow'); } catch (e) {}
-    if (ex) { midRowEl = ex; wireGrip(); return ex; }
-    const r = document.createElement('div');
-    r.id = '__kw_midrow';
-    stackEl.appendChild(r);
-    midRowEl = r;
-    const g = document.createElement('div');
-    g.id = '__kw_grip';
-    g.title = '드래그로 가로 조절';
-    r.appendChild(g);
-    wireGrip();
-    return r;
-  }
-  function wireGrip() {
-    if (!midRowEl) return;
-    const g = midRowEl.querySelector('#__kw_grip');
-    if (!g || g.__kwWired) return;
-    g.__kwWired = true;
-    g.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      if (e.stopPropagation) e.stopPropagation();
-      const startX = e.clientX;
-      const startW = curWidth;
-      const move = (ev) => setStackWidth(startW + (ev.clientX - startX));
-      const up = () => {
-        document.removeEventListener('mousemove', move);
-        document.removeEventListener('mouseup', up);
-        try { localStorage.setItem(LS_W, String(curWidth)); } catch (err) {}
-        dlog('width', curWidth);
-      };
-      document.addEventListener('mousemove', move);
-      document.addEventListener('mouseup', up);
-    });
   }
   function attachHistHandlers() {
     if (!histPanel || histPanel.__kwWired) return;
@@ -729,21 +663,21 @@
     histPanel.style.display = show ? 'block' : 'none';
   }
   function buildPanel() {
-    ensureMidrow();
+    ensureStack();
     panel = document.createElement('div');
     panel.id = '__kw_panel';
-    midRowEl.appendChild(panel);
+    stackEl.appendChild(panel);
     renderPanel();
   }
   function ensureSettingsPanel() {
-    ensureMidrow();
+    ensureStack();
     if (setPanel && setPanel.isConnected) { applySetVisibility(); return; }
     let ex = null;
     try { ex = document.getElementById('__kw_setp'); } catch (e) {}
     if (ex) { setPanel = ex; renderSettings(); return; }
     const d = document.createElement('div');
     d.id = '__kw_setp';
-    midRowEl.appendChild(d);
+    stackEl.appendChild(d);
     setPanel = d;
     renderSettings();
   }
@@ -897,7 +831,7 @@
     dlog('teardown', location.pathname);
     stop();
     try { document.getElementById('__kw_stack')?.remove(); } catch (e) {}
-    panel = null; stackEl = null; midRowEl = null; histPanel = null; histBox = null; histCount = null; setPanel = null;
+    panel = null; stackEl = null; histPanel = null; histBox = null; histCount = null; setPanel = null;
     document.getElementById('__kw_ask')?.remove();
     document.getElementById('__kw_box')?.remove();
     document.getElementById('__kw_sel')?.remove();
