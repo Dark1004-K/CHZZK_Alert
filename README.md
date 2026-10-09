@@ -9,7 +9,14 @@
 2. 설치할 파일의 Raw URL을 브라우저로 열기
    (예: `https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/chzzk-keyword-alert.user.js`)
    → Tampermonkey 설치 확인에서 **설치**.
+   (또는 Tampermonkey 대시보드 → Utilities → Install from URL에 붙여넣기)
 3. 방송 페이지 새로고침. `@match` 변경 후에는 재설치(또는 업데이트 확인) 필요.
+
+## 자동 업데이트
+
+루트 `chzzk-keyword-alert.user.js`에만 `@downloadURL`/`@updateURL`이
+붙어 있어서, `@version`이 오르면 Tampermonkey가 자동 갱신 (기본 1일 1회 확인).
+`v2.8_testN` 같은 테스트 파일은 수동 설치용이라 업데이트 헤더 없음.
 
 ## 인가 채널 (allowlist.json)
 
