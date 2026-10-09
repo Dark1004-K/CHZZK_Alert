@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.3.0-beta010';
+const SCRIPT_VERSION = '3.3.0-beta011';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -52,6 +52,42 @@ function redupSec() {
   return 5;
 }
 const redupMs = () => redupSec() * 1000;
+const LS_REDUP_INF = '__kw_redup_inf'; // 무제한: 시간이 지나도 같은 내용(같은 단어)은 다시 울리지 않음
+const redupInf = () => { try { return localStorage.getItem(LS_REDUP_INF) === '1'; } catch (e) { return false; } };
+// 이미 울렸거나 기록한 호출 서명(목록 30개 한도와 별개로 최대 400개 기억). 무제한 모드와 "다시 그려진 옛 채팅" 구분에 쓴다.
+const LS_SEEN = '__kw_seen';
+const LS_SEEN_CID = '__kw_seen_cid';
+const SEEN_MAX = 400;
+const loadSeen = () => {
+  try {
+    const m = location.pathname.match(/\/live\/([0-9a-f]{32})/i);
+    const stored = localStorage.getItem(LS_SEEN_CID);
+    if (m && stored && stored !== m[1].toLowerCase()) return [];
+    const a = JSON.parse(localStorage.getItem(LS_SEEN)) || [];
+    return Array.isArray(a) ? a.filter((x) => typeof x === 'string').slice(-SEEN_MAX) : [];
+  } catch (e) { return []; }
+};
+let seenList = loadSeen();
+let seenSigs = new Set(seenList);
+function rememberSig(sig) {
+  if (!sig || seenSigs.has(sig)) return;
+  seenSigs.add(sig);
+  seenList.push(sig);
+  while (seenList.length > SEEN_MAX) seenSigs.delete(seenList.shift());
+  try {
+    localStorage.setItem(LS_SEEN, JSON.stringify(seenList));
+    localStorage.setItem(LS_SEEN_CID, (location.pathname.match(/\/live\/([0-9a-f]{32})/i) || ['', ''])[1].toLowerCase());
+  } catch (e) {}
+}
+function clearSeen() { seenList = []; seenSigs = new Set(); try { localStorage.removeItem(LS_SEEN); } catch (e) {} }
+// 탭이 얼었다 깨어난 직후/다시 그려진 채팅을 훑는 동안은 "조용한 구간": 울리지 않고 목록에만 (없을 때) 추가한다.
+let quietUntil = 0;
+let scanQuiet = 0; // 시작/재접속 때 이미 있던 채팅을 훑는 동안(동기 구간) 0보다 큼
+const isQuietNow = () => scanQuiet > 0 || Date.now() < quietUntil;
+function markResume(reason, ms) {
+  quietUntil = Math.max(quietUntil, Date.now() + (ms || 12000));
+  dlog('quiet', reason);
+}
 const LS_HITS_CID = '__kw_hits_cid'; // 불린 대화가 속한 채널 (다른 채널이면 초기화)
 const loadHits = () => {
   try {
@@ -112,7 +148,7 @@ function startHeartbeat() {
 // 채팅 서버: wss://*.chat.naver.com/chat, 일반 93101 / 후원 93102
 const WS_URL_RE = /chat\.naver\.com\/chat/i;
 let wsHooked = false;
-function wsMatch(nick, msg) {
+function wsMatch(nick, msg, stale) {
   if (!running || kwCache.length === 0) return;
   const text = (nick ? nick + ' ' : '') + (msg || '');
   const sig = hitSig(text);
@@ -130,6 +166,10 @@ function wsMatch(nick, msg) {
       const fullSig = sig + '|' + kt;
       if (histSuppressed(fullSig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kt })); return; }
       if (!takeHit(fullSig)) { dlog('DUP-ws-skip', JSON.stringify({ kw: kt })); return; }
+      if (stale || isQuietNow()) { // 얼었다 깨어나 한꺼번에 들어온 옛 메시지 등: 울리지 않고 없을 때만 목록에 추가
+        if (!alreadyListed(fullSig)) { hits++; recordHit(nick, text, kt, fullSig, null); scheduleStatsUpdate(); dlog('HIT-quiet-ws', JSON.stringify({ kw: kt, stale: !!stale })); }
+        return;
+      }
       hits++;
       recordHit(nick, text, kt, fullSig, null);
       scheduleStatsUpdate();
@@ -157,7 +197,8 @@ function handleWsPayload(data) {
       else if (m.profile && typeof m.profile === 'object') nick = m.profile.nickname || '';
     } catch (e) {}
     if (normMyNick && nick && norm(nick) === normMyNick) continue;
-    wsMatch(nick, msg);
+    const mt = Number(m.msgTime || m.messageTime || 0); // 메시지 시각이 90초보다 오래됐으면 밀려 들어온 옛 메시지로 본다
+    wsMatch(nick, msg, mt > 0 && Date.now() - mt > 90000);
   }
 }
 function patchWebSocket() {
@@ -230,8 +271,16 @@ const hitTimes = new Map();
 // 불린 대화 목록: 클릭 이동용 + 같은 호출 재알림 간격 계산용
 let hitLog = loadHits();
 // 기록에 같은 서명이 간격 안에 있으면 재알림 생략 (스크롤 백필·접힘 리렌더·WS 리플레이 대응)
+// 이 호출이 이미 목록/기억에 있는가 (나이 무관)
+function alreadyListed(sig) {
+  if (!sig) return false;
+  if (seenSigs.has(sig)) return true;
+  for (const h of hitLog) { if (h.sig === sig) return true; }
+  return false;
+}
 function histSuppressed(sig) {
   if (!dedupOn() || !sig) return false;
+  if (redupInf() && alreadyListed(sig)) return true; // 무제한: 시간이 얼마가 지나도 같은 내용은 울리지 않음
   const now = Date.now();
   const ttl = redupMs();
   for (const h of hitLog) {

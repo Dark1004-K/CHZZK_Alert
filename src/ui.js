@@ -444,8 +444,12 @@ function renderSettings() {
           <div class="__kw_lbl" id="__kw_snd_msg" style="color:#ffd400"></div>
           <div class="__kw_lbl"><label style="cursor:pointer;display:flex;align-items:center;gap:6px"><input type="checkbox" id="__kw_dedup" style="margin:0" ${dedupOn() ? 'checked' : ''}> 이미 울린 대화 재알림 방지</label></div>
           <div id="__kw_redup_grp" style="padding-left:20px;opacity:${dedupOn() ? 1 : 0.45}">
-            <div class="__kw_lbl" style="margin-top:2px">같은 호출 다시 울리기까지 (초, 0이면 항상 울림)</div>
-            <input class="__kw_in" id="__kw_redup" type="number" min="0" max="7200" step="1" style="width:80px" value="${redupSec()}" ${dedupOn() ? '' : 'disabled'}>
+            <div class="__kw_lbl" style="margin-top:2px">같은 호출 다시 울리기까지 (0이면 항상 울림)</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <input class="__kw_in" id="__kw_redup" type="number" min="0" max="7200" step="1" style="width:80px;${redupInf() ? 'opacity:.45' : ''}" value="${redupSec()}" ${dedupOn() && !redupInf() ? '' : 'disabled'}>
+              <span>초</span>
+              <label style="cursor:pointer;display:flex;align-items:center;gap:4px;margin-left:6px" title="켜면 시간이 아무리 지나도 같은 내용(같은 단어)은 다시 울리지 않습니다"><input type="checkbox" id="__kw_redup_inf" style="margin:0" ${redupInf() ? 'checked' : ''} ${dedupOn() ? '' : 'disabled'}> 무제한</label>
+            </div>
           </div>
         </div>
         <div id="__kw_set_words" style="display:${setTab === 'words' ? 'block' : 'none'}">
@@ -522,8 +526,17 @@ function renderSettings() {
   setPanel.querySelector('#__kw_dedup').onchange = (e) => {
     try { localStorage.setItem(LS_DEDUP, e.target.checked ? '1' : '0'); } catch (err) {}
     // 재알림 방지를 끄면 "다시 울리기까지" 숫자는 입력할 수 없게 한다
-    setPanel.querySelector('#__kw_redup').disabled = !e.target.checked;
+    setPanel.querySelector('#__kw_redup').disabled = !e.target.checked || redupInf();
+    setPanel.querySelector('#__kw_redup_inf').disabled = !e.target.checked;
     setPanel.querySelector('#__kw_redup_grp').style.opacity = e.target.checked ? '1' : '0.45';
+  };
+  // 무제한: 켜면 시간이 지나도 같은 내용은 다시 울리지 않는다 (숫자 입력은 막음)
+  setPanel.querySelector('#__kw_redup_inf').onchange = (e) => {
+    try { localStorage.setItem(LS_REDUP_INF, e.target.checked ? '1' : '0'); } catch (err) {}
+    const num = setPanel.querySelector('#__kw_redup');
+    num.disabled = e.target.checked || !dedupOn();
+    num.style.opacity = e.target.checked ? '.45' : '';
+    dlog('redup-inf', e.target.checked);
   };
   setPanel.querySelectorAll('.__kw_plug').forEach((c) => {
     c.onchange = () => {

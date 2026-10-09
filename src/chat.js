@@ -209,6 +209,7 @@ function fmtTime(t) {
   try { return new Date(t).toTimeString().slice(0, 8); } catch (e) { return ''; }
 }
 function recordHit(nick, text, kw, sig, el) {
+  rememberSig(sig);
   if (!histOn() && !dedupOn()) return;
   hitLog.unshift({ t: Date.now(), nick: nick || '', text: (text || '').slice(0, 120), kw, sig, el: el || null });
   while (hitLog.length > HITS_MAX) hitLog.pop();
@@ -356,6 +357,10 @@ function scanSingle(el) {
       // 기록에 있는 건 경로/시점 불문 재알림 생략 (스크롤 백필·접힘 리렌더·WS 리플레이 대응)
       if (histSuppressed(sig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kl })); break; }
       if (!takeHit(sig)) { dlog('DUP-dom-skip', JSON.stringify({ kw: kl })); break; }
+      if (isQuietNow()) { // 다시 그려진 옛 채팅 등: 울리지 않고, 목록에 같은 내용이 없을 때만 추가
+        if (!alreadyListed(sig)) { hits++; recordHit(senderName, text, kl, sig, el); dlog('HIT-quiet-dom', JSON.stringify({ kw: kl })); }
+        break;
+      }
       hits++;
       recordHit(senderName, text, kl, sig, el);
       dlog('HIT-loose', JSON.stringify({ kw: kl, nick: senderName.slice(0, 30), text: text.slice(0, 60) }));
@@ -377,6 +382,10 @@ function scanSingle(el) {
       const sig = hitSig(text) + '|' + kt;
       if (histSuppressed(sig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kt })); break; }
       if (!takeHit(sig)) { dlog('DUP-dom-skip', JSON.stringify({ kw: kt })); break; }
+      if (isQuietNow()) {
+        if (!alreadyListed(sig)) { hits++; recordHit(senderName, text, kt, sig, el); dlog('HIT-quiet-dom', JSON.stringify({ kw: kt })); }
+        break;
+      }
       hits++;
       recordHit(senderName, text, kt, sig, el);
       dlog('HIT-token', JSON.stringify({ kw: kt, nick: senderName.slice(0, 30), text: text.slice(0, 60) }));
@@ -571,7 +580,8 @@ function start() {
   const first = findChatContainer();
   if (first && first !== document.body) {
     attachObserverTo(first);
-    scanNode(first); // 시작 전 쌓인 메시지 1회 회수 (기록에 있으면 재알림 생략됨)
+    scanQuiet++; // 시작 전 쌓인 메시지 1회 회수: 울리지 않고 목록에만 추가
+    try { scanNode(first); } finally { scanQuiet--; }
   } else {
     dlog('start-nocontainer', JSON.stringify({ dom: domMsgCount(), folded: isChatFolded() }));
   }
@@ -582,7 +592,8 @@ function start() {
     if (better && better !== document.body && better !== watchedContainer) {
       dlog('reattach', JSON.stringify({ dom: domMsgCount(), folded: isChatFolded() }));
       attachObserverTo(better);
-      scanNode(better); // 재접속/refill 과거분: 기록에 있으면 재알림 생략됨
+      scanQuiet++; // 재접속/refill 과거분: 울리지 않고 목록에만 추가
+      try { scanNode(better); } finally { scanQuiet--; }
     } else if (!better && !watchedContainer) {
       dlog('nocontainer-tick', JSON.stringify({ dom: domMsgCount(), folded: isChatFolded() }));
     }

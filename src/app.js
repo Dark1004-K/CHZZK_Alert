@@ -36,7 +36,27 @@ function buildUi() {
   if (!running) showAskPrompt();
 }
 
+// 탭이 얼었다 깨어남/버려졌다 다시 불러옴/가려졌다 다시 보임을 감지 → 그 직후 잠깐은 울리지 않음 (markResume)
+let lastTickAt = Date.now();
+let hiddenAt = 0;
+function setupResumeWatch() {
+  try { if (document.wasDiscarded) markResume('discarded', 20000); } catch (e) {}
+  try {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') hiddenAt = Date.now();
+      else if (hiddenAt && Date.now() - hiddenAt > 60000) markResume('visible-after-hidden');
+    });
+    document.addEventListener('resume', () => markResume('resume')); // Page Lifecycle: 얼었던 탭이 깨어남
+    window.addEventListener('pageshow', (e) => { if (e.persisted) markResume('pageshow'); });
+  } catch (e) {}
+}
+function gapCheck() { // 타이머가 150초 넘게 멈췄다 풀렸으면 탭이 얼어 있었던 것
+  const now = Date.now();
+  if (now - lastTickAt > 150000) markResume('gap');
+  lastTickAt = now;
+}
 function checkRoute() {
+  gapCheck();
   if (location.pathname !== lastPath) {
     lastPath = location.pathname;
     const cid = pageChannelId();
@@ -46,7 +66,7 @@ function checkRoute() {
         allowState = 'pending';
         allowEntry = null;
         try { stop(); } catch (e) {}
-        hitLog = []; hitTimes.clear(); saveHits(); renderHitsList(); // 다른 채널: 불린 대화 초기화
+        hitLog = []; hitTimes.clear(); clearSeen(); saveHits(); renderHitsList(); // 다른 채널: 불린 대화 초기화
         try { syncPlugins(); } catch (e) {}
       }
       buildUi();
@@ -208,6 +228,7 @@ function initApp() {
     document.addEventListener('pointerdown', unlockAudio);
     document.addEventListener('keydown', unlockAudio);
   } catch (e) {}
+  setupResumeWatch();
   setInterval(checkRoute, 1000);
 }
 
