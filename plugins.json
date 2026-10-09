@@ -1,1 +1,1 @@
-{"plugins": [{"id": "tts", "name": "호출 TTS (누가 불렀는지 음성 안내)", "url": "https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/plugins/tts.js", "on": true}]}
+{"plugins": [{"id": "tts", "name": "호출 TTS (누가 불렀는지 음성 안내)", "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/plugins/tts.js", "on": true}]}

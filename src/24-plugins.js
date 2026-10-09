@@ -1,7 +1,7 @@
   // ---------- 플러그인 (plugins.json 매니페스트 기반 동적 로딩) ----------
   // MAIN world(사용자 스크립트 허용 켜짐)에서만 동작. 주입 <script>가 같은 window를 공유한다.
   // 플러그인은 window.__KW.on('hit', ({nick, text, kw}) => ...) 형태로 구독한다.
-  const PLUGIN_MANIFEST_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/plugins.json';
+  const PLUGIN_MANIFEST_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/plugins.json';
   const __kwListeners = {};
   try {
     window.__KW = window.__KW || {

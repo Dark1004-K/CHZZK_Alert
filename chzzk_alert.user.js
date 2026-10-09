@@ -8,8 +8,8 @@
 // @match        https://chzzk.naver.com/0a3deecf0fa1652445e3c97bc118272e*
 // @run-at       document-start
 // @grant        none
-// @downloadURL  https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/chzzk-keyword-alert.user.js
-// @updateURL    https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/chzzk-keyword-alert.user.js
+// @downloadURL  https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/Chzzk_Alert.user.js
+// @updateURL    https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/Chzzk_Alert.user.js
 // ==/UserScript==
 
 (function () {
@@ -587,7 +587,7 @@
 
   // ---------- 채널 인가 (allowlist.json, git에서 관리) ----------
   // 강제력은 없음(클라이언트 코드라 고치면 우회됨). 정직한 사용자용 관리 + 원격 킬스위치.
-  const ALLOW_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/allowlist.json';
+  const ALLOW_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/allowlist.json';
   const LS_ALLOW = '__kw_allow';
   let allowState = 'pending'; // pending | ok | denied
   function readAllowCache() {

@@ -25,5 +25,5 @@ const FILES = [
 ];
 const parts = FILES.map((f) => fs.readFileSync(path.join(__dirname, f), 'utf8'));
 const out = parts.join('\n');
-fs.writeFileSync(path.join(__dirname, '..', 'beta', 'chzzk-keyword-alert.beta.user.js'), out);
-console.log('built beta/chzzk-keyword-alert.beta.user.js (' + Buffer.byteLength(out, 'utf8') + ' bytes)');
+fs.writeFileSync(path.join(__dirname, '..', 'beta', 'Chzzk_Alert.beta.user.js'), out);
+console.log('built beta/Chzzk_Alert.beta.user.js (' + Buffer.byteLength(out, 'utf8') + ' bytes)');
