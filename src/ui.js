@@ -471,19 +471,23 @@ const DROPS_VAULT_URL = 'https://game.naver.com/profile#drops';
 let dropsPanel = null, dropsPoll = null, dropsTick = null;
 let dropsSaveN = 0;
 let dropsCid = '', dropsJoinAt = 0, dropsNo = 0, dropsInfo = null;
+let dropsDone = new Set(); // 시간 충족 알림을 이미 한 보상 번호
+let dropsCurNo = null; // 지금 창에 보여주는 보상 번호 (바뀌면 다시 그림)
 // 새로고침해도 접속 시간 유지: 같은 채널이면 마지막 확인 후 10분 안에 돌아온 경우 이어서 센다
 const LS_DJOIN = '__kw_drops_join';
 const DROPS_RESUME_MS = 600000;
-function loadJoinAt(cid) {
+function loadJoin(cid) {
   try {
     const o = JSON.parse(localStorage.getItem(LS_DJOIN));
-    if (o && o.cid === cid && o.joinAt && Date.now() - o.seen < DROPS_RESUME_MS) return o.joinAt;
+    if (o && o.cid === cid && o.joinAt && Date.now() - o.seen < DROPS_RESUME_MS) {
+      return { joinAt: o.joinAt, done: Array.isArray(o.done) ? o.done : [] };
+    }
   } catch (e) {}
-  return Date.now();
+  return { joinAt: Date.now(), done: [] };
 }
 function saveJoinAt() {
   if (!dropsCid) return;
-  try { localStorage.setItem(LS_DJOIN, JSON.stringify({ cid: dropsCid, joinAt: dropsJoinAt, seen: Date.now() })); } catch (e) {}
+  try { localStorage.setItem(LS_DJOIN, JSON.stringify({ cid: dropsCid, joinAt: dropsJoinAt, seen: Date.now(), done: [...dropsDone] })); } catch (e) {}
 }
 function fmtElapsed(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -498,6 +502,18 @@ function removeDropsPanel() {
   if (dropsPanel) { try { dropsPanel.remove(); } catch (e) {} }
   dropsPanel = null;
 }
+// 시청 시간 기준으로 정렬한 보상 목록 (조건 분이 없는 보상은 제외)
+function dropsRewards() {
+  const l = (dropsInfo && dropsInfo.rewardList) || [];
+  return l.filter((r) => r && isFinite(r.conditionForMinutes)).sort((a, b) => a.conditionForMinutes - b.conditionForMinutes);
+}
+// 아직 시간이 안 찬 첫 보상. 모두 찼으면 null
+function dropsNextReward(elapsed) {
+  return dropsRewards().find((r) => elapsed < r.conditionForMinutes * 60000) || null;
+}
+function dropsSubHtml(elapsed, cur) {
+  return '시청 <b id="__kw_dr_time">' + fmtElapsed(elapsed) + '</b>' + (cur ? ' / ' + cur.conditionForMinutes + '분' : ' · 시간충족');
+}
 function renderDrops() {
   if (!dropsInfo || !dropsOn()) { removeDropsPanel(); return; }
   ensureStack();
@@ -507,19 +523,55 @@ function renderDrops() {
     stackEl.insertBefore(d, histPanel && histPanel.isConnected ? histPanel : null);
     dropsPanel = d;
   }
-  const r = (dropsInfo.rewardList && dropsInfo.rewardList[0]) || null;
+  const elapsed = Date.now() - dropsJoinAt;
+  const rewards = dropsRewards();
+  const cur = dropsNextReward(elapsed);
+  const r = cur || rewards[rewards.length - 1] || (dropsInfo.rewardList && dropsInfo.rewardList[0]) || null;
+  dropsCurNo = cur ? cur.rewardNo : 'done';
   const title = r ? r.title : dropsInfo.title;
   const img = r && r.imageUrl ? `<img src="${escapeHtml(r.imageUrl)}" alt="">` : '';
-  dropsPanel.innerHTML = `<div class="__kw_dr">${img}<div class="__kw_dr_b"><div class="__kw_dr_t" title="${escapeHtml(dropsInfo.title || '')}">🎁 ${escapeHtml(title || '드롭스')}</div><div class="__kw_dr_s">시청 <b id="__kw_dr_time">${fmtElapsed(Date.now() - dropsJoinAt)}</b></div></div><button class="__kw_ic" id="__kw_dr_vault" title="보관함" style="color:#ff9f1a">${IC.box}</button></div>`;
+  dropsPanel.innerHTML = `<div class="__kw_dr">${img}<div class="__kw_dr_b"><div class="__kw_dr_t" title="${escapeHtml(dropsInfo.title || '')}">🎁 ${escapeHtml(title || '드롭스')}</div><div class="__kw_dr_s">${dropsSubHtml(elapsed, cur)}</div></div><button class="__kw_ic" id="__kw_dr_vault" title="보관함" style="color:#ff9f1a">${IC.box}</button></div>`;
   dropsPanel.querySelector('#__kw_dr_vault').onclick = () => { try { window.open(DROPS_VAULT_URL, '_blank', 'noopener'); } catch (e) {} };
   applyDropsVisibility();
+}
+// 시간이 찬 보상을 알림 (토스트 + 브라우저 알림 + 소리, TTS는 확장이 'drops' 이벤트로 읽음)
+function dropsReached(r, last) {
+  const text = '드롭스 시간 충족: ' + r.title;
+  kwEmit('drops', { title: r.title, minutes: r.conditionForMinutes, last: !!last });
+  dlog('drops-reached', r.rewardNo, r.conditionForMinutes);
+  if (muted()) return;
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try {
+      const n = new Notification('🎁 드롭스 시간 충족', { body: r.title.slice(0, 120), tag: 'kw-drops-' + r.rewardNo, requireInteraction: true });
+      n.onclick = () => { try { window.focus(); } catch (e) {} try { n.close(); } catch (e2) {} };
+    } catch (e) {}
+  }
+  showToast(text);
+  playAlertSound();
+}
+function dropsCheck() {
+  if (!dropsInfo) return;
+  const elapsed = Date.now() - dropsJoinAt;
+  const rewards = dropsRewards();
+  rewards.forEach((r, k) => {
+    if (elapsed >= r.conditionForMinutes * 60000 && !dropsDone.has(r.rewardNo)) {
+      dropsDone.add(r.rewardNo);
+      dropsReached(r, k === rewards.length - 1);
+      saveJoinAt();
+    }
+  });
+  const cur = dropsNextReward(elapsed);
+  const curNo = cur ? cur.rewardNo : 'done';
+  if (curNo !== dropsCurNo) { renderDrops(); return; } // 다음 보상으로 교체
+  const sub = dropsPanel ? dropsPanel.querySelector('.__kw_dr_s') : null;
+  if (sub) sub.innerHTML = dropsSubHtml(elapsed, cur);
 }
 function pollDrops() {
   if (!dropsOn() || !isLivePage()) { dropsInfo = null; removeDropsPanel(); return; }
   const cid = pageChannelId();
   if (!cid) return;
   if (cid !== dropsCid) { // 채널이 바뀌면 접속 시간 초기화
-    dropsCid = cid; dropsJoinAt = loadJoinAt(cid); saveJoinAt(); dropsNo = 0; dropsInfo = null; removeDropsPanel();
+    dropsCid = cid; const jn = loadJoin(cid); dropsJoinAt = jn.joinAt; dropsDone = new Set(jn.done); saveJoinAt(); dropsNo = 0; dropsInfo = null; removeDropsPanel();
   }
   fetch(DROPS_API + 'v3.2/channels/' + cid + '/live-detail')
     .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
@@ -534,6 +586,8 @@ function pollDrops() {
         .then((c) => {
           if (cid !== dropsCid || no !== dropsNo || !c || !c.content) return;
           dropsInfo = c.content;
+          const el0 = Date.now() - dropsJoinAt; // 이미 시간이 찬 보상은 알리지 않고 기록만
+          dropsRewards().forEach((r) => { if (el0 >= r.conditionForMinutes * 60000) dropsDone.add(r.rewardNo); });
           dlog('drops', no, dropsInfo.title);
           renderDrops();
         });
@@ -544,8 +598,7 @@ function startDrops() {
   if (!dropsPoll) dropsPoll = setInterval(pollDrops, 60000);
   if (!dropsTick) {
     dropsTick = setInterval(() => {
-      const t = dropsPanel ? dropsPanel.querySelector('#__kw_dr_time') : null;
-      if (t) t.textContent = fmtElapsed(Date.now() - dropsJoinAt);
+      dropsCheck();
       if (++dropsSaveN % 10 === 0) saveJoinAt();
     }, 1000);
   }
@@ -554,6 +607,6 @@ function startDrops() {
 function stopDrops() {
   if (dropsPoll) { clearInterval(dropsPoll); dropsPoll = null; }
   if (dropsTick) { clearInterval(dropsTick); dropsTick = null; }
-  dropsCid = ''; dropsNo = 0; dropsInfo = null;
+  dropsCid = ''; dropsNo = 0; dropsInfo = null; dropsDone = new Set(); dropsCurNo = null;
   removeDropsPanel();
 }
