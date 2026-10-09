@@ -1,7 +1,7 @@
 # UPDATE — 버전별 변경 이력
 
 `@version`이 오르면 Tampermonkey가 자동 갱신한다. (기본 1일 1회 확인)
-정식(`chzzk-keyword-alert.user.js`)과 베타(`beta/`)는 별개 채널이라 서로 덮어쓰지 않는다.
+정식(`chzzk_alert.user.js`)과 베타(`beta/`)는 별개 채널이라 서로 덮어쓰지 않는다.
 베타→정식 승격 시 `beta/`는 비운다.
 
 ## v2.8 (정식)
