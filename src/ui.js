@@ -335,7 +335,14 @@ function showReloadPopup(installWin) {
   if (document.getElementById('__kw_upd')) return;
   const box = document.createElement('div');
   box.id = '__kw_upd';
-  box.style.cssText = 'position:fixed;top:28%;left:50%;transform:translateX(-50%);z-index:2147483647;background:rgba(20,20,24,.97);color:#fff;font:13px sans-serif;padding:16px 18px;border-radius:12px;border:2px solid #1f6feb;box-shadow:0 8px 28px rgba(0,0,0,.6);max-width:340px;text-align:left';
+  // 우리 앱 화면(설정 창, 닫혀 있으면 왼쪽 아래 스택) 위에 덮어서 보여준다
+  let host = null;
+  try { host = (setPanel && setPanel.isConnected && setPanel.style.display !== 'none') ? setPanel : stackEl; } catch (e) {}
+  const hr = host && host.isConnected ? host.getBoundingClientRect() : null;
+  const base = 'z-index:2147483647;background:rgba(14,14,18,.94);color:#fff;font:13px sans-serif;border-radius:12px;border:2px solid #1f6feb;box-shadow:0 8px 28px rgba(0,0,0,.6);box-sizing:border-box;text-align:left;';
+  box.style.cssText = hr && hr.width > 120 && hr.height > 80
+    ? base + 'position:fixed;left:' + hr.left + 'px;top:' + hr.top + 'px;width:' + hr.width + 'px;height:' + hr.height + 'px;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;overflow:auto'
+    : base + 'position:fixed;top:28%;left:50%;transform:translateX(-50%);padding:16px 18px;max-width:340px';
   box.innerHTML = '<div style="font-size:14px"><b>🔄 업데이트 설치 후 새로고침</b></div>' +
     '<div style="font-size:12px;color:#bbb;margin:8px 0 10px;line-height:1.5">새로 열린 Tampermonkey 창에서 <b>재설치/업데이트</b>를 누르세요<br>이후 화면이 갱신되면 알람 초기화가 일어날 수 있습니다</div>' +
     '<button class="__kw_b" id="__kw_upd_go" style="background:#1f6feb;color:#fff">새로고침</button> ' +
@@ -355,7 +362,7 @@ function showReloadPopup(installWin) {
     clearInterval(timer);
     timer = null;
     const msg = box.querySelector('#__kw_upd_msg');
-    let n = 3;
+    let n = 7;
     const tick = () => {
       if (!box.isConnected) return;
       if (msg) msg.textContent = '설치 창이 닫혔습니다. ' + n + '초 뒤 새로고침합니다...';
@@ -411,10 +418,10 @@ function renderSettings() {
           <div id="__kw_t_msg" class="__kw_lbl"></div>
           <div class="__kw_lbl">제작자</div>
           <div><b>비류라미</b></div>
-          <div style="margin-top:6px;font-size:12px;color:#eee">검은사막에서 미리내ES 님과 놀다 겁나 심심해서 만듬</div>
+          <div style="margin-top:6px;font-size:12px;color:#eee">"검은사막에서 미리내ES 님과 놀다 겁나 심심해서 만듬"</div>
           <div class="__kw_lbl">테스터</div>
           <div><b>데아앵커</b></div>
-          <div style="margin-top:2px;font-size:12px;color:#eee">쉬는 시간은 최고야!</div>
+          <div style="margin-top:2px;font-size:12px;color:#eee">"쉬는 시간은 최고야!"</div>
           <div class="__kw_lbl">현재 버전</div>
           <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span><button class="__kw_ic" id="__kw_update_check" title="업데이트 확인">${IC.refresh}</button><button class="__kw_upbtn" id="__kw_update_go" disabled>업데이트</button></div>
           <div id="__kw_update_msg" class="__kw_lbl"></div>
