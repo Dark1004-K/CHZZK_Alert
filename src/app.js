@@ -138,7 +138,24 @@ function injectPlugin(p) {
   } catch (e) {}
 }
 
+// 치지직 로그인이 안 되어 있으면 앱을 실행하지 않는다 (확인 실패도 미실행, 1분마다 재확인)
+let appStarted = false;
+function checkLogin() {
+  return fetch('https://comm-api.game.naver.com/nng_main/v1/user/getUserStatus', { credentials: 'include' })
+    .then((r) => r.json())
+    .then((j) => !!(j && j.content && j.content.loggedIn))
+    .catch(() => false);
+}
 function init() {
+  if (appStarted) return;
+  checkLogin().then((ok) => {
+    if (appStarted) return;
+    if (!ok) { dlog('not-logged-in'); setTimeout(init, 60000); return; }
+    appStarted = true;
+    initApp();
+  });
+}
+function initApp() {
   ensureStyle();
   startHeartbeat();
   if (isLivePage()) {

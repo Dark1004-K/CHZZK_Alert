@@ -273,8 +273,7 @@ function extListHtml() {
   if (limitedMode) return '<div class="__kw_lbl" style="color:#ffd400">사용자 스크립트 허용이 꺼져 있어 확장을 쓸 수 없습니다</div>';
   if (pluginList === null) return '<div class="__kw_lbl">목록을 불러오는 중...</div>';
   if (!pluginList.length) return '<div class="__kw_lbl">등록된 확장이 없습니다</div>';
-  return pluginList.map((p) => `<div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" ${pluginIsOn(p) ? 'checked' : ''}> ${escapeHtml(p.name || p.id)}</label></div>`).join('') +
-    '<div class="__kw_lbl" style="color:#888">끄면 이벤트 전달이 멈추고, 완전한 해제는 새로고침 후 적용됩니다</div>';
+  return pluginList.map((p) => `<div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" ${pluginIsOn(p) ? 'checked' : ''}> ${escapeHtml(p.name || p.id)}</label></div>`).join('');
 }
 function renderSettings() {
   if (!setPanel) return;
@@ -286,7 +285,7 @@ function renderSettings() {
         <button class="__kw_tab${setTab === 'ext' ? ' on' : ''}" data-tab="ext">확장</button>
         <button class="__kw_tab${setTab === 'about' ? ' on' : ''}" data-tab="about">앱 정보</button>
       </div>
-      <div id="__kw_set_body" style="flex:1;min-width:0;min-height:0;overflow-y:auto">
+      <div id="__kw_set_body" style="flex:1;min-width:0;min-height:0;overflow-y:auto;display:flex;flex-direction:column">
         <div id="__kw_set_general" style="display:${setTab === 'general' ? 'block' : 'none'}">
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_auto" ${autoOn() ? 'checked' : ''}> 방송 들어가면 묻지 않고 자동으로 켜기</label></div>
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_hist" ${histOn() ? 'checked' : ''}> 불린 대화 목록 별도 표시 (클릭 이동)</label></div>
@@ -304,9 +303,10 @@ function renderSettings() {
           <div class="__kw_lbl">내 닉네임 (이 닉네임의 채팅은 알림 제외)</div>
           <input class="__kw_in" id="__kw_nick" style="width:130px" value="${escapeHtml(myNick)}">
         </div>
-        <div id="__kw_set_ext" style="display:${setTab === 'ext' ? 'block' : 'none'}">
+        <div id="__kw_set_ext" style="display:${setTab === 'ext' ? 'flex' : 'none'};flex-direction:column;flex:1">
           <div class="__kw_lbl">등록된 확장 (체크하면 켜짐)</div>
           ${extListHtml()}
+          <div class="__kw_lbl" style="color:#888;margin-top:auto">끄면 이벤트 전달이 멈추고, 완전한 해제는 새로고침 후 적용됩니다</div>
         </div>
         <div id="__kw_set_about" style="display:${setTab === 'about' ? 'block' : 'none'}">
           <div class="__kw_lbl">프로그램</div>
