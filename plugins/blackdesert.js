@@ -169,7 +169,7 @@
         active.add(o.t);
         if (!items.has(o.t)) {
           addItem(o);
-          if (opt('sound', true)) beep();
+          if (opt('sound', true)) { if (typeof KW.sound === 'function') KW.sound(); else beep(); } // 설정의 알림 소리 사용
           // TTS 확장이 켜져 있으면 우두머리 이름을 읽는다 (구독: on('ext:boss'))
           try {
             if (typeof KW.emit === 'function') {

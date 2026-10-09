@@ -7,31 +7,54 @@ function ensurePermission() {
 }
 let sharedCtx = null;
 let lastSoundAt = 0;
+function getCtx() {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  if (!sharedCtx || sharedCtx.state === 'closed') sharedCtx = new Ctx();
+  if (sharedCtx.state === 'suspended') sharedCtx.resume();
+  return sharedCtx;
+}
+// 딩동: 높은 음 → 낮은 음, 기본음에 배음을 얹어 종소리 느낌
+function playDingDong() {
+  try {
+    const ctx = getCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    [[987.77, 0], [783.99, 0.3]].forEach(([f, o]) => {
+      [[1, 0.3], [2.01, 0.08]].forEach(([mul, vol]) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = f * mul;
+        gain.gain.setValueAtTime(0.0001, now + o);
+        gain.gain.exponentialRampToValueAtTime(vol, now + o + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + o + 0.9);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + o);
+        osc.stop(now + o + 0.95);
+      });
+    });
+  } catch (e) {}
+}
+function playCustomSound() {
+  try {
+    const d = localStorage.getItem(LS_SND_DATA);
+    if (!d) return false;
+    const a = new Audio(d);
+    a.volume = 1;
+    const p = a.play();
+    if (p && p.catch) p.catch(() => playDingDong());
+    return true;
+  } catch (e) { return false; }
+}
 function playAlertSound() {
   try {
     const nowMs = Date.now();
     if (nowMs - lastSoundAt < 800) return; // 도배 시 사운드 스킵 (CPU/컨텍스트 보호)
     lastSoundAt = nowMs;
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    if (!sharedCtx || sharedCtx.state === 'closed') sharedCtx = new Ctx();
-    const ctx = sharedCtx;
-    if (ctx.state === 'suspended') ctx.resume();
-    const now = ctx.currentTime;
-    // 두 번 짧게 삑삑 울리는 알림음
-    [0, 0.16].forEach((offset) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = 880;
-      gain.gain.setValueAtTime(0.0001, now + offset);
-      gain.gain.exponentialRampToValueAtTime(0.35, now + offset + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.14);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now + offset);
-      osc.stop(now + offset + 0.16);
-    });
+    if (sndMode() === 'custom' && playCustomSound()) return;
+    playDingDong();
   } catch (e) {}
 }
 
@@ -62,7 +85,7 @@ function fireAlert(nick, text, el, kw) {
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       try {
         // 다른 탭을 보고 있어도 놓치지 않도록: 겹치지 않는 태그 + 직접 닫을 때까지 유지 + 클릭 시 창 포커스
-        const n = new Notification(title, { body: body.slice(0, 120), tag: 'kw-' + Date.now() + '-' + Math.floor(Math.random() * 1e6), requireInteraction: true });
+        const n = new Notification(title, { body: body.slice(0, 120), tag: 'kw-' + Date.now() + '-' + Math.floor(Math.random() * 1e6), requireInteraction: true, silent: true });
         n.onclick = () => { try { window.focus(); } catch (e) {} try { n.close(); } catch (e2) {} };
       } catch (e) {}
     }

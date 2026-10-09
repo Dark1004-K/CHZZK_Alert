@@ -310,6 +310,9 @@ function renderSettings() {
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_dedup" ${dedupOn() ? 'checked' : ''}> 이미 울린 대화 재알림 방지</label></div>
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_drops" ${dropsOn() ? 'checked' : ''}> 드롭스 보기 (진행 중인 드롭스가 있을 때만 표시)</label></div>
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_mute" ${muted() ? 'checked' : ''}> 알람 끄기 (감지·기록은 유지)</label></div>
+          <div class="__kw_lbl">알림 소리 <select class="__kw_in" id="__kw_snd"><option value="dingdong">딩동</option><option value="custom">내 파일</option></select> <button class="__kw_b" id="__kw_snd_test" style="background:#444;color:#fff">들어보기</button></div>
+          <div class="__kw_lbl" id="__kw_snd_row" style="display:${sndMode() === 'custom' ? 'block' : 'none'}"><input type="file" id="__kw_snd_file" accept="audio/*" style="max-width:150px;font-size:11px"> <span id="__kw_snd_name" style="color:#aaa"></span></div>
+          <div class="__kw_lbl" id="__kw_snd_msg" style="color:#ffd400"></div>
           <div class="__kw_lbl">같은 호출 다시 울리기까지 (초, 0이면 항상 울림)</div>
           <input class="__kw_in" id="__kw_redup" type="number" min="0" max="7200" step="1" style="width:80px" value="${redupSec()}">
         </div>
@@ -412,6 +415,52 @@ function renderSettings() {
     try { localStorage.setItem(LS_DROPS, e.target.checked ? '1' : '0'); } catch (err) {}
     if (e.target.checked) startDrops(); else stopDrops();
   };
+  // 알림 소리: 딩동(기본) / 내 파일(1.5MB 이하, 이 브라우저에 저장)
+  const sndSel = setPanel.querySelector('#__kw_snd');
+  const sndRow = setPanel.querySelector('#__kw_snd_row');
+  const sndMsg = setPanel.querySelector('#__kw_snd_msg');
+  const sndName = setPanel.querySelector('#__kw_snd_name');
+  sndSel.value = sndMode();
+  try { sndName.textContent = localStorage.getItem(LS_SND_NAME) || '(선택한 파일 없음)'; } catch (e) {}
+  sndSel.onchange = () => {
+    sndMsg.textContent = '';
+    if (sndSel.value === 'custom' && !localStorage.getItem(LS_SND_DATA)) {
+      sndRow.style.display = 'block';
+      sndMsg.textContent = '파일을 선택하면 적용됩니다';
+      return;
+    }
+    try { localStorage.setItem(LS_SND, sndSel.value); } catch (e) {}
+    sndRow.style.display = sndSel.value === 'custom' ? 'block' : 'none';
+  };
+  setPanel.querySelector('#__kw_snd_file').onchange = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    if (f.size > SND_MAX_BYTES) { sndMsg.textContent = '파일이 너무 큽니다 (최대 약 1.5MB)'; e.target.value = ''; return; }
+    const rd = new FileReader();
+    rd.onload = () => {
+      try {
+        localStorage.setItem(LS_SND_DATA, String(rd.result));
+        localStorage.setItem(LS_SND_NAME, f.name);
+        localStorage.setItem(LS_SND, 'custom');
+        sndSel.value = 'custom';
+        sndName.textContent = f.name;
+        sndMsg.textContent = '적용됨';
+      } catch (err) {
+        try { localStorage.removeItem(LS_SND_DATA); } catch (e2) {}
+        sndMsg.textContent = '저장 실패 (브라우저 저장 공간 부족) — 더 작은 파일을 고르세요';
+      }
+    };
+    rd.onerror = () => { sndMsg.textContent = '파일을 읽지 못했습니다'; };
+    rd.readAsDataURL(f);
+  };
+  setPanel.querySelector('#__kw_snd_test').onclick = () => { lastSoundAt = 0; playAlertSound(); };
+  const setBody = setPanel.querySelector('#__kw_set_body');
+  if (setBody) setBody.addEventListener('wheel', (e) => { // 페이지가 휠을 가로채도 설정 본문은 스크롤되게
+    if (setBody.scrollHeight <= setBody.clientHeight) return;
+    e.stopPropagation();
+    e.preventDefault();
+    setBody.scrollTop += e.deltaY;
+  }, { passive: false });
   setPanel.querySelector('#__kw_mute').onchange = (e) => {
     try { localStorage.setItem(LS_MUTE, e.target.checked ? '1' : '0'); } catch (err) {}
     dlog('mute', e.target.checked);
@@ -607,7 +656,7 @@ function dropsReached(r, last) {
   if (muted()) return;
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
-      const n = new Notification('🎁 드롭스 시간 충족', { body: r.title.slice(0, 120), tag: 'kw-drops-' + r.rewardNo, requireInteraction: true });
+      const n = new Notification('🎁 드롭스 시간 충족', { body: r.title.slice(0, 120), tag: 'kw-drops-' + r.rewardNo, requireInteraction: true, silent: true });
       n.onclick = () => { try { window.focus(); } catch (e) {} try { n.close(); } catch (e2) {} };
     } catch (e) {}
   }

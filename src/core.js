@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '2.8-beta56';
+const SCRIPT_VERSION = '2.8-beta57';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -33,6 +33,11 @@ const dedupOn = () => {
 const LS_MUTE = '__kw_mute'; // 알람 끄기 (감지·기록은 유지, 알림/토스트/소리만 생략)
 const muted = () => { try { return localStorage.getItem(LS_MUTE) === '1'; } catch (e) { return false; } };
 const autoOn = () => { try { return localStorage.getItem(LS_AUTO) !== '0'; } catch (e) { return true; } }; // 기본 켜짐
+const LS_SND = '__kw_snd'; // 알림 소리: 'dingdong'(기본) | 'custom'(내 파일)
+const LS_SND_DATA = '__kw_snd_data'; // 내 파일 (data URL)
+const LS_SND_NAME = '__kw_snd_name';
+const SND_MAX_BYTES = 1500000; // 내 파일 최대 크기 (localStorage 용량 보호)
+const sndMode = () => { try { return localStorage.getItem(LS_SND) === 'custom' && localStorage.getItem(LS_SND_DATA) ? 'custom' : 'dingdong'; } catch (e) { return 'dingdong'; } };
 const LS_DROPS = '__kw_drops'; // 드롭스 창 표시 (기본 켜짐)
 const dropsOn = () => { try { return localStorage.getItem(LS_DROPS) !== '0'; } catch (e) { return true; } };
 const LS_REDUP = '__kw_redup_sec'; // 같은 호출 재알림 간격 (초, 기본 5, 0이면 항상 울림)
