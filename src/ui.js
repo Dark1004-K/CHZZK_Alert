@@ -4,7 +4,7 @@
 let panel;
 let stackEl = null, histPanel = null, histBox = null, histCount = null;
 let midRowEl = null;
-let curWidth = 350;
+let curWidth = 216; // 처음 시작은 최소 너비
 try { const wv = parseInt(localStorage.getItem(LS_W), 10); if (wv >= 216 && wv <= 600) curWidth = wv; } catch (e) {}
 function setStackWidth(w) {
   curWidth = Math.max(216, Math.min(600, Math.round(w)));
