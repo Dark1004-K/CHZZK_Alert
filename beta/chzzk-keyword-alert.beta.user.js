@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CHZZK Alert (Beta)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-beta22
+// @version      2.8-beta23
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
 // @match        https://chzzk.naver.com/live/*
@@ -27,7 +27,7 @@
   const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
   const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
   // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-  const SCRIPT_VERSION = '2.8-beta22';
+  const SCRIPT_VERSION = '2.8-beta23';
   const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js';
   const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
   const HITS_MAX = 30;
@@ -275,6 +275,8 @@
   .__kw_hit_t{color:#888;font-size:11px;margin-right:4px}
   .__kw_hit_k{color:#00ffa3;font-size:11px;margin-left:4px}
   .__kw_hit_kw{color:#ffd400;font-weight:bold}
+  .__kw_hit.gone{opacity:.55}
+  .__kw_hit_gone{color:#ff7b7b;font-size:11px;margin-left:4px}
   #__kw_stack{position:fixed;bottom:14px;left:14px;z-index:2147483647;display:flex;flex-direction:column;gap:8px;align-items:stretch;width:350px;max-width:calc(100vw - 28px)}
   #__kw_stack #__kw_panel{position:static;width:100%;box-sizing:border-box;min-width:0;max-width:none}
   #__kw_histp{width:100%;box-sizing:border-box;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ffd400}
@@ -431,7 +433,7 @@
   function saveHits() {
     try {
       localStorage.setItem(LS_HITS, JSON.stringify(
-        hitLog.slice(0, HITS_MAX).map(({ t, nick, text, kw, sig }) => ({ t, nick, text, kw, sig }))
+        hitLog.slice(0, HITS_MAX).map(({ t, nick, text, kw, sig, gone }) => ({ t, nick, text, kw, sig, gone: !!gone }))
       ));
     } catch (e) {}
   }
@@ -477,28 +479,29 @@
     histBox.innerHTML = hitLog.length ? hitLog.map((h, i) => {
       const body = splitBody(h.nick, h.text) || h.text;
       const nickHtml = h.nick ? `<b>${escapeHtml(h.nick)}</b> ` : '';
-      return `<div class="__kw_hit" data-i="${i}" title="클릭하면 해당 채팅으로 이동"><span class="__kw_hit_t">${fmtTime(h.t)}</span>${nickHtml}<span>${hiKw(body, h.kw)}</span></div>`;
+      return `<div class="__kw_hit${h.gone ? ' gone' : ''}" data-i="${i}" title="클릭하면 해당 채팅으로 이동"><span class="__kw_hit_t">${fmtTime(h.t)}</span>${nickHtml}<span>${hiKw(body, h.kw)}</span>${h.gone ? '<span class="__kw_hit_gone">사라짐</span>' : ''}</div>`;
     }).join('') : '<div style="font-size:11px;color:#666">아직 없음</div>';
   }
   function jumpToHit(i) {
     const h = hitLog[i];
     if (!h) return;
-    // 원본 엘리먼트가 살아있으면 그대로, 밀려났으면 같은 서명의 노드를 다시 찾아 채택
-    let el = (h.el && h.el.isConnected) ? h.el : findElBySig(h.sig, h.kw);
+    // 원본이 살아있으면 그대로, 밀려났으면 같은 서명의 노드를 다시 찾아 채택.
+    // 가상리스트에서 잠시 내려간 경우도 있어 못 찾았다고 지우지 않고 표시만 함.
+    const el = (h.el && h.el.isConnected) ? h.el : findElBySig(h.sig, h.kw);
     if (el) {
       h.el = el;
+      if (h.gone) { h.gone = false; saveHits(); }
       try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
       catch (e) { try { el.scrollIntoView(); } catch (e2) {} }
       highlightMessage(el);
+      renderHitsList();
       dlog('jump', JSON.stringify({ i, text: (h.text || '').slice(0, 40) }));
       return;
     }
-    // 진짜 사라짐 → 목록에서 제거하고 알림
-    hitLog.splice(i, 1);
-    saveHits();
+    if (!h.gone) { h.gone = true; saveHits(); }
     renderHitsList();
-    showToast('이미 사라진 대화입니다' + (h.text ? ': ' + h.text.slice(0, 40) : ''));
-    dlog('jump-gone-pruned', JSON.stringify({ i }));
+    showToast('현재 화면에 없음 (목록 유지)' + (h.text ? ': ' + h.text.slice(0, 30) : ''));
+    dlog('jump-gone', JSON.stringify({ i }));
   }
   function findElBySig(sig, kw) {
     if (!sig) return null;
@@ -1216,6 +1219,9 @@
     } catch (e) {}
     setInterval(checkRoute, 1000);
   }
+
+  // 베타 진단용 후크 (정식에서는 제거): 콘솔에서 __kwDebug.jump(0) 등으로 직접 검증 가능
+  try { window.__kwDebug = { jump: jumpToHit, find: findElBySig, log: () => hitLog }; } catch (e) {}
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
