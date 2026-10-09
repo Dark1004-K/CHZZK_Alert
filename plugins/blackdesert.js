@@ -28,10 +28,10 @@
     try { const v = KW.option(ID, key); return v === undefined || v === null ? def : v; } catch (e) { return def; }
   }
   // 지금 기준 오늘/내일의 출현 목록 (절대 시각 ms)
-  function occurrences(now) {
+  function occurrences(now, days) {
     const out = [];
     const midnight = Math.floor((now + KST) / DAY) * DAY - KST;
-    for (let off = 0; off <= 1; off++) {
+    for (let off = 0; off < (days || 2); off++) {
       const base = midnight + off * DAY;
       const day = new Date(base + KST).getUTCDay();
       for (const [hhmm, byDay] of SCHEDULE) {
@@ -53,6 +53,46 @@
     tick();
     return '테스트 알림: ' + s + '초 뒤 출현';
   };
+
+  // 감시 화면(#__kw_stack)의 드롭스 창 바로 아래에 파란색 "다음 우두머리" 창을 둔다
+  let nextEl = null;
+  function removeNext() {
+    if (nextEl) { try { nextEl.remove(); } catch (e) {} }
+    nextEl = null;
+  }
+  function fmtLong(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+    const p = (n) => String(n).padStart(2, '0');
+    return (h ? h + ':' : '') + p(m) + ':' + p(x);
+  }
+  function updateNext(now) {
+    const stack = document.getElementById('__kw_stack');
+    const panel = document.getElementById('__kw_panel');
+    if (!stack || !panel || !panel.classList.contains('show')) { removeNext(); return; }
+    const sel = opt('bosses', null);
+    let next = null;
+    for (const o of occurrences(now, 8).sort((a, b) => a.t - b.t)) {
+      if (o.t <= now) continue;
+      const bosses = Array.isArray(sel) ? o.bosses.filter((b) => sel.includes(b)) : o.bosses;
+      if (bosses.length) { next = { t: o.t, hhmm: o.hhmm, bosses }; break; }
+    }
+    if (!next) { removeNext(); return; }
+    if (!nextEl || !nextEl.isConnected) {
+      nextEl = document.createElement('div');
+      nextEl.id = '__kw_bdop';
+      nextEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #3b9eff';
+    }
+    // 위치: 드롭스 창이 있으면 그 바로 아래, 없으면 감시 패널 줄 바로 아래
+    const anchor = document.getElementById('__kw_dropsp') || document.getElementById('__kw_midrow');
+    if (anchor && anchor.parentNode === stack && nextEl.previousSibling !== anchor) stack.insertBefore(nextEl, anchor.nextSibling);
+    else if (!nextEl.parentNode) stack.appendChild(nextEl);
+    const when = new Date(next.t + KST);
+    const days = Math.floor((next.t + KST) / DAY) - Math.floor((now + KST) / DAY);
+    const dayTxt = days === 0 ? '' : days === 1 ? '내일 ' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + '요일 ';
+    nextEl.innerHTML = '<div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⚔ 다음 우두머리 · <b>' + next.bosses.join(' / ') + '</b></div>' +
+      '<div style="font-size:11px;color:#3b9eff;margin-top:2px">' + dayTxt + next.hhmm + ' · ' + fmtLong(next.t - now) + ' 후</div>';
+  }
 
   let box = null;
   const items = new Map(); // t -> { el, txt }
@@ -110,8 +150,9 @@
   }
   function tick() {
     try {
-      if (!KW.enabled(ID)) { clearAll(); return; }
+      if (!KW.enabled(ID)) { clearAll(); removeNext(); return; }
       const now = Date.now();
+      updateNext(now);
       const lead = Math.max(1, Math.min(30, Number(opt('lead', 3)) || 3)) * 60000;
       const sel = opt('bosses', null);
       const active = new Set();
