@@ -39,6 +39,9 @@ function wireHGrip() {
       histCustom = true;
       histH = Math.max(HH_MIN, Math.min(hhMax(), Math.round(startH + (startY - ev.clientY) * HH_GAIN)));
       applyHistHeight();
+      // 위에 있는 창들이 화면을 넘지 않도록 CSS가 실제 높이를 줄이므로, 저장 높이도 실제로 보이는 높이를 넘지 않게 맞춘다
+      const real = histBox ? histBox.getBoundingClientRect().height : histH;
+      if (real > 0 && real + 1 < histH) histH = Math.max(HH_MIN, Math.round(real));
     };
     const up = () => {
       document.removeEventListener('mousemove', move);
@@ -150,7 +153,7 @@ function applyHistVisibility() {
   applyDropsVisibility();
   if (!histPanel) return;
   const show = histOn() && panel && panel.classList.contains('show');
-  histPanel.style.display = show ? 'block' : 'none';
+  histPanel.style.display = show ? 'flex' : 'none'; // 세로 flex: 화면이 모자라면 목록이 먼저 줄어든다
 }
 function buildPanel() {
   ensureMidrow();
@@ -359,7 +362,10 @@ function showReloadPopup(installWin) {
     '<div id="__kw_upd_msg" style="font-size:12px;color:#ffd400;margin-top:8px"></div>';
   document.body.appendChild(box);
   let timer = null;
-  const reload = () => { try { location.reload(); } catch (e) {} };
+  const reload = () => { // 새로고침 전에 불린 대화 목록을 비운다
+    try { hitLog = []; hitTimes.clear(); saveHits(); } catch (e) {}
+    try { location.reload(); } catch (e) {}
+  };
   const close = () => { if (timer) { clearInterval(timer); timer = null; } try { box.remove(); } catch (e) {} };
   box.querySelector('#__kw_upd_go').onclick = reload;
   box.querySelector('#__kw_upd_x').onclick = close;
