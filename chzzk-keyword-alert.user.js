@@ -1,10 +1,10 @@
-// ==UserScript==
+﻿// ==UserScript==
 // @name         CHZZK 채팅 호출 알림 (Keyword Alert)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-test10
+// @version      2.8
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
-// @match        https://chzzk.naver.com/live/0a3deecf0fa1652445e3c97bc118272e*
+// @match        https://chzzk.naver.com/live/*
 // @match        https://chzzk.naver.com/0a3deecf0fa1652445e3c97bc118272e*
 // @run-at       document-start
 // @grant        none
@@ -25,6 +25,7 @@
   const LS_HITS = '__kw_hits'; // 불린 대화 기록 (최대 30개, 새로고침 후에도 유지)
   const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외=켬)
   const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
+  const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words')
   const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
   const HITS_MAX = 30;
 
@@ -55,37 +56,6 @@
     normMyNick = norm(myNick);
   }
 
-  // ---------- TEST1 진단 로그 (콘솔 입력 없이 보기용, 10s 하트비트) ----------
-  const KW_TEST_TAG = '[KW-2.8T10]';
-  function dlog(...a) { try { console.log(KW_TEST_TAG, ...a); } catch (e) {} }
-  function domMsgCount() {
-    try { return document.querySelectorAll('[class*="chatting_message"]').length; }
-    catch (e) { return -1; }
-  }
-  function isChatFolded() {
-    try { return !!document.querySelector('[class*="_is_folded"]'); }
-    catch (e) { return false; }
-  }
-  function hb(reason) {
-    dlog('HB(' + reason + ')', JSON.stringify({
-      running, checked, hits,
-      dom: domMsgCount(), folded: isChatFolded(),
-      watched: !!watchedContainer, kw: keywords.length,
-      mut: mutBatches, mutNodes, catchup: catchupFound,
-      ws: wsTracked, wsMsgs, hist: hitLog.length, limited: limitedMode, w: curWidth,
-    }));
-    mutBatches = 0; mutNodes = 0; catchupFound = 0; wsMsgs = 0;
-  }
-  let hbTimer = null;
-  function startHeartbeat() {
-    if (hbTimer) return;
-    dlog('loaded', location.href);
-    hb('init');
-    hbTimer = setInterval(() => {
-      try { if (isLivePage()) hb('tick'); } catch (e) {}
-    }, 10000);
-  }
-
   // ---------- WS 스니핑 (히든/접힘 상태 대응, DOM과 무관) ----------
   // 채팅 서버: wss://*.chat.naver.com/chat, 일반 93101 / 후원 93102
   const WS_URL_RE = /chat\.naver\.com\/chat/i;
@@ -106,11 +76,11 @@
       }
       if (hit) {
         const fullSig = sig + '|' + kt;
-        if (histOn() && histSigs.has(fullSig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kt })); return; }
-        if (!takeHit(fullSig)) { dlog('DUP-ws-skip', JSON.stringify({ kw: kt })); return; }
+        if (histOn() && histSigs.has(fullSig)) return;
+        if (!takeHit(fullSig)) return;
         hits++;
         recordHit(nick, text, kt, fullSig, null);
-        dlog('HIT-ws', JSON.stringify({ kw: kt, nick: (nick || '').slice(0, 30), text: text.slice(0, 60) }));
+        scheduleStatsUpdate();
         fireAlert(nick, text, null);
         return;
       }
@@ -123,7 +93,6 @@
     if (!obj || (obj.cmd !== 93101 && obj.cmd !== 93102)) return;
     const bdy = obj.bdy;
     if (!Array.isArray(bdy)) return;
-    wsMsgs++;
     for (const m of bdy) {
       if (!m) continue;
       const msg = m.msg || '';
@@ -142,13 +111,11 @@
     wsHooked = true;
     try {
       const OrigWS = window.WebSocket;
-      if (!OrigWS) { dlog('ws-noapi'); return; }
+      if (!OrigWS) return;
       function HookedWS(url, protocols) {
         const ws = (protocols !== undefined) ? new OrigWS(url, protocols) : new OrigWS(url);
         try {
           if (typeof url === 'string' && WS_URL_RE.test(url)) {
-            wsTracked++;
-            dlog('ws-track', String(url).slice(0, 90));
             ws.addEventListener('message', (ev) => {
               try { handleWsPayload(ev.data); } catch (e) {}
             });
@@ -161,8 +128,7 @@
         ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'].forEach((k) => { HookedWS[k] = OrigWS[k]; });
       } catch (e) {}
       window.WebSocket = HookedWS;
-      dlog('ws-hooked');
-    } catch (e) { try { dlog('ws-hook-fail'); } catch (e2) {} }
+    } catch (e) {}
   }
   patchWebSocket(); // document-start 최우선 실행 (페이지 소켓 생성 전에 가로채야 함)
 
@@ -183,8 +149,7 @@
       try { s.remove(); } catch (e) {}
       limitedMode = window[k + 'Echo'] !== v;
       try { delete window[k]; delete window[k + 'Echo']; } catch (e) {}
-      dlog(limitedMode ? 'world-limited' : 'world-main');
-    } catch (e) { limitedMode = true; try { dlog('world-probe-fail'); } catch (e2) {} }
+    } catch (e) { limitedMode = true; }
     updateWarn();
   }
   function updateWarn() {
@@ -196,11 +161,6 @@
   let checked = 0;
   let hits = 0;
   let observer = null;
-  let mutBatches = 0; // TEST2: 옵저버 콜백 발화 횟수 (10s 하트비트마다 리셋)
-  let mutNodes = 0;   // TEST2: 옵저버가 본 addedNodes 중 HTMLElement 수
-  let catchupFound = 0; // TEST2: 폴링 보완스캔이 찾아낸 미확인 메시지 수
-  let wsTracked = 0;  // 2.8: 추적 중인 채팅 WS 수
-  let wsMsgs = 0;     // 2.8: WS로 받은 채팅 패킷 수 (10s마다 리셋)
   const seen = new WeakSet();
   // DOM/WS 중복 발화 방지: 같은 본문 서명은 8초 내 1회만 알림
   const hitTimes = new Map();
@@ -231,8 +191,8 @@
   #__kw_panel{position:fixed;bottom:14px;left:14px;z-index:2147483647;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:2px solid #00ffa3;user-select:none;min-width:250px;max-width:330px;display:none}
   #__kw_panel.show{display:block}
   #__kw_panel.off{border-color:#777}
-  #__kw_row{display:flex;align-items:center;gap:8px}
-  #__kw_dot{width:11px;height:11px;border-radius:50%;background:#00ffa3;animation:__kwpulse 1.4s infinite;flex:none}
+  #__kw_row{display:flex;align-items:flex-start;gap:8px}
+  #__kw_dot{width:11px;height:11px;border-radius:50%;background:#00ffa3;animation:__kwpulse 1.4s infinite;flex:none;margin-top:3px}
   #__kw_panel.off #__kw_dot{background:#ff4d4d;animation:none}
   #__kw_sub{font-size:11px;color:#aaa;margin-top:2px}
   .__kw_b{border:0;border-radius:8px;padding:5px 9px;font:bold 12px sans-serif;cursor:pointer}
@@ -254,10 +214,14 @@
   .__kw_hit:hover{background:#2c2c31}
   .__kw_hit_t{color:#888;font-size:11px;margin-right:4px}
   .__kw_hit_k{color:#00ffa3;font-size:11px;margin-left:4px}
+  .__kw_hit_kw{color:#ffd400;font-weight:bold}
   #__kw_stack{position:fixed;bottom:14px;left:14px;z-index:2147483647;display:flex;flex-direction:column;gap:8px;align-items:stretch;width:350px;max-width:calc(100vw - 28px)}
   #__kw_stack #__kw_panel{position:static;width:100%;box-sizing:border-box;min-width:0;max-width:none}
   #__kw_histp{width:100%;box-sizing:border-box;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ffd400}
-  #__kw_setp{position:absolute;left:calc(100% + 8px);top:0;width:320px;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777}
+  #__kw_setp{position:absolute;left:calc(100% + 8px);bottom:0;width:360px;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777}
+  .__kw_tabs{display:flex;flex-direction:column;gap:4px;flex:none}
+  .__kw_tab{border:1px solid #555;background:#222;color:#bbb;border-radius:8px;padding:6px 8px;font-size:12px;cursor:pointer;white-space:nowrap}
+  .__kw_tab.on{background:#00ffa3;color:#000;border-color:#00ffa3;font-weight:bold}
   #__kw_midrow{position:relative;width:100%}
   #__kw_grip{position:absolute;top:0;bottom:0;right:-6px;width:12px;cursor:ew-resize;z-index:1}
   #__kw_grip:hover{background:rgba(0,255,163,.25)}
@@ -328,11 +292,25 @@
     const body = splitBody(nick, text);
     const title = nick ? '🔔 ' + nick : '🔔 CHZZK 채팅 호출';
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      try { new Notification(title, { body: body.slice(0, 120) }); } catch (e) {}
+      try {
+        // 다른 탭을 보고 있어도 놓치지 않도록: 겹치지 않는 태그 + 직접 닫을 때까지 유지 + 클릭 시 창 포커스
+        const n = new Notification(title, { body: body.slice(0, 120), tag: 'kw-' + Date.now() + '-' + Math.floor(Math.random() * 1e6), requireInteraction: true });
+        n.onclick = () => { try { window.focus(); } catch (e) {} try { n.close(); } catch (e2) {} };
+      } catch (e) {}
     }
     showCallToast(nick, body);
     playAlertSound();
     highlightMessage(el);
+  }
+  // 백그라운드 탭에서도 소리가 나도록: 첫 제스처 때 오디오를 미리 깨워둠
+  function unlockAudio() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      if (!sharedCtx || sharedCtx.state === 'closed') sharedCtx = new Ctx();
+      if (sharedCtx.state === 'suspended') sharedCtx.resume();
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission();
+    } catch (e) {}
   }
   // 토스트 박스는 스택 맨 위(목록 위, 동일 너비)에 두고 비면 숨김
   function ensureToastBox() {
@@ -404,37 +382,78 @@
     saveHits();
     renderHitsList();
   }
+  // 목록 표시용: 본문 속 검출 단어만 노란색으로 (대소문자 무시, 여러 번 출현 전부)
+  function hiKw(text, kw) {
+    const t = text || '';
+    if (!kw) return escapeHtml(t);
+    const low = t.toLowerCase();
+    const keys = [];
+    for (const k of [kw, norm(kw)]) { if (k && !keys.includes(k)) keys.push(k); }
+    let best = -1, bestK = '';
+    for (const k of keys) {
+      const i = low.indexOf(k.toLowerCase());
+      if (i >= 0 && (best < 0 || i < best)) { best = i; bestK = k; }
+    }
+    if (best < 0) return escapeHtml(t);
+    const kl = bestK.toLowerCase();
+    const parts = [];
+    let pos = 0;
+    for (;;) {
+      const i = low.indexOf(kl, pos);
+      if (i < 0) { parts.push(escapeHtml(t.slice(pos))); break; }
+      parts.push(escapeHtml(t.slice(pos, i)));
+      parts.push('<span class="__kw_hit_kw">' + escapeHtml(t.slice(i, i + bestK.length)) + '</span>');
+      pos = i + bestK.length;
+    }
+    return parts.join('');
+  }
   function renderHitsList() {
     if (histCount) histCount.textContent = String(hitLog.length);
     if (!histBox || !histBox.isConnected) return;
     if (!histOn()) { histBox.innerHTML = ''; return; }
-    histBox.innerHTML = hitLog.length ? hitLog.map((h, i) =>
-      `<div class="__kw_hit" data-i="${i}" title="클릭하면 해당 채팅으로 이동"><span class="__kw_hit_t">${fmtTime(h.t)}</span><span>${escapeHtml(h.text)}</span><span class="__kw_hit_k">${escapeHtml(h.kw)}</span></div>`
-    ).join('') : '<div style="font-size:11px;color:#666">아직 없음</div>';
+    histBox.innerHTML = hitLog.length ? hitLog.map((h, i) => {
+      const body = splitBody(h.nick, h.text) || h.text;
+      const nickHtml = h.nick ? `<b>${escapeHtml(h.nick)}</b> ` : '';
+      return `<div class="__kw_hit" data-i="${i}" title="클릭하면 해당 채팅으로 이동"><span class="__kw_hit_t">${fmtTime(h.t)}</span>${nickHtml}<span>${hiKw(body, h.kw)}</span></div>`;
+    }).join('') : '<div style="font-size:11px;color:#666">아직 없음</div>';
   }
   function jumpToHit(i) {
     const h = hitLog[i];
     if (!h) return;
-    const el = h.el;
-    if (el && el.isConnected) {
+    // 원본 엘리먼트가 살아있으면 그대로, 밀려났으면 같은 서명의 노드를 다시 찾아 채택
+    let el = (h.el && h.el.isConnected) ? h.el : findElBySig(h.sig, h.kw);
+    if (el) {
+      h.el = el;
       try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
       catch (e) { try { el.scrollIntoView(); } catch (e2) {} }
       highlightMessage(el);
-      dlog('jump', JSON.stringify({ i, text: (h.text || '').slice(0, 40) }));
-    } else {
-      // 원본이 가상리스트에서 밀려남 (새로고침 전 기록 포함) → 목록에서 제거하고 알림
-      hitLog.splice(i, 1);
-      if (h.sig && !hitLog.some((x) => x.sig === h.sig)) histSigs.delete(h.sig);
-      saveHits();
-      renderHitsList();
-      showToast('이미 사라진 대화입니다' + (h.text ? ': ' + h.text.slice(0, 40) : ''));
-      dlog('jump-gone-pruned', JSON.stringify({ i }));
+      return;
     }
+    // 진짜 사라짐 → 목록에서 제거하고 알림
+    hitLog.splice(i, 1);
+    if (h.sig && !hitLog.some((x) => x.sig === h.sig)) histSigs.delete(h.sig);
+    saveHits();
+    renderHitsList();
+    showToast('이미 사라진 대화입니다' + (h.text ? ': ' + h.text.slice(0, 40) : ''));
+  }
+  function findElBySig(sig, kw) {
+    if (!sig) return null;
+    try {
+      const list = document.querySelectorAll('[class*="chatting_message"]');
+      for (const el of list) {
+        if (!(el instanceof HTMLElement)) continue;
+        if (hitSig(el.textContent || '') + '|' + kw === sig) return el;
+      }
+    } catch (e) {}
+    return null;
   }
 
   // ---------- 채팅 감시 ----------
-  const CHANNEL_ID = '0a3deecf0fa1652445e3c97bc118272e'; // 미리내ES 채널로만 동작 제한
-  const isLivePage = () => /\/live\//.test(location.pathname) && location.pathname.includes(CHANNEL_ID);
+  // 현재 페이지의 라이브 채널 ID (32자리 hex). 인가 목록과 대조한다.
+  const pageChannelId = () => {
+    try { const m = location.pathname.match(/\/live\/([0-9a-f]{32})/i); return m ? m[1].toLowerCase() : ''; } catch (e) { return ''; }
+  };
+  const isLivePage = () => !!pageChannelId();
 
   // 우리 자체 UI(패널/프롬프트/토스트/선택버튼)에서 발생한 변화는 절대 관리하지 않아야 무한루프를 막을 수 있음
   const isOwnUi = (node) =>
@@ -470,11 +489,10 @@
       if (kl && tl.includes(kl)) {
         const sig = hitSig(text) + '|' + kt;
         // 기록에 있는 건 경로/시점 불문 재알림 생략 (스크롤 백필·접힘 리렌더·WS 리플레이 대응)
-        if (histOn() && histSigs.has(sig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kl })); break; }
-        if (!takeHit(sig)) { dlog('DUP-dom-skip', JSON.stringify({ kw: kl })); break; }
+        if (histOn() && histSigs.has(sig)) break;
+        if (!takeHit(sig)) break;
         hits++;
         recordHit(senderName, text, kl, sig, el);
-        dlog('HIT-loose', JSON.stringify({ kw: kl, nick: senderName.slice(0, 30), text: text.slice(0, 60) }));
         fireAlert(senderName, text, el);
         break;
       }
@@ -491,11 +509,10 @@
       }
       if (inToken) {
         const sig = hitSig(text) + '|' + kt;
-        if (histOn() && histSigs.has(sig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kt })); break; }
-        if (!takeHit(sig)) { dlog('DUP-dom-skip', JSON.stringify({ kw: kt })); break; }
+        if (histOn() && histSigs.has(sig)) break;
+        if (!takeHit(sig)) break;
         hits++;
         recordHit(senderName, text, kt, sig, el);
-        dlog('HIT-token', JSON.stringify({ kw: kt, nick: senderName.slice(0, 30), text: text.slice(0, 60) }));
         fireAlert(senderName, text, el);
         break;
       }
@@ -555,15 +572,12 @@
     if (container === watchedContainer && observer) return;
     if (observer) observer.disconnect();
     watchedContainer = container;
-    dlog('attach', JSON.stringify({ kids: container.children?.length ?? -1, dom: domMsgCount(), folded: isChatFolded() }));
     observer = new MutationObserver((muts) => {
-      mutBatches++;
       for (const m of muts) {
         // 패널/프롬프트 자체의 변화는 무시 (무한루프 방지)
         if (m.target && (isOwnUi(m.target) || m.target.closest?.('#__kw_panel,#__kw_ask,#__kw_box,#__kw_sel,#__kw_stack,#__kw_histp,#__kw_setp,#__kw_midrow,#__kw_grip'))) continue;
         for (const n of m.addedNodes) {
           if (!(n instanceof HTMLElement)) continue; // 텍스트노드 스킵
-          mutNodes++;
           scanNode(n);
         }
       }
@@ -571,13 +585,78 @@
     observer.observe(container, { childList: true, subtree: true });
   }
 
+  // ---------- 채널 인가 (allowlist.json, git에서 관리) ----------
+  // 강제력은 없음(클라이언트 코드라 고치면 우회됨). 정직한 사용자용 관리 + 원격 킬스위치.
+  const ALLOW_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/allowlist.json';
+  const LS_ALLOW = '__kw_allow';
+  let allowState = 'pending'; // pending | ok | denied
+  function readAllowCache() {
+    try {
+      const o = JSON.parse(localStorage.getItem(LS_ALLOW));
+      if (o && Array.isArray(o.channels)) return o;
+    } catch (e) {}
+    return null;
+  }
+  function noteDenied(cid) {
+    if (noteDenied._id === cid) return;
+    noteDenied._id = cid;
+    showToast('인가되지 않은 채널입니다');
+  }
+  function refreshAllowlist(silent, done) {
+    const cid = pageChannelId();
+    const finish = (st) => { allowState = st; if (done) { try { done(); } catch (e) {} } };
+    try {
+      fetch(ALLOW_URL + '?t=' + Math.floor(Date.now() / 3600000), { cache: 'no-store' })
+        .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
+        .then((j) => {
+          const list = j && Array.isArray(j.channels) ? j.channels.map(String) : null;
+          if (!list) throw new Error('format');
+          try { localStorage.setItem(LS_ALLOW, JSON.stringify({ channels: list, at: Date.now() })); } catch (e) {}
+          const ok = list.map((s) => s.toLowerCase()).includes(cid);
+          if (!ok) noteDenied(cid);
+          finish(ok ? 'ok' : 'denied');
+        })
+        .catch(() => {
+          const c = readAllowCache();
+          if (c) {
+            const ok = c.channels.map(String).map((s) => s.toLowerCase()).includes(cid);
+            if (!ok) noteDenied(cid);
+            finish(ok ? 'ok' : 'denied');
+          } else {
+            showToast('인가 목록 확인 불가(오프라인), 이번만 허용');
+            finish('ok');
+          }
+        });
+    } catch (e) { finish('ok'); }
+  }
+
   function start() {
     if (running) return;
+    const cid = pageChannelId();
+    if (!cid) return;
+    if (allowState === 'denied') { noteDenied(cid); renderPanel(); return; }
+    if (allowState !== 'ok') {
+      refreshAllowlist(false, () => {
+        if (allowState === 'ok') start();
+        else renderPanel();
+      });
+      return;
+    }
     ensurePermission();
     running = true;
     renderPanel();
-    dlog('start', JSON.stringify({ dom: domMsgCount(), folded: isChatFolded(), hasContainer: !!findChatContainer() }));
-    hb('start');
+    // 인가 철회 대응: 10분마다 목록 재확인 (조용히)
+    if (allowTimer) { clearInterval(allowTimer); allowTimer = null; }
+    allowTimer = setInterval(() => {
+      if (!running) return;
+      refreshAllowlist(true, () => {
+        if (allowState === 'denied' && running) {
+          stop();
+          noteDenied(pageChannelId());
+          renderPanel();
+        }
+      });
+    }, 600000);
 
     // body를 절대 observe하지 않음. 컨테이너가 생길 때까지 1.5s 폴링만 수행.
     const first = findChatContainer();
@@ -585,42 +664,37 @@
       attachObserverTo(first);
       scanNode(first); // 시작 전 쌓인 메시지 1회 회수 (기록에 있으면 재알림 생략됨)
     } else {
-      dlog('start-nocontainer', JSON.stringify({ dom: domMsgCount(), folded: isChatFolded() }));
     }
     if (containerCheckTimer) { clearInterval(containerCheckTimer); containerCheckTimer = null; }
     containerCheckTimer = setInterval(() => {
       if (!running) { clearInterval(containerCheckTimer); containerCheckTimer = null; return; }
       const better = findChatContainer();
       if (better && better !== document.body && better !== watchedContainer) {
-        dlog('reattach', JSON.stringify({ dom: domMsgCount(), folded: isChatFolded() }));
         attachObserverTo(better);
         scanNode(better); // 재접속/refill 과거분: 기록에 있으면 재알림 생략됨
-      } else if (!better && !watchedContainer) {
-        dlog('nocontainer-tick', JSON.stringify({ dom: domMsgCount(), folded: isChatFolded() }));
       }
-      // TEST2 보완: 옵저버가 죽거나 접힘 리렌더를 놓쳐도 최대 1.5s 지연으로 회수.
+      // 보완 스캔: 옵저버가 놓친 메시지를 최대 1.5s 지연으로 회수.
       // seen WeakSet 덕분에 이미 본 건 스킵이라 평소 비용은 querySelectorAll 1회뿐.
       try {
         const list = document.querySelectorAll('[class*="chatting_message"]');
         let fresh = 0;
         for (const el of list) { if (!seen.has(el)) fresh++; }
         if (fresh > 0) {
-          catchupFound += fresh;
           let changed = false;
           for (const el of list) { if (scanSingle(el)) changed = true; }
           if (changed) scheduleStatsUpdate();
-          dlog('catchup', JSON.stringify({ fresh, dom: list.length, folded: isChatFolded() }));
         }
       } catch (e) {}
     }, 1500);
   }
+  let allowTimer = null;
   function stop() {
     if (observer) observer.disconnect();
     observer = null;
     watchedContainer = null;
     if (containerCheckTimer) { clearInterval(containerCheckTimer); containerCheckTimer = null; }
+    if (allowTimer) { clearInterval(allowTimer); allowTimer = null; }
     running = false;
-    dlog('stop');
     renderPanel();
   }
 
@@ -637,6 +711,8 @@
   let setPanel = null;
   let setOpen = false;
   try { setOpen = localStorage.getItem(LS_SET) === '1'; } catch (e) {}
+  let setTab = 'general';
+  try { const st = localStorage.getItem(LS_TAB); if (st === 'words' || st === 'general') setTab = st; } catch (e) {}
   function ensureStack() {
     if (stackEl && stackEl.isConnected) return stackEl;
     let ex = null;
@@ -681,7 +757,6 @@
         document.removeEventListener('mousemove', move);
         document.removeEventListener('mouseup', up);
         try { localStorage.setItem(LS_W, String(curWidth)); } catch (err) {}
-        dlog('width', curWidth);
       };
       document.addEventListener('mousemove', move);
       document.addEventListener('mouseup', up);
@@ -692,7 +767,7 @@
     histPanel.__kwWired = true;
     const c = histPanel.querySelector('#__kw_hits_clear');
     if (c) c.onclick = () => {
-      hitLog = []; histSigs.clear(); saveHits(); renderHitsList(); dlog('hits-cleared');
+      hitLog = []; histSigs.clear(); saveHits(); renderHitsList();
     };
     const b = histPanel.querySelector('#__kw_hits');
     if (b) b.onclick = (ev) => {
@@ -754,7 +829,7 @@
   function updateStatsText() {
     if (!panel) return;
     const sub = panel.querySelector('#__kw_sub');
-    if (sub) sub.textContent = `확인 ${checked}개 · 감지 ${hits}회 · 내 채팅 제외`;
+    if (sub) sub.textContent = `감지 ${hits}회 · 내 채팅 제외`;
   }
 
   function renderPanel() {
@@ -763,7 +838,7 @@
 
     panel.innerHTML = `
       <div id="__kw_row"><div id="__kw_dot"></div>
-        <div style="flex:1"><div id="__kw_title"><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b> · 단어 ${keywords.length}개</div><div id="__kw_sub">확인 ${checked}개 · 감지 ${hits}회 · 내 채팅 제외</div></div>
+        <div style="flex:1"><div id="__kw_title"><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b> · 단어 ${keywords.length}개</div><div id="__kw_sub">감지 ${hits}회 · 내 채팅 제외</div></div>
         <button class="__kw_b" id="__kw_gear" title="설정">설정</button>
         <button class="__kw_b" id="__kw_btn">${running ? '정지' : '시작'}</button></div>
       <div id="__kw_warn" style="display:${limitedMode ? 'block' : 'none'};font-size:11px;color:#ffd400;margin-top:4px">⚠ 사용자 스크립트 허용 꺼짐: WS 감시 불가, DOM 감시만 동작. chrome://extensions → Tampermonkey 상세에서 허용 후 새로고침</div>`;
@@ -781,14 +856,34 @@
   function renderSettings() {
     if (!setPanel) return;
     setPanel.innerHTML = `
-        <div class="__kw_lbl">호출 단어 (×로 삭제, 페이지 글자를 드래그해서도 추가 가능)</div>
-        <div id="__kw_chips">${keywords.map((k, i) => `<span class="__kw_chip"><span>${escapeHtml(k)}</span><b data-i="${i}" title="삭제">×</b></span>`).join('')}</div>
-        <div style="margin-top:6px"><input class="__kw_in" id="__kw_in" placeholder="추가할 단어" style="width:150px">
-          <button class="__kw_b" id="__kw_add" style="background:#00ffa3;color:#000">추가</button></div>
-        <div class="__kw_lbl">내 닉네임 (이 닉네임의 채팅은 알림 제외)</div>
-        <input class="__kw_in" id="__kw_nick" style="width:150px" value="${escapeHtml(myNick)}">
-        <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_auto" ${localStorage.getItem(LS_AUTO) === '1' ? 'checked' : ''}> 방송 들어가면 묻지 않고 자동으로 켜기</label></div>
-        <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_hist" ${histOn() ? 'checked' : ''}> 감시 패널 위에 불린 대화 목록 별도 표시 + 이미 울린 대화 재알림 방지 (클릭하면 해당 채팅으로 이동)</label></div>`;
+      <div style="display:flex;gap:8px">
+        <div class="__kw_tabs">
+          <button class="__kw_tab${setTab === 'general' ? ' on' : ''}" data-tab="general">일반설정</button>
+          <button class="__kw_tab${setTab === 'words' ? ' on' : ''}" data-tab="words">단어설정</button>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div id="__kw_set_general" style="display:${setTab === 'general' ? 'block' : 'none'}">
+            <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_auto" ${localStorage.getItem(LS_AUTO) === '1' ? 'checked' : ''}> 방송 들어가면 묻지 않고 자동으로 켜기</label></div>
+            <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_hist" ${histOn() ? 'checked' : ''}> 불린 대화 목록 별도 표시 + 재알림 방지 (클릭 이동)</label></div>
+          </div>
+          <div id="__kw_set_words" style="display:${setTab === 'words' ? 'block' : 'none'}">
+            <div class="__kw_lbl">호출 단어 (×로 삭제, 페이지 글자를 드래그해서도 추가 가능)</div>
+            <div id="__kw_chips">${keywords.map((k, i) => `<span class="__kw_chip"><span>${escapeHtml(k)}</span><b data-i="${i}" title="삭제">×</b></span>`).join('')}</div>
+            <div style="margin-top:6px"><input class="__kw_in" id="__kw_in" placeholder="추가할 단어" style="width:130px">
+              <button class="__kw_b" id="__kw_add" style="background:#00ffa3;color:#000">추가</button></div>
+            <div class="__kw_lbl">내 닉네임 (이 닉네임의 채팅은 알림 제외)</div>
+            <input class="__kw_in" id="__kw_nick" style="width:130px" value="${escapeHtml(myNick)}">
+          </div>
+        </div>
+      </div>`;
+
+    setPanel.querySelectorAll('.__kw_tab').forEach((t) => {
+      t.onclick = () => {
+        setTab = t.dataset.tab;
+        try { localStorage.setItem(LS_TAB, setTab); } catch (e) {}
+        renderSettings();
+      };
+    });
 
     setPanel.querySelectorAll('#__kw_chips b').forEach((b) => {
       b.onclick = () => {
@@ -892,11 +987,14 @@
 
   // ---------- SPA 라우트 변경 감지 ----------
   let lastPath = location.pathname;
+  let lastCid = pageChannelId();
+
+  // 이 채널의 라이브 페이지가 아니면 패널/토스트박스/선택버튼 등 UI DOM을 통째로 제거한다.
+  // (CSS display:none으로 숨기는 게 아니라 실제로 DOM에서 없애서 "UI 자체가 안 보이게" 함)
 
   // 이 채널의 라이브 페이지가 아니면 패널/토스트박스/선택버튼 등 UI DOM을 통째로 제거한다.
   // (CSS display:none으로 숨기는 게 아니라 실제로 DOM에서 없애서 "UI 자체가 안 보이게" 함)
   function teardownUi() {
-    dlog('teardown', location.pathname);
     stop();
     try { document.getElementById('__kw_stack')?.remove(); } catch (e) {}
     panel = null; stackEl = null; midRowEl = null; histPanel = null; histBox = null; histCount = null; setPanel = null;
@@ -915,16 +1013,22 @@
     panel.classList.add('show');
     applyHistVisibility();
     applySetVisibility();
-    dlog('buildui', JSON.stringify({ running, dom: domMsgCount(), folded: isChatFolded() }));
     if (!running) showAskPrompt();
   }
 
   function checkRoute() {
     if (location.pathname !== lastPath) {
       lastPath = location.pathname;
-      if (isLivePage()) {
+      const cid = pageChannelId();
+      if (cid) {
+        if (cid !== lastCid) { // 다른 채널로 이동: 감시 중단 + 인가 재확인
+          lastCid = cid;
+          allowState = 'pending';
+          try { stop(); } catch (e) {}
+        }
         buildUi();
       } else {
+        lastCid = '';
         teardownUi();
       }
     }
@@ -932,13 +1036,14 @@
 
   function init() {
     ensureStyle();
-    startHeartbeat();
     if (isLivePage()) {
       buildUi();
-    } else {
-      dlog('init-notlive', location.pathname);
     }
     runWorldProbe();
+    try {
+      document.addEventListener('pointerdown', unlockAudio);
+      document.addEventListener('keydown', unlockAudio);
+    } catch (e) {}
     setInterval(checkRoute, 1000);
   }
 

@@ -14,18 +14,15 @@
 
 ## 자동 업데이트
 
-* 정식(`chzzk-keyword-alert.user.js`)과 베타(`beta/chzzk-keyword-alert.beta.user.js`)는
-  각자 자기 Raw 주소를 업데이트 URL로 가져서 채널이 뒤섞이지 않음.
+* 정식(`chzzk-keyword-alert.user.js`)은 자기 Raw 주소를 업데이트 URL로 가져서
   `@version`이 오르면 Tampermonkey가 자동 갱신 (기본 1일 1회 확인).
-* 베타 `@name`에 `(Beta)`가 붙어서 정식과 나란히 설치 가능.
-* 베타가 정식 릴리즈되면 `beta/`는 비우고 루트에 반영.
+* 베타는 검증 중일 때만 `beta/`에 롤링 파일 1개로 운영 (정식과 별개 채널).
+  정식 릴리즈 시 `beta/`는 비움.
 
 ## 폴더 구조
 
 * `chzzk-keyword-alert.user.js` — 정식 (자동 업데이트 대상)
-* `beta/chzzk-keyword-alert.beta.user.js` — 롤링 베타 1개 (자동 업데이트 대상)
-* `beta/chzzk-keyword-alert.v2.8_betaN.user.js` — 지난 베타 백업
-* `history/` — 지난 정식/테스트 스냅샷
+* `history/` — 지난 버전 스냅샷
 * `allowlist.json` — 인가 채널 목록
 
 ## 인가 채널 (allowlist.json)
