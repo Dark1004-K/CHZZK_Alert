@@ -472,6 +472,8 @@ let dropsPanel = null, dropsPoll = null, dropsTick = null;
 let dropsSaveN = 0;
 let dropsCid = '', dropsJoinAt = 0, dropsNo = 0, dropsInfo = null;
 let dropsDone = new Set(); // 시간 충족 알림을 이미 한 보상 번호
+let dropsSrv = null; // 서버 집계 { min, claimed }. null이면 이 페이지 경과 시간으로 표시
+let dropsSrvSynced = false;
 let dropsCurNo = null; // 지금 창에 보여주는 보상 번호 (바뀌면 다시 그림)
 // 새로고침해도 접속 시간 유지: 같은 채널이면 마지막 확인 후 10분 안에 돌아온 경우 이어서 센다
 const LS_DJOIN = '__kw_drops_join';
@@ -507,12 +509,18 @@ function dropsRewards() {
   const l = (dropsInfo && dropsInfo.rewardList) || [];
   return l.filter((r) => r && isFinite(r.conditionForMinutes)).sort((a, b) => a.conditionForMinutes - b.conditionForMinutes);
 }
-// 아직 시간이 안 찬 첫 보상. 모두 찼으면 null
-function dropsNextReward(elapsed) {
-  return dropsRewards().find((r) => elapsed < r.conditionForMinutes * 60000) || null;
+// 서버(치지직)가 집계한 내 시청 분이 있으면 그 값을, 없으면(미로그인·집계 전) 이 페이지 경과 시간을 쓴다
+function dropsElapsed() {
+  return dropsSrv ? dropsSrv.min * 60000 : Date.now() - dropsJoinAt;
 }
-function dropsSubHtml(elapsed, cur) {
-  return '시청 <b id="__kw_dr_time">' + fmtElapsed(elapsed) + '</b>' + (cur ? ' / ' + cur.conditionForMinutes + '분' : ' · 시간충족');
+const dropsMet = (r, el) => (dropsSrv && dropsSrv.claimed.has(r.rewardNo)) || el >= r.conditionForMinutes * 60000;
+// 아직 시간이 안 찬 첫 보상. 모두 찼으면 null
+function dropsNextReward(el) {
+  return dropsRewards().find((r) => !dropsMet(r, el)) || null;
+}
+function dropsSubHtml(el, cur) {
+  const t = dropsSrv ? Math.floor(el / 60000) + '분' : fmtElapsed(el);
+  return '시청 <b id="__kw_dr_time">' + t + '</b>' + (cur ? ' / ' + cur.conditionForMinutes + '분' : ' · 시간충족');
 }
 function renderDrops() {
   if (!dropsInfo || !dropsOn()) { removeDropsPanel(); return; }
@@ -523,7 +531,7 @@ function renderDrops() {
     stackEl.insertBefore(d, histPanel && histPanel.isConnected ? histPanel : null);
     dropsPanel = d;
   }
-  const elapsed = Date.now() - dropsJoinAt;
+  const elapsed = dropsElapsed();
   const rewards = dropsRewards();
   const cur = dropsNextReward(elapsed);
   const r = cur || rewards[rewards.length - 1] || (dropsInfo.rewardList && dropsInfo.rewardList[0]) || null;
@@ -551,10 +559,10 @@ function dropsReached(r, last) {
 }
 function dropsCheck() {
   if (!dropsInfo) return;
-  const elapsed = Date.now() - dropsJoinAt;
+  const elapsed = dropsElapsed();
   const rewards = dropsRewards();
   rewards.forEach((r, k) => {
-    if (elapsed >= r.conditionForMinutes * 60000 && !dropsDone.has(r.rewardNo)) {
+    if (dropsMet(r, elapsed) && !dropsDone.has(r.rewardNo)) {
       dropsDone.add(r.rewardNo);
       dropsReached(r, k === rewards.length - 1);
       saveJoinAt();
@@ -566,22 +574,35 @@ function dropsCheck() {
   const sub = dropsPanel ? dropsPanel.querySelector('.__kw_dr_s') : null;
   if (sub) sub.innerHTML = dropsSubHtml(elapsed, cur);
 }
-// 진단용: 내 드롭스 진행 현황(서버 집계)을 콘솔 로그로 남긴다. 값이 바뀔 때만 출력. 필드 확인 후 제거/반영 예정.
+// 서버 집계 시청 시간: 진행 중 보상(challenges)의 accumWatchMinutes, 받은 보상(claims)은 완료로 본다.
 const DROPS_SRV = 'https://api.chzzk.naver.com/commercial/v2/drops/rewards/';
-const dropsSrvLast = {};
-function logDropsServer() {
-  ['challenges', 'claims'].forEach((k) => {
-    try {
-      fetch(DROPS_SRV + k, { credentials: 'include' })
-        .then((r) => r.text().then((t) => ({ st: r.status, t })))
-        .then((o) => {
-          const sig = o.st + ':' + o.t;
-          if (dropsSrvLast[k] === sig) return;
-          dropsSrvLast[k] = sig;
-          dlog('drops-srv-' + k, o.st, o.t.slice(0, 4000));
-        })
-        .catch((e) => { dlog('drops-srv-' + k + '-err', String(e && e.message || e)); });
-    } catch (e) {}
+// 처음 서버 값을 받았을 때 이미 시간이 찬 보상은 알림 없이 기록만 한다
+function syncDropsSrvDone() {
+  if (!dropsSrv || dropsSrvSynced || !dropsInfo) return;
+  dropsSrvSynced = true;
+  const el = dropsElapsed();
+  dropsRewards().forEach((r) => { if (dropsMet(r, el)) dropsDone.add(r.rewardNo); });
+  saveJoinAt();
+}
+function fetchDropsServer(cid, no) {
+  const get = (k) => fetch(DROPS_SRV + k, { credentials: 'include' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  Promise.all([get('challenges'), get('claims')]).then(([ch, cl]) => {
+    if (cid !== dropsCid || no !== dropsNo) return;
+    const chList = ((ch && ch.content && ch.content.challengeList) || []).filter((x) => x && x.campaignNo === no);
+    const clList = ((cl && cl.content && cl.content.claimList) || []).filter((x) => x && x.campaignNo === no);
+    if (!ch && !cl) return; // 미로그인/오류: 이 페이지 경과 시간으로 계속 표시
+    const claimed = new Set(clList.map((x) => x.rewardNo));
+    let min = null;
+    chList.forEach((x) => { if (isFinite(x.accumWatchMinutes)) min = Math.max(min === null ? 0 : min, x.accumWatchMinutes); });
+    if (min === null && claimed.size) { // 진행 중 보상이 없고 받은 보상만 있으면 모두 달성한 것
+      min = dropsRewards().reduce((m, r) => Math.max(m, r.conditionForMinutes), 0);
+    }
+    if (min === null) return;
+    const prev = dropsSrv ? dropsSrv.min : -1;
+    dropsSrv = { min, claimed };
+    if (min !== prev) dlog('drops-srv', 'min', min, 'claimed', claimed.size);
+    syncDropsSrvDone();
+    renderDrops();
   });
 }
 function pollDrops() {
@@ -589,17 +610,17 @@ function pollDrops() {
   const cid = pageChannelId();
   if (!cid) return;
   if (cid !== dropsCid) { // 채널이 바뀌면 접속 시간 초기화
-    dropsCid = cid; const jn = loadJoin(cid); dropsJoinAt = jn.joinAt; dropsDone = new Set(jn.done); saveJoinAt(); dropsNo = 0; dropsInfo = null; removeDropsPanel();
+    dropsCid = cid; const jn = loadJoin(cid); dropsJoinAt = jn.joinAt; dropsDone = new Set(jn.done); saveJoinAt(); dropsNo = 0; dropsInfo = null; dropsSrv = null; dropsSrvSynced = false; removeDropsPanel();
   }
-  logDropsServer();
   fetch(DROPS_API + 'v3.2/channels/' + cid + '/live-detail')
     .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
     .then((j) => {
       if (cid !== dropsCid) return;
       const no = j && j.content && j.content.dropsCampaignNo;
-      if (!no) { dropsNo = 0; dropsInfo = null; renderDrops(); return; }
-      if (no === dropsNo && dropsInfo) return;
+      if (!no) { dropsNo = 0; dropsInfo = null; dropsSrv = null; dropsSrvSynced = false; renderDrops(); return; }
+      if (no === dropsNo && dropsInfo) { fetchDropsServer(cid, no); return; }
       dropsNo = no;
+      dropsSrv = null; dropsSrvSynced = false;
       return fetch(DROPS_API + 'v1/drops/campaigns/' + no)
         .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
         .then((c) => {
@@ -609,6 +630,7 @@ function pollDrops() {
           dropsRewards().forEach((r) => { if (el0 >= r.conditionForMinutes * 60000) dropsDone.add(r.rewardNo); });
           dlog('drops', no, dropsInfo.title);
           renderDrops();
+          fetchDropsServer(cid, no);
         });
     })
     .catch(() => {}); // 네트워크 오류 시 현재 표시 유지
@@ -626,6 +648,6 @@ function startDrops() {
 function stopDrops() {
   if (dropsPoll) { clearInterval(dropsPoll); dropsPoll = null; }
   if (dropsTick) { clearInterval(dropsTick); dropsTick = null; }
-  dropsCid = ''; dropsNo = 0; dropsInfo = null; dropsDone = new Set(); dropsCurNo = null;
+  dropsCid = ''; dropsNo = 0; dropsInfo = null; dropsDone = new Set(); dropsCurNo = null; dropsSrv = null; dropsSrvSynced = false;
   removeDropsPanel();
 }
