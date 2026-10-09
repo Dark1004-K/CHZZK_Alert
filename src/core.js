@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.3.0-beta014';
+const SCRIPT_VERSION = '3.3.0-beta015';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -363,7 +363,9 @@ function ensureStyle() {
 .__kw_ic:hover{background:rgba(255,255,255,.12)}
 .__kw_ic:disabled{opacity:.3;cursor:default;background:transparent}
 .__kw_ic svg{width:16px;height:16px;display:block}
-.__kw_xabs{position:absolute;top:6px;right:8px;z-index:2}
+.__kw_xabs{position:absolute;top:2px;right:3px;z-index:2}
+#__kw_redup{-moz-appearance:textfield;appearance:textfield}
+#__kw_redup::-webkit-inner-spin-button,#__kw_redup::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 #__kw_dropsp,#__kw_histp{position:relative}
 #__kw_dropsp .__kw_dr{padding-right:26px;min-height:26px}
 .__kw_upbtn{background:#1f6feb;color:#fff;border:0;border-radius:8px;padding:5px 12px;font:bold 12px sans-serif;cursor:pointer;margin-left:6px}
