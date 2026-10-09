@@ -33,8 +33,12 @@
 
 ### 1.3 정식 설치
 
-1. 아래 Raw URL을 브라우저 주소창에 붙여넣고 연다.
-   `https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/chzzk-keyword-alert.user.js`
+1. 아래 Raw URL을 브라우저 주소창에 붙여넣고 연다. (코드 블록 우상단 복사 버튼 이용)
+
+```text
+https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/chzzk-keyword-alert.user.js
+```
+
    (또는 Tampermonkey 대시보드 → Utilities → Install from URL에 붙여넣기)
 2. Tampermonkey 설치 확인 화면에서 **설치**를 누른다.
 3. 방송 페이지(`https://chzzk.naver.com/live/...`)를 새로고침한다.
@@ -46,7 +50,11 @@
 | 구분 | 정식 | 베타 |
 | --- | --- | --- |
 | 파일 | `chzzk-keyword-alert.user.js` (루트) | `beta/chzzk-keyword-alert.beta.user.js` |
-| Raw URL | `.../main/chzzk-keyword-alert.user.js` | `.../main/beta/chzzk-keyword-alert.beta.user.js` |
+| Raw URL | 위 1.3 정식 주소 | 아래 베타 주소 |
+
+```text
+https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js
+```
 | 스크립트 이름 | CHZZK 채팅 호출 알림 (Keyword Alert) | CHZZK 채팅 호출 알림 (Beta) |
 | 자동 업데이트 | 버전 오르면 자동 (1일 1회 확인) | 버전 오르면 자동 (별개 채널) |
 | 콘솔 로그 | 없음 | 진단 로그 있음 (`[KW-BETA]`) |
