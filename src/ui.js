@@ -443,9 +443,9 @@ function showReloadPopup(installWin) {
     ? base + 'position:fixed;left:' + hr.left + 'px;top:' + hr.top + 'px;width:' + hr.width + 'px;height:' + hr.height + 'px;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;overflow:auto'
     : base + 'position:fixed;top:28%;left:50%;transform:translateX(-50%);padding:16px 18px;max-width:340px';
   box.innerHTML = '<div style="font-size:14px"><b>🔄 업데이트 설치 후 새로고침</b></div>' +
-    '<div style="font-size:12px;color:#bbb;margin:8px 0 10px;line-height:1.5">새로 열린 Tampermonkey 창에서 <b>재설치/업데이트</b>를 누르세요<br>이후 화면이 갱신되면 알람 초기화가 일어날 수 있습니다</div>' +
+    '<div style="font-size:12px;color:#bbb;margin:8px 0 10px;line-height:1.5">새로 열린 Tampermonkey 창에서 <b>재설치/업데이트</b>를 누르세요<br>이 탭으로 돌아오면 카운트 후 <b>자동으로 새로고침</b>됩니다 (알람 초기화가 일어날 수 있습니다)</div>' +
     '<div style="display:flex;gap:14px;align-items:center">' + // 두 버튼 사이 간격
-    '<button class="__kw_b" id="__kw_upd_go" style="background:#1f6feb;color:#fff;margin:0">새로고침</button>' +
+    '<button class="__kw_b" id="__kw_upd_go" style="background:#1f6feb;color:#fff;margin:0">설치 끝남 · 새로고침</button>' +
     '<button class="__kw_b" id="__kw_upd_x" style="background:#444;color:#fff;margin:0">나중에</button></div>' +
     '<div id="__kw_upd_msg" style="font-size:12px;color:#ffd400;margin-top:8px"></div>';
   document.body.appendChild(box);
@@ -457,25 +457,44 @@ function showReloadPopup(installWin) {
   const close = () => { if (timer) { clearInterval(timer); timer = null; } try { box.remove(); } catch (e) {} };
   box.querySelector('#__kw_upd_go').onclick = reload;
   box.querySelector('#__kw_upd_x').onclick = close;
-  if (!installWin) return; // 팝업이 막혀 창 상태를 볼 수 없으면 버튼으로만
-  timer = setInterval(() => {
-    let closed = false;
-    try { closed = !!installWin.closed; } catch (e) {}
-    if (!closed) return;
-    clearInterval(timer);
-    timer = null;
+  // 돌아오면(설치 창이 닫히거나, 이 탭이 다시 보이면) 카운트다운 후 강제 새로고침. 이때부터는 "나중에"를 없앤다.
+  let counting = false;
+  const startCount = () => {
+    if (counting || !box.isConnected) return;
+    counting = true;
+    if (timer) { clearInterval(timer); timer = null; }
+    document.removeEventListener('visibilitychange', onVis);
+    window.removeEventListener('focus', onFocus);
+    const later = box.querySelector('#__kw_upd_x');
+    if (later) later.style.display = 'none';
+    const go = box.querySelector('#__kw_upd_go');
+    if (go) go.textContent = '지금 새로고침';
     const msg = box.querySelector('#__kw_upd_msg');
     let n = 17;
     box.classList.add('blink'); // 카운트다운 동안 깜빡임
     const tick = () => {
       if (!box.isConnected) return;
-      if (msg) msg.textContent = '설치 창이 닫혔습니다. ' + n + '초 뒤 새로고침합니다...';
+      if (msg) msg.textContent = '돌아오셨네요. ' + n + '초 뒤 새로고침합니다...';
       // 시작할 때와 마지막 3초에 알림음 (알람 끄기 상태면 소리 생략)
       if ((n === 17 || (n <= 3 && n > 0)) && !muted()) { lastSoundAt = 0; playAlertSound(); }
       if (n-- <= 0) { reload(); return; }
       setTimeout(tick, 1000);
     };
     tick();
+  };
+  let left = false; // 설치 창으로 나갔었는가
+  const onVis = () => { if (document.visibilityState === 'hidden') left = true; else if (left) setTimeout(startCount, 500); };
+  const onFocus = () => { if (left) setTimeout(startCount, 500); };
+  document.addEventListener('visibilitychange', onVis);
+  window.addEventListener('blur', () => { left = true; });
+  window.addEventListener('focus', onFocus);
+  const close0 = close;
+  box.querySelector('#__kw_upd_x').onclick = () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onFocus); close0(); };
+  if (!installWin) return; // 팝업이 막혀 창 상태를 볼 수 없으면 탭 복귀 감지와 버튼으로만
+  timer = setInterval(() => {
+    let closed = false;
+    try { closed = !!installWin.closed; } catch (e) {}
+    if (closed) startCount();
   }, 1000);
 }
 function renderSettings() {
