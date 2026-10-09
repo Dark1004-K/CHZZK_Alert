@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CHZZK Alert (Beta)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-beta23
+// @version      2.8-beta24
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
 // @match        https://chzzk.naver.com/live/*
@@ -27,7 +27,7 @@
   const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
   const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
   // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-  const SCRIPT_VERSION = '2.8-beta23';
+  const SCRIPT_VERSION = '2.8-beta24';
   const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js';
   const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
   const HITS_MAX = 30;
@@ -288,7 +288,10 @@
   .__kw_ic:hover{background:rgba(255,255,255,.12)}
   .__kw_ic:disabled{opacity:.3;cursor:default;background:transparent}
   .__kw_ic svg{width:16px;height:16px;display:block}
-  .__kw_ic.go{color:#00ffa3}
+  .__kw_upbtn{background:#1f6feb;color:#fff;border:0;border-radius:8px;padding:5px 12px;font:bold 12px sans-serif;cursor:pointer;margin-left:6px}
+  .__kw_upbtn:disabled{background:#333;color:#777;cursor:default}
+  #__kw_update_msg{font-size:12px;color:#ddd;margin-top:4px}
+  #__kw_update_msg.hot{color:#00ffa3;font-weight:bold}
   #__kw_set_about .__kw_ic{margin-left:6px}
   #__kw_set_body .__kw_lbl:first-child{margin-top:0}
   #__kw_midrow{position:relative;width:100%}
@@ -963,12 +966,17 @@
     if (r.pre !== l.pre) return false;
     return r.preN > l.preN;
   }
-  // 수동 업데이트 확인: 새 버전이 있을 때만 업데이트 버튼을 보여줌
+  // 수동 업데이트 확인: 새 버전이 있을 때만 파란 업데이트 버튼을 켜줌
   function checkUpdate() {
     const msg = setPanel ? setPanel.querySelector('#__kw_update_msg') : null;
     const btn = setPanel ? setPanel.querySelector('#__kw_update_check') : null;
     const go = setPanel ? setPanel.querySelector('#__kw_update_go') : null;
-    const say = (t) => { if (msg) msg.textContent = t; };
+    const say = (t, hot) => {
+      if (!msg) return;
+      msg.textContent = t;
+      if (hot) msg.classList.add('hot');
+      else msg.classList.remove('hot');
+    };
     if (btn) btn.disabled = true;
     say('확인 중...');
     const done = () => { if (btn) btn.disabled = false; };
@@ -980,11 +988,11 @@
           if (!m) throw new Error('parse');
           const remote = m[1].trim();
           if (isNewer(remote, SCRIPT_VERSION)) {
-            say('새 버전 있음: ' + SCRIPT_VERSION + ' → ' + remote);
-            if (go) { go.disabled = false; go.classList.add('go'); }
+            say('새 버전 있음: ' + SCRIPT_VERSION + ' → ' + remote, true);
+            if (go) go.disabled = false;
             dlog('update-avail', remote);
           } else {
-            say('최신 버전입니다 (' + SCRIPT_VERSION + ')');
+            say('최신 버전입니다 (' + SCRIPT_VERSION + ')', false);
             dlog('update-latest', remote);
           }
         })
@@ -1026,7 +1034,7 @@
             <div><b>비류라미</b></div>
             <div style="margin-top:6px;font-size:12px;color:#eee">검은사막 게임을 하다 미리내ES 님과 놀다 심심해서 만듬</div>
             <div class="__kw_lbl">현재 버전</div>
-            <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span><button class="__kw_ic" id="__kw_update_check" title="업데이트 확인">${IC.refresh}</button><button class="__kw_ic" id="__kw_update_go" title="업데이트" disabled>${IC.down}</button></div>
+            <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span><button class="__kw_ic" id="__kw_update_check" title="업데이트 확인">${IC.refresh}</button><button class="__kw_upbtn" id="__kw_update_go" disabled>업데이트</button></div>
             <div id="__kw_update_msg" class="__kw_lbl"></div>
             <div class="__kw_lbl"><a href="https://github.com/Dark1004-K/chizizic_call_nickname" target="_blank" rel="noopener" style="color:#00ffa3">GitHub 리포지토리</a> · <a href="https://github.com/Dark1004-K/chizizic_call_nickname/blob/main/UPDATE.md" target="_blank" rel="noopener" style="color:#00ffa3">업데이트 내용</a></div>
           </div>
