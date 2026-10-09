@@ -12,6 +12,7 @@ let lastCid = pageChannelId();
 function teardownUi() {
   dlog('teardown', location.pathname);
   stop();
+  stopDrops();
   try { document.getElementById('__kw_stack')?.remove(); } catch (e) {}
   panel = null; stackEl = null; midRowEl = null; histPanel = null; histBox = null; histCount = null; setPanel = null;
   document.getElementById('__kw_ask')?.remove();
@@ -23,6 +24,7 @@ function buildUi() {
   ensureStyle();
   ensureStack();
   ensureHistPanel();
+  if (dropsOn()) startDrops();
   if (!panel || !panel.isConnected) buildPanel();
   ensureSettingsPanel();
   setupDragToAdd();

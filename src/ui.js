@@ -104,6 +104,7 @@ function ensureHistPanel() {
   renderHitsList();
 }
 function applyHistVisibility() {
+  applyDropsVisibility();
   if (!histPanel) return;
   const show = histOn() && panel && panel.classList.contains('show');
   histPanel.style.display = show ? 'block' : 'none';
@@ -140,6 +141,7 @@ const IC = {
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 3v5h-5"/></svg>',
   down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>',
   house: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7M6 9.5V20h12V9.5"/></svg>',
+  box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5V8zM3 8l9 5 9-5M12 13v8"/></svg>',
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4V5z"/></svg>',
 };
 // 채널 표시명: 인가 목록 등록명 우선, 없으면 페이지에서 읽고, 그것도 없으면 ID 앞자리
@@ -278,12 +280,13 @@ function renderSettings() {
       </div>
       <div id="__kw_set_body" style="flex:1;min-width:0;min-height:0;overflow-y:auto">
         <div id="__kw_set_general" style="display:${setTab === 'general' ? 'block' : 'none'}">
-          <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_auto" ${localStorage.getItem(LS_AUTO) === '1' ? 'checked' : ''}> 방송 들어가면 묻지 않고 자동으로 켜기</label></div>
+          <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_auto" ${autoOn() ? 'checked' : ''}> 방송 들어가면 묻지 않고 자동으로 켜기</label></div>
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_hist" ${histOn() ? 'checked' : ''}> 불린 대화 목록 별도 표시 (클릭 이동)</label></div>
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_dedup" ${dedupOn() ? 'checked' : ''}> 이미 울린 대화 재알림 방지</label></div>
+          <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_drops" ${dropsOn() ? 'checked' : ''}> 드롭스 보기 (진행 중인 드롭스가 있을 때만 표시)</label></div>
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_mute" ${muted() ? 'checked' : ''}> 알람 끄기 (감지·기록은 유지)</label></div>
-          <div class="__kw_lbl">같은 호출 다시 울리기까지 (분, 0이면 항상 울림)</div>
-          <input class="__kw_in" id="__kw_redup" type="number" min="0" max="120" step="1" style="width:80px" value="${redupMin()}">
+          <div class="__kw_lbl">같은 호출 다시 울리기까지 (초, 0이면 항상 울림)</div>
+          <input class="__kw_in" id="__kw_redup" type="number" min="0" max="7200" step="1" style="width:80px" value="${redupSec()}">
         </div>
         <div id="__kw_set_words" style="display:${setTab === 'words' ? 'block' : 'none'}">
           <div class="__kw_lbl">호출 단어 (×로 삭제, 페이지 글자를 드래그해서도 추가 가능)</div>
@@ -345,6 +348,10 @@ function renderSettings() {
   setPanel.querySelector('#__kw_dedup').onchange = (e) => {
     try { localStorage.setItem(LS_DEDUP, e.target.checked ? '1' : '0'); } catch (err) {}
   };
+  setPanel.querySelector('#__kw_drops').onchange = (e) => {
+    try { localStorage.setItem(LS_DROPS, e.target.checked ? '1' : '0'); } catch (err) {}
+    if (e.target.checked) startDrops(); else stopDrops();
+  };
   setPanel.querySelector('#__kw_mute').onchange = (e) => {
     try { localStorage.setItem(LS_MUTE, e.target.checked ? '1' : '0'); } catch (err) {}
     dlog('mute', e.target.checked);
@@ -352,7 +359,7 @@ function renderSettings() {
   setPanel.querySelector('#__kw_redup').onchange = (e) => {
     let v = parseFloat(e.target.value);
     if (!isFinite(v) || v < 0) v = 0;
-    if (v > 120) v = 120;
+    if (v > 7200) v = 7200;
     try { localStorage.setItem(LS_REDUP, String(v)); } catch (err) {}
     e.target.value = v;
     dlog('redup', v);
@@ -378,7 +385,7 @@ function escapeHtml(s) {
 
 // ---------- 방송 진입 시 시작 여부 프롬프트 (#__kw_ask) ----------
 function showAskPrompt() {
-  if (localStorage.getItem(LS_AUTO) === '1') { start(); return; }
+  if (autoOn()) { start(); return; }
   if (panel) panel.classList.remove('show');
   applyHistVisibility(); // 질문창이 떠 있는 동안 목록 화면도 함께 숨김
   applySetVisibility();
@@ -438,3 +445,81 @@ function setupDragToAdd() {
   });
 }
 
+
+// ---------- 드롭스 창 (#__kw_dropsp, 감시 패널과 불린 대화 사이) ----------
+// 공개 API로 채널의 드롭스 캠페인을 1분마다 확인하고, 없으면 창을 제거한다.
+const DROPS_API = 'https://api.chzzk.naver.com/service/';
+const DROPS_VAULT_URL = 'https://chzzk.naver.com/profile#drops';
+let dropsPanel = null, dropsPoll = null, dropsTick = null;
+let dropsCid = '', dropsJoinAt = 0, dropsNo = 0, dropsInfo = null;
+function fmtElapsed(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+}
+function applyDropsVisibility() {
+  if (!dropsPanel) return;
+  const show = dropsInfo && dropsOn() && panel && panel.classList.contains('show');
+  dropsPanel.style.display = show ? 'block' : 'none';
+}
+function removeDropsPanel() {
+  if (dropsPanel) { try { dropsPanel.remove(); } catch (e) {} }
+  dropsPanel = null;
+}
+function renderDrops() {
+  if (!dropsInfo || !dropsOn()) { removeDropsPanel(); return; }
+  ensureStack();
+  if (!dropsPanel || !dropsPanel.isConnected) {
+    const d = document.createElement('div');
+    d.id = '__kw_dropsp';
+    stackEl.insertBefore(d, histPanel && histPanel.isConnected ? histPanel : null);
+    dropsPanel = d;
+  }
+  const r = (dropsInfo.rewardList && dropsInfo.rewardList[0]) || null;
+  const title = r ? r.title : dropsInfo.title;
+  const img = r && r.imageUrl ? `<img src="${escapeHtml(r.imageUrl)}" alt="">` : '';
+  dropsPanel.innerHTML = `<div class="__kw_dr">${img}<div class="__kw_dr_b"><div class="__kw_dr_t" title="${escapeHtml(dropsInfo.title || '')}">🎁 ${escapeHtml(title || '드롭스')}</div><div class="__kw_dr_s">시청 <b id="__kw_dr_time">${fmtElapsed(Date.now() - dropsJoinAt)}</b></div></div><button class="__kw_ic" id="__kw_dr_vault" title="보관함" style="color:#ff9f1a">${IC.box}</button></div>`;
+  dropsPanel.querySelector('#__kw_dr_vault').onclick = () => { try { window.open(DROPS_VAULT_URL, '_blank', 'noopener'); } catch (e) {} };
+  applyDropsVisibility();
+}
+function pollDrops() {
+  if (!dropsOn() || !isLivePage()) { dropsInfo = null; removeDropsPanel(); return; }
+  const cid = pageChannelId();
+  if (!cid) return;
+  if (cid !== dropsCid) { // 채널이 바뀌면 접속 시간 초기화
+    dropsCid = cid; dropsJoinAt = Date.now(); dropsNo = 0; dropsInfo = null; removeDropsPanel();
+  }
+  fetch(DROPS_API + 'v3.2/channels/' + cid + '/live-detail')
+    .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
+    .then((j) => {
+      if (cid !== dropsCid) return;
+      const no = j && j.content && j.content.dropsCampaignNo;
+      if (!no) { dropsNo = 0; dropsInfo = null; renderDrops(); return; }
+      if (no === dropsNo && dropsInfo) return;
+      dropsNo = no;
+      return fetch(DROPS_API + 'v1/drops/campaigns/' + no)
+        .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
+        .then((c) => {
+          if (cid !== dropsCid || no !== dropsNo || !c || !c.content) return;
+          dropsInfo = c.content;
+          dlog('drops', no, dropsInfo.title);
+          renderDrops();
+        });
+    })
+    .catch(() => {}); // 네트워크 오류 시 현재 표시 유지
+}
+function startDrops() {
+  if (!dropsPoll) dropsPoll = setInterval(pollDrops, 60000);
+  if (!dropsTick) {
+    dropsTick = setInterval(() => {
+      const t = dropsPanel ? dropsPanel.querySelector('#__kw_dr_time') : null;
+      if (t) t.textContent = fmtElapsed(Date.now() - dropsJoinAt);
+    }, 1000);
+  }
+  pollDrops();
+}
+function stopDrops() {
+  if (dropsPoll) { clearInterval(dropsPoll); dropsPoll = null; }
+  if (dropsTick) { clearInterval(dropsTick); dropsTick = null; }
+  dropsCid = ''; dropsNo = 0; dropsInfo = null;
+  removeDropsPanel();
+}
