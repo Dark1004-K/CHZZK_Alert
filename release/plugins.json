@@ -1,0 +1,67 @@
+{
+  "plugins": [
+    {
+      "id": "tts",
+      "name": "TTS 활성",
+      "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/release/plugins/tts.js",
+      "on": true
+    },
+    {
+      "id": "blackdesert",
+      "name": "검은사막 확장 활성",
+      "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/release/plugins/blackdesert.js",
+      "on": true,
+      "options": [
+        {
+          "key": "lead",
+          "label": "몇 분 전에 알림",
+          "type": "number",
+          "min": 1,
+          "max": 30,
+          "default": 3
+        },
+        {
+          "key": "sound",
+          "label": "알림음",
+          "type": "bool",
+          "default": true
+        },
+        {
+          "key": "bosses",
+          "label": "알림받을 우두머리",
+          "type": "multi",
+          "choices": [
+            "크자카",
+            "누베르",
+            "카란다",
+            "쿠툼",
+            "오핀",
+            "가모스",
+            "벨",
+            "귄트",
+            "무라카",
+            "산군",
+            "금돼지왕",
+            "우투리",
+            "불가살"
+          ],
+          "default": [
+            "크자카",
+            "누베르",
+            "카란다",
+            "쿠툼",
+            "오핀",
+            "가모스",
+            "벨",
+            "귄트",
+            "무라카",
+            "산군",
+            "금돼지왕",
+            "우투리",
+            "불가살"
+          ]
+        }
+      ]
+    }
+  ]
+}
