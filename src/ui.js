@@ -538,7 +538,13 @@ function renderDrops() {
   dropsCurNo = cur ? cur.rewardNo : 'done';
   const title = r ? r.title : dropsInfo.title;
   const img = r && r.imageUrl ? `<img src="${escapeHtml(r.imageUrl)}" alt="">` : '';
-  dropsPanel.innerHTML = `<div class="__kw_dr">${img}<div class="__kw_dr_b"><div class="__kw_dr_t" title="${escapeHtml(dropsInfo.title || '')}">🎁 ${escapeHtml(title || '드롭스')}</div><div class="__kw_dr_s">${dropsSubHtml(elapsed, cur)}</div></div><button class="__kw_ic" id="__kw_dr_vault" title="보관함" style="color:#ff9f1a">${IC.box}</button></div>`;
+  dropsPanel.innerHTML = `<div class="__kw_dr">${img}<div class="__kw_dr_b"><div class="__kw_dr_t" title="${escapeHtml(dropsInfo.title || '')}">🎁 ${escapeHtml(title || '드롭스')}</div><div class="__kw_dr_s">${dropsSubHtml(elapsed, cur)}</div></div><button class="__kw_ic" id="__kw_dr_refresh" title="새로고침" style="color:#ff9f1a">${IC.refresh}</button><button class="__kw_ic" id="__kw_dr_vault" title="보관함" style="color:#ff9f1a">${IC.box}</button></div>`;
+  const rf = dropsPanel.querySelector('#__kw_dr_refresh');
+  rf.onclick = () => { // 드롭스 정보와 서버 시청 시간을 바로 다시 가져옴 (연타 방지로 잠깐 비활성)
+    rf.disabled = true;
+    setTimeout(() => { rf.disabled = false; }, 3000);
+    pollDrops();
+  };
   dropsPanel.querySelector('#__kw_dr_vault').onclick = () => { try { window.open(DROPS_VAULT_URL, '_blank', 'noopener'); } catch (e) {} };
   applyDropsVisibility();
 }
