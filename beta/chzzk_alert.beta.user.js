@@ -1236,6 +1236,7 @@
     return (s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
+
   // ---------- 방송 진입 시 시작 여부 프롬프트 (#__kw_ask) ----------
   function showAskPrompt() {
     if (localStorage.getItem(LS_AUTO) === '1') { start(); return; }
