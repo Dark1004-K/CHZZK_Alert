@@ -115,6 +115,7 @@ try {
     toast(nick, body) { showCallToast(nick, body); },
     option(id, key) { return pluginOptGet(id, key); }, // 설정 > 확장에서 사용자가 고른 옵션 값
     enabled(id) { return pluginIdIsOn(id); }, // 설정 > 확장에서 켜져 있는지
+    emit(evt, data) { kwEmit('ext:' + evt, data); }, // 플러그인끼리 이벤트 전달 (구독은 on('ext:이름'))
   };
 } catch (e) {}
 function kwEmit(evt, data) {

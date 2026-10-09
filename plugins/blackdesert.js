@@ -170,6 +170,13 @@
         if (!items.has(o.t)) {
           addItem(o);
           if (opt('sound', true)) beep();
+          // TTS 확장이 켜져 있으면 우두머리 이름을 읽는다 (구독: on('ext:boss'))
+          try {
+            if (typeof KW.emit === 'function') {
+              const ms = o.t - now;
+              KW.emit('boss', { bosses, when: ms >= 60000 ? Math.round(ms / 60000) + '분' : Math.max(1, Math.ceil(ms / 1000)) + '초' });
+            }
+          } catch (e) {}
         }
         items.get(o.t).txt.textContent = '⚔ 검은사막 ' + o.hhmm + ' 우두머리: ' + bosses.join(' / ') + ' · ' + fmt(o.t - now) + ' 남음';
       }
