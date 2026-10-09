@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.3.0-beta007';
+const SCRIPT_VERSION = '3.3.0-beta008';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -335,6 +335,27 @@ function ensureStyle() {
 #__kw_hist_head{flex:none;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-weight:bold}
 #__kw_hits{flex:0 1 auto;min-height:0;max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;user-select:text}
 #__kw_hits_clear{background:#444;color:#fff;padding:2px 7px;font-size:11px}
+/* 스크롤바: 창 색에 맞춤 */
+#__kw_hits::-webkit-scrollbar{width:8px;height:8px}
+#__kw_hits::-webkit-scrollbar-track{background:rgba(255,212,0,.10);border-radius:8px}
+#__kw_hits::-webkit-scrollbar-thumb{background:rgba(255,212,0,.60);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+#__kw_hits::-webkit-scrollbar-thumb:hover{background:rgb(255,212,0);background-clip:padding-box}
+#__kw_hits::-webkit-scrollbar-corner{background:transparent}
+#__kw_set_body::-webkit-scrollbar{width:8px;height:8px}
+#__kw_set_body::-webkit-scrollbar-track{background:rgba(170,170,185,.10);border-radius:8px}
+#__kw_set_body::-webkit-scrollbar-thumb{background:rgba(170,170,185,.60);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+#__kw_set_body::-webkit-scrollbar-thumb:hover{background:rgb(170,170,185);background-clip:padding-box}
+#__kw_set_body::-webkit-scrollbar-corner{background:transparent}
+.__kw_sb_cpn::-webkit-scrollbar{width:8px;height:8px}
+.__kw_sb_cpn::-webkit-scrollbar-track{background:rgba(183,132,255,.10);border-radius:8px}
+.__kw_sb_cpn::-webkit-scrollbar-thumb{background:rgba(183,132,255,.60);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+.__kw_sb_cpn::-webkit-scrollbar-thumb:hover{background:rgb(183,132,255);background-clip:padding-box}
+.__kw_sb_cpn::-webkit-scrollbar-corner{background:transparent}
+@supports not selector(::-webkit-scrollbar){
+  #__kw_hits{scrollbar-width:thin;scrollbar-color:rgba(255,212,0,.7) rgba(255,212,0,.12)}
+  #__kw_set_body{scrollbar-width:thin;scrollbar-color:rgba(170,170,185,.7) rgba(170,170,185,.12)}
+  .__kw_sb_cpn{scrollbar-width:thin;scrollbar-color:rgba(183,132,255,.7) rgba(183,132,255,.12)}
+}
 `;
   document.head.appendChild(style);
   } catch (e) {}
