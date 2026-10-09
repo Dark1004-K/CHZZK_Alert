@@ -77,6 +77,26 @@ function pluginIdIsOn(id) {
   const p = (pluginList || []).find((x) => x && x.id === id);
   return p ? pluginIsOn(p) : true;
 }
+// 플러그인 옵션: plugins.json의 options 정의(key/label/type/default)를 설정 > 확장에 그리고, 값은 localStorage에 저장한다.
+const LS_PLUGOPT = '__kw_plugopt'; // { [pluginId]: { [key]: value } }
+function pluginOptMap() {
+  try { return JSON.parse(localStorage.getItem(LS_PLUGOPT)) || {}; } catch (e) { return {}; }
+}
+function pluginOptDef(id, key) {
+  const p = (pluginList || []).find((x) => x && x.id === id);
+  return p && Array.isArray(p.options) ? p.options.find((o) => o && o.key === key) || null : null;
+}
+function pluginOptGet(id, key) {
+  const m = pluginOptMap();
+  if (m[id] && key in m[id]) return m[id][key];
+  const d = pluginOptDef(id, key);
+  return d ? d.default : undefined;
+}
+function pluginOptSet(id, key, v) {
+  const m = pluginOptMap();
+  (m[id] = m[id] || {})[key] = v;
+  try { localStorage.setItem(LS_PLUGOPT, JSON.stringify(m)); } catch (e) {}
+}
 function setPluginOn(p, on) {
   const m = pluginStateMap();
   m[p.id] = !!on;
@@ -93,6 +113,8 @@ try {
       (__kwListeners[evt] = __kwListeners[evt] || []).push(fn);
     },
     toast(nick, body) { showCallToast(nick, body); },
+    option(id, key) { return pluginOptGet(id, key); }, // 설정 > 확장에서 사용자가 고른 옵션 값
+    enabled(id) { return pluginIdIsOn(id); }, // 설정 > 확장에서 켜져 있는지
   };
 } catch (e) {}
 function kwEmit(evt, data) {

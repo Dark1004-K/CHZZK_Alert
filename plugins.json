@@ -1,1 +1,68 @@
-{"plugins": [{"id": "tts", "name": "호출 TTS (누가 불렀는지 음성 안내)", "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/plugins/tts.js", "on": true}]}
+{
+  "plugins": [
+    {
+      "id": "tts",
+      "name": "호출 TTS (누가 불렀는지 음성 안내)",
+      "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/plugins/tts.js",
+      "on": true
+    },
+    {
+      "id": "blackdesert",
+      "name": "검은사막",
+      "desc": "월드 우두머리 레이드 출현 전 주황색 알림",
+      "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/plugins/blackdesert.js",
+      "on": true,
+      "options": [
+        {
+          "key": "lead",
+          "label": "몇 분 전에 알림",
+          "type": "number",
+          "min": 1,
+          "max": 30,
+          "default": 3
+        },
+        {
+          "key": "sound",
+          "label": "알림음",
+          "type": "bool",
+          "default": true
+        },
+        {
+          "key": "bosses",
+          "label": "알림받을 우두머리",
+          "type": "multi",
+          "choices": [
+            "크자카",
+            "누베르",
+            "카란다",
+            "쿠툼",
+            "오핀",
+            "가모스",
+            "벨",
+            "귄트",
+            "무라카",
+            "산군",
+            "금돼지왕",
+            "우투리",
+            "불가살"
+          ],
+          "default": [
+            "크자카",
+            "누베르",
+            "카란다",
+            "쿠툼",
+            "오핀",
+            "가모스",
+            "벨",
+            "귄트",
+            "무라카",
+            "산군",
+            "금돼지왕",
+            "우투리",
+            "불가살"
+          ]
+        }
+      ]
+    }
+  ]
+}

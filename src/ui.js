@@ -269,11 +269,29 @@ function checkUpdate() {
     done();
   }
 }
+// 플러그인 옵션 입력칸 (type: bool | number | multi)
+function extOptHtml(p) {
+  if (!Array.isArray(p.options) || !p.options.length) return '';
+  const rows = p.options.map((o) => {
+    const v = pluginOptGet(p.id, o.key);
+    const at = `data-pid="${escapeHtml(p.id)}" data-key="${escapeHtml(o.key)}"`;
+    const lb = escapeHtml(o.label || o.key);
+    if (o.type === 'bool') return `<div><label style="cursor:pointer"><input type="checkbox" class="__kw_popt" ${at} ${v ? 'checked' : ''}> ${lb}</label></div>`;
+    if (o.type === 'number') return `<div>${lb} <input class="__kw_in __kw_popt" type="number" ${at} min="${Number(o.min) || 0}" max="${Number(o.max) || 999}" step="1" style="width:60px" value="${escapeHtml(String(v))}"></div>`;
+    if (o.type === 'multi') {
+      const sel = Array.isArray(v) ? v : [];
+      const boxes = (o.choices || []).map((c) => `<label style="cursor:pointer;white-space:nowrap"><input type="checkbox" class="__kw_popt_m" ${at} data-val="${escapeHtml(c)}" ${sel.includes(c) ? 'checked' : ''}> ${escapeHtml(c)}</label>`).join('');
+      return `<div>${lb}<div style="display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:2px">${boxes}</div></div>`;
+    }
+    return '';
+  }).join('');
+  return `<div style="margin:0 0 6px 18px;font-size:12px;color:#ccc;display:flex;flex-direction:column;gap:4px">${rows}</div>`;
+}
 function extListHtml() {
   if (limitedMode) return '<div class="__kw_lbl" style="color:#ffd400">사용자 스크립트 허용이 꺼져 있어 확장을 쓸 수 없습니다</div>';
   if (pluginList === null) return '<div class="__kw_lbl">목록을 불러오는 중...</div>';
   if (!pluginList.length) return '<div class="__kw_lbl">등록된 확장이 없습니다</div>';
-  return pluginList.map((p) => `<div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" ${pluginIsOn(p) ? 'checked' : ''}> ${escapeHtml(p.name || p.id)}</label></div>`).join('');
+  return pluginList.map((p) => `<div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" ${pluginIsOn(p) ? 'checked' : ''}> ${escapeHtml(p.name || p.id)}</label>${p.desc ? ` <span style="color:#888">${escapeHtml(p.desc)}</span>` : ''}</div>${extOptHtml(p)}`).join('');
 }
 function renderSettings() {
   if (!setPanel) return;
@@ -364,6 +382,27 @@ function renderSettings() {
     c.onchange = () => {
       const p = (pluginList || []).find((x) => x.id === c.dataset.id);
       if (p) setPluginOn(p, c.checked);
+    };
+  });
+  setPanel.querySelectorAll('.__kw_popt').forEach((c) => {
+    c.onchange = () => {
+      const def = pluginOptDef(c.dataset.pid, c.dataset.key) || {};
+      let v;
+      if (c.type === 'checkbox') v = c.checked;
+      else {
+        v = parseFloat(c.value);
+        if (!isFinite(v)) v = def.default;
+        if (isFinite(def.min)) v = Math.max(def.min, v);
+        if (isFinite(def.max)) v = Math.min(def.max, v);
+        c.value = v;
+      }
+      pluginOptSet(c.dataset.pid, c.dataset.key, v);
+    };
+  });
+  setPanel.querySelectorAll('.__kw_popt_m').forEach((c) => {
+    c.onchange = () => {
+      const all = [...setPanel.querySelectorAll('.__kw_popt_m')].filter((x) => x.dataset.pid === c.dataset.pid && x.dataset.key === c.dataset.key);
+      pluginOptSet(c.dataset.pid, c.dataset.key, all.filter((x) => x.checked).map((x) => x.dataset.val));
     };
   });
   setPanel.querySelector('#__kw_drops').onchange = (e) => {
