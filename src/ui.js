@@ -10,12 +10,12 @@ function setStackWidth(w) {
   curWidth = Math.max(216, Math.min(600, Math.round(w)));
   if (stackEl) stackEl.style.width = curWidth + 'px';
 }
-// 불린 대화 목록 높이: 위쪽 손잡이를 위로 끌면 커진다 (스택이 아래 고정이라). 한계 80px ~ 420px(화면 55% 이내)
+// 불린 대화 목록 높이: 위쪽 손잡이를 위로 끌면 커진다 (스택이 아래 고정이라). 한계 80px ~ 화면 높이의 85%
 const LS_HH = '__kw_hits_h';
 const HH_MIN = 80, HH_DEF = 150;
-const hhMax = () => Math.max(HH_MIN, Math.min(420, Math.floor(window.innerHeight * 0.55)));
+const hhMax = () => Math.max(HH_MIN, Math.floor(window.innerHeight * 0.85));
 let histH = HH_DEF;
-try { const hv = parseInt(localStorage.getItem(LS_HH), 10); if (hv >= HH_MIN && hv <= 420) histH = hv; } catch (e) {}
+try { const hv = parseInt(localStorage.getItem(LS_HH), 10); if (hv >= HH_MIN && hv <= 4000) histH = hv; } catch (e) {}
 function applyHistHeight() {
   if (histBox) histBox.style.maxHeight = Math.min(histH, hhMax()) + 'px';
 }
