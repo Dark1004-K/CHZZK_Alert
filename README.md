@@ -1,5 +1,23 @@
 # 치지직 채팅 호출 알림 (CHZZK Alert)
 
+## ⚡ 무지성 설치하기
+
+설명은 읽지 말고 **1 → 2 → 3 순서대로** 누르기만 하세요. (자세한 설명은 아래 [1. 설치하기](#1-설치하기-처음이신-분은-여기부터))
+
+1. **몽키 설치** 👉 [크롬](https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo) · [엣지](https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloendndfphd)
+2. **사용자 스크립트 ON** 👉 아래 주소를 복사해서 **주소 입력칸에 붙여넣고 Enter** (크롬 기준, 엣지는 [자세히](#2단계-사용자-스크립트-허용-켜기-아주-중요))
+
+   ```text
+   chrome://extensions/?id=dhdgffkkebhmkfjojejmpbldmpobfkfo
+   ```
+
+   > ⚠️ 열리는 화면에서 **"사용자 스크립트 허용"을 반드시 ON 하세요.** (`chrome://` 주소는 보안상 클릭으로 열 수 없어서 복사해서 붙여넣어야 합니다)
+3. **스크립트 적용** 👉 [여기를 눌러 설치](https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/chzzk_alert.user.js) → 열린 화면에서 **`설치`** 버튼
+
+끝나면 치지직 방송 화면을 **새로고침(F5)** 하세요. 🎉
+
+---
+
 > **업데이트 내용 보러가기 → 정식: [UPDATE.md](./UPDATE.md) · 베타: [beta/UPDATE.md](./beta/UPDATE.md)**
 
 치지직(CHZZK) 생방송 채팅에서 **내가 등록한 단어(닉네임 등)가 나오면** 알려주는 프로그램입니다.
