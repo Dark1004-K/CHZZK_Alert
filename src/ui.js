@@ -153,6 +153,29 @@ function chDisplayName() {
   return cid ? cid.slice(0, 8) + '…' : '';
 }
 const okLinkUrl = (u) => /^(https?:|discord:)/i.test(u || '');
+// 디스코드: 앱(discord://)을 먼저 호출하고, 앱이 안 열려 창 포커스가 유지되면 웹(https://)으로 대체
+function openDiscord(u) {
+  const m = /^https?:\/\/(?:discord\.gg|(?:www\.)?discord(?:app)?\.com\/invite)\/([\w-]+)/i.exec(u);
+  const web = /^discord:/i.test(u) ? null : u;
+  const app = m ? 'discord://-/invite/' + m[1] : (/^discord:/i.test(u) ? u : null);
+  if (!app) { try { window.open(u, '_blank', 'noopener'); } catch (e) {} return; }
+  let left = false;
+  const onLeave = () => { left = true; };
+  window.addEventListener('blur', onLeave);
+  document.addEventListener('visibilitychange', onLeave);
+  try {
+    const f = document.createElement('iframe');
+    f.style.display = 'none';
+    f.src = app;
+    document.body.appendChild(f);
+    setTimeout(() => { try { f.remove(); } catch (e) {} }, 2000);
+  } catch (e) { try { location.href = app; } catch (e2) {} }
+  setTimeout(() => {
+    window.removeEventListener('blur', onLeave);
+    document.removeEventListener('visibilitychange', onLeave);
+    if (!left && web) { try { window.open(web, '_blank', 'noopener'); } catch (e) {} }
+  }, 1500);
+}
 function chLinksHtml() {
   let e = null;
   try { e = allowEntry; } catch (err) {}
@@ -182,7 +205,10 @@ function renderPanel() {
     const b = ev.target && ev.target.closest ? ev.target.closest('[data-url]') : null;
     if (!b) return;
     const u = b.getAttribute ? b.getAttribute('data-url') : (b.dataset && b.dataset.url);
-    if (u && okLinkUrl(u)) { try { window.open(u, '_blank', 'noopener'); } catch (e) {} }
+    if (u && okLinkUrl(u)) {
+      if (b.getAttribute('title') === '디스코드') openDiscord(u);
+      else { try { window.open(u, '_blank', 'noopener'); } catch (e) {} }
+    }
   };
   updateWarn();
 }
@@ -273,6 +299,9 @@ function renderSettings() {
           <div class="__kw_lbl">제작자</div>
           <div><b>비류라미</b></div>
           <div style="margin-top:6px;font-size:12px;color:#eee">검은사막 게임을 하다 미리내ES 님과 놀다 심심해서 만듬</div>
+          <div class="__kw_lbl">테스터</div>
+          <div><b>데아앵커</b></div>
+          <div style="margin-top:2px;font-size:12px;color:#eee">쉬는 시간은 최고야!</div>
           <div class="__kw_lbl">현재 버전</div>
           <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span><button class="__kw_ic" id="__kw_update_check" title="업데이트 확인">${IC.refresh}</button><button class="__kw_upbtn" id="__kw_update_go" disabled>업데이트</button></div>
           <div id="__kw_update_msg" class="__kw_lbl"></div>
