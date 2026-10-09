@@ -90,7 +90,20 @@ https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/ch
 
 * 자동: Tampermonkey가 1일 1회 Raw를 확인해서 `@version`이 오르면 갱신한다.
 * 수동: Tampermonkey 대시보드에서 스크립트 선택 → 업데이트 확인(또는 강제 업데이트 확인).
+  또는 설정 → 앱 정보 탭의 🔄 확인 후 ⬇️ 업데이트 버튼.
 * 업데이트 후에도 방송 페이지는 새로고침해야 적용된다.
+
+### 1.7 플러그인
+
+* `plugins.json`에 등록된 플러그인을 방송 진입 시 자동으로 불러온다. (베타만)
+* 플러그인 만들기:
+  1. `plugins/` 아래에 `.js` 파일 추가.
+     `window.__KW.on('hit', ({nick, text, kw}) => {...})` 형태로 구독.
+     (`window.__KW.toast(nick, body)`로 토스트도 쏠 수 있음)
+  2. `plugins.json`의 `plugins` 배열에 `{id, name, url(Raw 주소), on}` 추가.
+  3. 별도 설치 없음. 시간 단위 캐시 이후 자동 로딩.
+* 예시: `plugins/tts.js` (누가 불렀는지 음성 안내).
+* 제한: 사용자 스크립트 허용이 꺼진 격리 환경에서는 플러그인이 안 뜬다.
 
 ---
 

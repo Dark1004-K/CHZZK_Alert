@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CHZZK Alert (Beta)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-beta27
+// @version      2.8-beta28
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
 // @match        https://chzzk.naver.com/live/*
@@ -27,7 +27,7 @@
   const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
   const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
   // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-  const SCRIPT_VERSION = '2.8-beta27';
+  const SCRIPT_VERSION = '2.8-beta28';
   const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js';
   const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
   const HITS_MAX = 30;
@@ -135,7 +135,7 @@
         recordHit(nick, text, kt, fullSig, null);
         scheduleStatsUpdate();
         dlog('HIT-ws', JSON.stringify({ kw: kt, nick: (nick || '').slice(0, 30), text: text.slice(0, 60) }));
-        fireAlert(nick, text, null);
+        fireAlert(nick, text, null, kt);
         return;
       }
     }
@@ -374,9 +374,10 @@
     }
     return t;
   }
-  function fireAlert(nick, text, el) {
+  function fireAlert(nick, text, el, kw) {
     const body = splitBody(nick, text);
     const title = nick ? '🔔 ' + nick : '🔔 CHZZK 채팅 호출';
+    kwEmit('hit', { nick: nick || '', text: body, kw: kw || '', el: el || null });
     if (!muted()) {
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try {
@@ -618,7 +619,7 @@
         hits++;
         recordHit(senderName, text, kl, sig, el);
         dlog('HIT-loose', JSON.stringify({ kw: kl, nick: senderName.slice(0, 30), text: text.slice(0, 60) }));
-        fireAlert(senderName, text, el);
+        fireAlert(senderName, text, el, kl);
         break;
       }
       // 1차가 실패하면 같은 어절 안에서만 타이트 매칭 시도.
@@ -639,7 +640,7 @@
         hits++;
         recordHit(senderName, text, kt, sig, el);
         dlog('HIT-token', JSON.stringify({ kw: kt, nick: senderName.slice(0, 30), text: text.slice(0, 60) }));
-        fireAlert(senderName, text, el);
+        fireAlert(senderName, text, el, kt);
         break;
       }
     }
@@ -1271,6 +1272,58 @@
     }
   }
 
+  // ---------- 플러그인 (plugins.json 매니페스트 기반 동적 로딩) ----------
+  // MAIN world(사용자 스크립트 허용 켜짐)에서만 동작. 주입 <script>가 같은 window를 공유한다.
+  // 플러그인은 window.__KW.on('hit', ({nick, text, kw}) => ...) 형태로 구독한다.
+  const PLUGIN_MANIFEST_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/plugins.json';
+  const __kwListeners = {};
+  try {
+    window.__KW = window.__KW || {
+      version: SCRIPT_VERSION,
+      on(evt, fn) {
+        if (typeof fn !== 'function') return;
+        (__kwListeners[evt] = __kwListeners[evt] || []).push(fn);
+      },
+      toast(nick, body) { showCallToast(nick, body); },
+    };
+  } catch (e) {}
+  function kwEmit(evt, data) {
+    try {
+      const arr = __kwListeners[evt] || [];
+      for (const fn of arr) { try { fn(data); } catch (e) {} }
+    } catch (e) {}
+  }
+  function loadPlugins() {
+    if (limitedMode) { dlog('plugin-skip-limited'); return; }
+    try {
+      fetch(PLUGIN_MANIFEST_URL + '?t=' + Math.floor(Date.now() / 3600000), { cache: 'no-store' })
+        .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
+        .then((j) => {
+          const list = j && Array.isArray(j.plugins) ? j.plugins : [];
+          for (const p of list) {
+            if (!p || !p.url || p.on === false) continue;
+            injectPlugin(p);
+          }
+        })
+        .catch(() => {});
+    } catch (e) {}
+  }
+  function injectPlugin(p) {
+    try {
+      fetch(p.url, { cache: 'no-store' })
+        .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.text(); })
+        .then((code) => {
+          if (!code || code.length < 10) return;
+          const s = document.createElement('script');
+          s.textContent = '\n;try{\n' + code + '\n}catch(e){}';
+          (document.head || document.documentElement).appendChild(s);
+          try { s.remove(); } catch (e) {}
+          dlog('plugin-loaded', p.id || p.url);
+        })
+        .catch(() => {});
+    } catch (e) {}
+  }
+
   function init() {
     ensureStyle();
     startHeartbeat();
@@ -1280,6 +1333,7 @@
       dlog('init-notlive', location.pathname);
     }
     runWorldProbe();
+    loadPlugins();
     try {
       document.addEventListener('pointerdown', unlockAudio);
       document.addEventListener('keydown', unlockAudio);
