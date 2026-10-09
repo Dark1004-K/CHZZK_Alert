@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.3.0-beta006';
+const SCRIPT_VERSION = '3.3.0-beta007';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -259,6 +259,8 @@ function ensureStyle() {
     const style = document.createElement('style');
     style.id = '__kw_style';
     style.textContent = `
+@keyframes __kwspin{to{transform:rotate(360deg)}}
+.__kw_spin svg{animation:__kwspin .8s linear infinite}
 @keyframes __kwupd{0%,100%{box-shadow:0 8px 28px rgba(0,0,0,.6);border-color:#1f6feb}50%{box-shadow:0 0 22px 8px rgba(31,111,235,.95);border-color:#8bb8ff}}
 #__kw_upd.blink{animation:__kwupd .7s ease-in-out infinite}
 @keyframes __kwpulse{0%{box-shadow:0 0 0 0 rgba(0,255,163,.8)}70%{box-shadow:0 0 0 8px rgba(0,255,163,0)}100%{box-shadow:0 0 0 0 rgba(0,255,163,0)}}

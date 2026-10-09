@@ -195,6 +195,7 @@ const IC = {
   pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l.9 12.1a1 1 0 0 0 1 .9h7.2a1 1 0 0 0 1-.9L17.5 7M10 11v6M14 11v6"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 3v5h-5"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>',
   house: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7M6 9.5V20h12V9.5"/></svg>',
   box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5V8zM3 8l9 5 9-5M12 13v8"/></svg>',
@@ -300,9 +301,10 @@ function checkUpdate() {
     if (hot) msg.classList.add('hot');
     else msg.classList.remove('hot');
   };
-  if (btn) btn.disabled = true;
+  const stamp = () => { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()); };
+  if (btn) { btn.disabled = true; btn.classList.add('__kw_spin'); }
   say('확인 중...');
-  const done = () => { if (btn) btn.disabled = false; };
+  const done = () => { if (btn) { btn.disabled = false; btn.classList.remove('__kw_spin'); } };
   try {
     fetch(UPDATE_URL + '?t=' + Date.now(), { cache: 'no-store' })
       .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.text(); })
@@ -311,15 +313,16 @@ function checkUpdate() {
         if (!m) throw new Error('parse');
         const remote = m[1].trim();
         if (isNewer(remote, SCRIPT_VERSION)) {
-          say('새 버전 있음: ' + SCRIPT_VERSION + ' → ' + remote, true);
+          say('새 버전 있음: ' + SCRIPT_VERSION + ' → ' + remote + ' · ' + stamp() + ' 확인', true);
           if (go) go.disabled = false;
           dlog('update-avail', remote);
         } else {
-          say('최신 버전입니다 (' + SCRIPT_VERSION + ')', false);
+          say('최신 버전입니다 (' + SCRIPT_VERSION + ') · ' + stamp() + ' 확인', false);
           dlog('update-latest', remote);
         }
       })
-      .catch(() => say('확인 실패 (네트워크)'))
+      .catch(() => say('확인 실패 (네트워크) · ' + stamp()))
+      .then(() => new Promise((r) => setTimeout(r, 500))) // 너무 빨리 끝나도 도는 모습이 보이도록 잠깐 유지
       .then(done);
   } catch (e) {
     say('확인 실패 (네트워크)');
@@ -731,6 +734,13 @@ function saveJoinAt() {
   if (!dropsCid) return;
   try { localStorage.setItem(LS_DJOIN, JSON.stringify({ cid: dropsCid, joinAt: dropsJoinAt, seen: Date.now(), done: [...dropsDone] })); } catch (e) {}
 }
+// 새로고침 버튼 상태(눌렀는지 알 수 있게): 도는 중 / 완료 체크 / 마지막 갱신 시각 툴팁
+let dropsSpinning = false, dropsFlashUntil = 0, dropsRefreshedAt = 0;
+function refreshTitle(at) {
+  if (!at) return '새로고침';
+  const d = new Date(at), p = (n) => String(n).padStart(2, '0');
+  return '새로고침 (마지막 갱신 ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) + ')';
+}
 function fmtElapsed(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
@@ -778,12 +788,20 @@ function renderDrops() {
   dropsCurNo = cur ? cur.rewardNo : 'done';
   const title = r ? r.title : dropsInfo.title;
   const img = r && r.imageUrl ? `<img src="${escapeHtml(r.imageUrl)}" alt="">` : '';
-  dropsPanel.innerHTML = `<div class="__kw_dr">${img}<div class="__kw_dr_b"><div class="__kw_dr_t" title="${escapeHtml(dropsInfo.title || '')}">🎁 ${escapeHtml(title || '드롭스')}</div><div class="__kw_dr_s">${dropsSubHtml(elapsed, cur)}</div></div><button class="__kw_ic" id="__kw_dr_refresh" title="새로고침" style="color:#ff9f1a">${IC.refresh}</button><button class="__kw_ic" id="__kw_dr_vault" title="보관함" style="color:#ff9f1a">${IC.box}</button></div>`;
+  dropsPanel.innerHTML = `<div class="__kw_dr">${img}<div class="__kw_dr_b"><div class="__kw_dr_t" title="${escapeHtml(dropsInfo.title || '')}">🎁 ${escapeHtml(title || '드롭스')}</div><div class="__kw_dr_s">${dropsSubHtml(elapsed, cur)}</div></div><button class="__kw_ic${dropsSpinning ? ' __kw_spin' : ''}" id="__kw_dr_refresh" title="${escapeHtml(refreshTitle(dropsRefreshedAt))}" style="color:${Date.now() < dropsFlashUntil ? '#7dffb3' : '#ff9f1a'}">${Date.now() < dropsFlashUntil ? IC.check : IC.refresh}</button><button class="__kw_ic" id="__kw_dr_vault" title="보관함" style="color:#ff9f1a">${IC.box}</button></div>`;
   const rf = dropsPanel.querySelector('#__kw_dr_refresh');
-  rf.onclick = () => { // 드롭스 정보와 서버 시청 시간을 바로 다시 가져옴 (연타 방지로 잠깐 비활성)
-    rf.disabled = true;
-    setTimeout(() => { rf.disabled = false; }, 3000);
-    pollDrops();
+  rf.onclick = () => { // 드롭스 정보와 서버 시청 시간을 바로 다시 가져옴
+    if (dropsSpinning) return; // 이미 가져오는 중이면 연타 무시
+    dropsSpinning = true;
+    renderDrops(); // 아이콘이 돌기 시작 → 눌린 것이 보임
+    // 너무 빨리 끝나도 돌아가는 모습이 보이도록 최소 0.7초는 유지
+    Promise.all([pollDrops(), new Promise((r) => setTimeout(r, 700))]).catch(() => {}).then(() => {
+      dropsSpinning = false;
+      dropsRefreshedAt = Date.now();
+      dropsFlashUntil = Date.now() + 1400; // 체크 표시로 완료를 알림
+      renderDrops();
+      setTimeout(renderDrops, 1500);
+    });
   };
   dropsPanel.querySelector('#__kw_dr_vault').onclick = () => { try { window.open(DROPS_VAULT_URL, '_blank', 'noopener'); } catch (e) {} };
   applyDropsVisibility();
@@ -832,7 +850,7 @@ function syncDropsSrvDone() {
 }
 function fetchDropsServer(cid, no) {
   const get = (k) => fetch(DROPS_SRV + k, { credentials: 'include' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-  Promise.all([get('challenges'), get('claims')]).then(([ch, cl]) => {
+  return Promise.all([get('challenges'), get('claims')]).then(([ch, cl]) => {
     if (cid !== dropsCid || no !== dropsNo) return;
     const chList = ((ch && ch.content && ch.content.challengeList) || []).filter((x) => x && x.campaignNo === no);
     const clList = ((cl && cl.content && cl.content.claimList) || []).filter((x) => x && x.campaignNo === no);
@@ -871,20 +889,20 @@ function dropsSimNext() {
   return dropsSimMin(cur.conditionForMinutes) + ' [' + cur.conditionForMinutes + '분 보상]';
 }
 // [BETA-TEST-ONLY:end]
-function pollDrops() {
-  if (!dropsOn() || !isLivePage()) { dropsInfo = null; removeDropsPanel(); return; }
+function pollDrops() { // 끝나면 resolve되는 Promise를 돌려준다 (새로고침 버튼이 완료를 알리기 위해)
+  if (!dropsOn() || !isLivePage()) { dropsInfo = null; removeDropsPanel(); return Promise.resolve(); }
   const cid = pageChannelId();
-  if (!cid) return;
+  if (!cid) return Promise.resolve();
   if (cid !== dropsCid) { // 채널이 바뀌면 접속 시간 초기화
     dropsCid = cid; const jn = loadJoin(cid); dropsJoinAt = jn.joinAt; dropsDone = new Set(jn.done); saveJoinAt(); dropsNo = 0; dropsInfo = null; dropsSrv = null; dropsSrvSynced = false; removeDropsPanel();
   }
-  fetch(DROPS_API + 'v3.2/channels/' + cid + '/live-detail')
+  return fetch(DROPS_API + 'v3.2/channels/' + cid + '/live-detail')
     .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
     .then((j) => {
       if (cid !== dropsCid) return;
       const no = j && j.content && j.content.dropsCampaignNo;
       if (!no) { dropsNo = 0; dropsInfo = null; dropsSrv = null; dropsSrvSynced = false; renderDrops(); return; }
-      if (no === dropsNo && dropsInfo) { fetchDropsServer(cid, no); return; }
+      if (no === dropsNo && dropsInfo) return fetchDropsServer(cid, no);
       dropsNo = no;
       dropsSrv = null; dropsSrvSynced = false;
       return fetch(DROPS_API + 'v1/drops/campaigns/' + no)
@@ -896,10 +914,11 @@ function pollDrops() {
           dropsRewards().forEach((r) => { if (el0 >= r.conditionForMinutes * 60000) dropsDone.add(r.rewardNo); });
           dlog('drops', no, dropsInfo.title);
           renderDrops();
-          fetchDropsServer(cid, no);
+          return fetchDropsServer(cid, no);
         });
     })
-    .catch(() => {}); // 네트워크 오류 시 현재 표시 유지
+    .catch(() => {}) // 네트워크 오류 시 현재 표시 유지
+    .then(() => { dropsRefreshedAt = Date.now(); });
 }
 function startDrops() {
   if (!dropsPoll) dropsPoll = setInterval(pollDrops, 60000);

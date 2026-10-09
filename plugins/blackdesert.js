@@ -197,6 +197,13 @@
   let cpnSig = ''; // 마지막으로 그린 내용의 서명 (바뀔 때만 다시 그림)
   let cpnFetchedAt = 0; // 마지막으로 받아온 시각
   const CPN_REFRESH_MS = 3600000; // 1시간마다 자동으로 다시 받는다
+  let cpnBusyUntil = 0; // 이 시각까지는 "가져오는 중"(도는 아이콘)으로 보여줌 (너무 빨리 끝나도 눌린 것이 보이게)
+  let cpnFlashUntil = 0; // 이 시각까지는 완료(체크)/실패(!) 표시
+  let cpnFlashErr = false;
+  const ICON_REFRESH = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 3v5h-5"/></svg>';
+  const ICON_DONE = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#7dffb3" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const ICON_FAIL = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#ff7b7b" stroke-width="2.6" stroke-linecap="round"><path d="M12 6v8M12 18v.5"/></svg>';
+  const pad2 = (n) => String(n).padStart(2, '0');
   const ICON_COPY = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
   const ICON_OK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#7dffb3" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -210,16 +217,24 @@
     cpnEl = null;
     cpnSig = '';
   }
-  function loadCoupons() {
+  function loadCoupons(manual) {
     if (cpnState === 'loading') return;
     cpnState = 'loading';
+    if (manual) cpnBusyUntil = Date.now() + 700;
     cpnSig = '';
     fetch(CPN_URL + '?t=' + Date.now(), { cache: 'no-store' })
       .then((r) => { if (!r.ok) throw new Error('http'); return r.json(); })
       .then((j) => { if (!j || !Array.isArray(j.coupons)) throw new Error('format'); cpnData = j; cpnState = 'ok'; })
       .catch(() => { cpnState = cpnData ? 'ok' : 'err'; }) // 실패해도 이전에 받은 목록은 유지
       .then(() => { cpnFetchedAt = Date.now(); }) // 실패해도 1시간 뒤에 다시 시도
-      .then(() => { cpnSig = ''; });
+      .then(() => {
+        if (manual) { // 직접 누른 경우에만 완료/실패를 눈에 띄게 표시
+          cpnFlashErr = cpnState === 'err';
+          const wait = Math.max(0, cpnBusyUntil - Date.now()); // 최소 표시 시간만큼은 도는 모습 유지
+          setTimeout(() => { cpnFlashUntil = Date.now() + 1400; cpnSig = ''; renderCoupons(Date.now()); setTimeout(() => { cpnSig = ''; }, 1500); }, wait);
+        }
+        cpnSig = '';
+      });
   }
   function copyText(text, done) {
     const fallback = () => {
@@ -234,12 +249,14 @@
   function renderCoupons(now) {
     const list = cpnVisible(now);
     const fold = cpnFolded();
-    const sig = [cpnState, fold ? 1 : 0, cpnData ? cpnData.updatedAt : 0, list.map((c) => c.code).join(',')].join('|');
+    const busy = cpnState === 'loading' || now < cpnBusyUntil;
+    const flash = now < cpnFlashUntil;
+    const sig = [cpnState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, cpnData ? cpnData.updatedAt : 0, cpnFetchedAt, list.map((c) => c.code).join(',')].join('|');
     if (sig === cpnSig && cpnEl && cpnEl.isConnected) return;
     cpnSig = sig;
     let h = '<div id="__kw_cpn_hd" style="display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer">' +
       '<b style="font-size:12px">🎟 쿠폰 모아보기 <span style="color:#b784ff">(' + list.length + ')</span></b>' +
-      '<span><button id="__kw_cpn_rf" title="새로고침" style="border:0;background:transparent;color:#b784ff;cursor:pointer;font-size:15px;padding:0 4px">' + (cpnState === 'loading' ? '…' : '↻') + '</button>' +
+      '<span><button id="__kw_cpn_rf" class="' + (busy ? '__kw_ic __kw_spin' : '') + '" title="' + (cpnFetchedAt ? '새로고침 (마지막 갱신 ' + pad2(new Date(cpnFetchedAt).getHours()) + ':' + pad2(new Date(cpnFetchedAt).getMinutes()) + ':' + pad2(new Date(cpnFetchedAt).getSeconds()) + ')' : '새로고침') + '" style="border:0;background:transparent;color:#b784ff;cursor:pointer;padding:0 4px;display:inline-flex;align-items:center;vertical-align:middle">' + (busy ? ICON_REFRESH : flash ? (cpnFlashErr ? ICON_FAIL : ICON_DONE) : ICON_REFRESH) + '</button>' +
       '<span style="color:#aaa;font-size:11px">' + (fold ? '▸' : '▾') + '</span></span></div>';
     if (!fold) {
       h += '<div style="max-height:190px;overflow-y:auto;margin-top:2px">';
@@ -268,7 +285,7 @@
       cpnSig = '';
     };
     const rf = cpnEl.querySelector('#__kw_cpn_rf');
-    if (rf) rf.onclick = (e) => { e.stopPropagation(); loadCoupons(); };
+    if (rf) rf.onclick = (e) => { e.stopPropagation(); if (cpnState === 'loading') return; loadCoupons(true); renderCoupons(Date.now()); };
     cpnEl.querySelectorAll('.__kw_cpn_cp').forEach((el) => {
       el.onclick = (e) => {
         e.stopPropagation();
