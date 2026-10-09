@@ -566,6 +566,24 @@ function dropsCheck() {
   const sub = dropsPanel ? dropsPanel.querySelector('.__kw_dr_s') : null;
   if (sub) sub.innerHTML = dropsSubHtml(elapsed, cur);
 }
+// 진단용: 내 드롭스 진행 현황(서버 집계)을 콘솔 로그로 남긴다. 값이 바뀔 때만 출력. 필드 확인 후 제거/반영 예정.
+const DROPS_SRV = 'https://api.chzzk.naver.com/commercial/v2/drops/rewards/';
+const dropsSrvLast = {};
+function logDropsServer() {
+  ['challenges', 'claims'].forEach((k) => {
+    try {
+      fetch(DROPS_SRV + k, { credentials: 'include' })
+        .then((r) => r.text().then((t) => ({ st: r.status, t })))
+        .then((o) => {
+          const sig = o.st + ':' + o.t;
+          if (dropsSrvLast[k] === sig) return;
+          dropsSrvLast[k] = sig;
+          dlog('drops-srv-' + k, o.st, o.t.slice(0, 4000));
+        })
+        .catch((e) => { dlog('drops-srv-' + k + '-err', String(e && e.message || e)); });
+    } catch (e) {}
+  });
+}
 function pollDrops() {
   if (!dropsOn() || !isLivePage()) { dropsInfo = null; removeDropsPanel(); return; }
   const cid = pageChannelId();
@@ -573,6 +591,7 @@ function pollDrops() {
   if (cid !== dropsCid) { // 채널이 바뀌면 접속 시간 초기화
     dropsCid = cid; const jn = loadJoin(cid); dropsJoinAt = jn.joinAt; dropsDone = new Set(jn.done); saveJoinAt(); dropsNo = 0; dropsInfo = null; removeDropsPanel();
   }
+  logDropsServer();
   fetch(DROPS_API + 'v3.2/channels/' + cid + '/live-detail')
     .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
     .then((j) => {
