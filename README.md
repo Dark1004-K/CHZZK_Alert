@@ -274,8 +274,8 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
   * 🧪 보라색 **"쿠폰 모아보기" 창**: 검은사막 공식 "[GM노트] 쿠폰 모두 모아보기" 글의 쿠폰(이름, 코드, 보상, 유효 기간)을 보여줍니다. 쿠폰 이름, 코드, **만료일**만 보여주고, 코드 옆 **복사 아이콘**을 누르면 복사됩니다. 기간이 지난 쿠폰은 자동으로 숨깁니다.
     * 앱이 켜질 때 한 번 불러오고, **1시간마다 자동으로** 다시 불러옵니다. 창의 **새로고침(↻)** 으로 바로 불러올 수도 있습니다. ▾/▸ 로 접고 펼 수 있습니다.
     * 검은사막 사이트는 치지직 페이지에서 직접 읽을 수 없어서, 저장소의 `coupons.json`을 불러옵니다. 이 파일은 `scripts/crawl-coupons.js`가 해당 글을 읽어 갱신합니다(GitHub Actions가 1시간마다 실행, 부록 D 참고). 그래서 새 쿠폰이 반영되기까지 시간이 걸릴 수 있습니다.
-  * 시간표는 게임 공식 위키(<https://www.kr.playblackdesert.com/ko-kr/Wiki?wikiNo=167>)의 이미지를 보고 직접 옮겨 적은 값입니다.
-    게임에서 시간이 바뀌면 프로그램을 고치기 전까지는 예전 시간으로 알려줍니다.
+  * 시간표는 게임 공식 위키(<https://www.kr.playblackdesert.com/ko-kr/Wiki?wikiNo=167>)의 이미지를 보고 옮겨 적은 값이고, 저장소의 `bosses.json`에서 **6시간마다** 받아옵니다(받지 못하면 코드에 들어 있는 기본값 사용). 그래서 시간표가 바뀌어도 앱 업데이트 없이 파일만 고치면 반영됩니다.
+    위키의 시간표는 글자가 아니라 이미지라서 자동으로 읽을 수 없습니다. 대신 **매주 수요일 18:00(한국시간)** 에 GitHub이 이미지가 바뀌었는지 확인하고, 바뀌었으면 새 이미지를 저장한 뒤 Issue로 알려 줍니다. 그러면 이미지를 보고 `bosses.json`을 고칩니다.
 * 사용자 스크립트 허용(1단계 2번)이 꺼져 있으면 확장은 동작하지 않습니다.
 
 ### 4-6. 자동 시작 · 로그인 · 인가 채널
@@ -413,4 +413,5 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
   * **난독화**: `javascript-obfuscator`(개발용 의존성). 먼저 `npm install`이 필요합니다. 모듈들이 최상위 함수·변수 이름을 서로 공유하므로 최상위 이름은 바꾸지 않고(`renameGlobals: false`),
     문자열(RC4)·지역 이름·제어 흐름·죽은 코드 삽입 등을 적용합니다. 결과는 원본보다 훨씬 커집니다(약 100KB → 1.2MB). 디버깅용으로 `--no-obfuscate`를 줄 수 있지만 그 결과는 배포하지 않습니다.
 * **쿠폰 크롤러**: `node scripts/crawl-coupons.js`가 검은사막 쿠폰 글을 읽어 `coupons.json`을 만듭니다. `.github/workflows/crawl-coupons.yml`이 1시간마다 실행해서 바뀐 경우에만 커밋합니다(수동 실행도 가능). 읽기에 실패하거나 쿠폰이 하나도 없으면 기존 파일을 그대로 둡니다.
+* **시간표 변경 감지**: `node scripts/check-boss-schedule.js`가 위키 시간표 이미지의 주소와 "최근 수정 일시"를 이전 기록(`data/boss-schedule-state.json`)과 비교합니다. 바뀌었으면 새 이미지를 `data/boss-schedule.png`로 저장하고 Issue를 만듭니다. `.github/workflows/check-boss-schedule.yml`이 매주 수요일 18:00(한국시간, UTC 09:00)에 실행합니다. 시간표 값 자체는 `bosses.json`을 사람이 고칩니다(이미지를 글자로 읽는 OCR은 쓰지 않음).
 * 콘솔 로그(`[KW-BETA]`) 등 진단 정보는 베타에만 있습니다.

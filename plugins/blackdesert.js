@@ -1,5 +1,7 @@
 // CHZZK Alert plugin: 검은사막 — 월드 우두머리 레이드 출현 N분 전에 주황색 알림을 띄우고, 출현 시각까지 유지한다.
-// 시간표 출처: https://www.kr.playblackdesert.com/ko-kr/Wiki?wikiNo=167 (표가 이미지라 직접 옮겨 적음. 시간표가 바뀌면 SCHEDULE을 고칠 것)
+// 시간표 출처: https://www.kr.playblackdesert.com/ko-kr/Wiki?wikiNo=167 (표가 이미지라 직접 옮겨 적음)
+// 시간표는 저장소의 bosses.json에서 받아온다(6시간마다). 받지 못하면 아래 DEFAULT_SCHEDULE(코드에 적힌 값)을 쓴다.
+// 위키 시간표 이미지가 바뀌면 GitHub Actions(check-boss-schedule)가 알려 주고, bosses.json을 고치면 앱이 따라간다.
 // 옵션(설정 > 확장): lead(몇 분 전), sound(알림음), bosses(알림받을 우두머리)
 (function () {
   const KW = window.__KW;
@@ -9,7 +11,7 @@
   const ID = 'blackdesert';
   const D = (a) => ({ 0: a, 1: a, 2: a, 3: a, 4: a, 5: a, 6: a });
   // 시간(KST) -> { 요일(0=일 ... 6=토): [우두머리...] }
-  const SCHEDULE = [
+  const DEFAULT_SCHEDULE = [
     ['00:15', { 4: ['벨'], 0: ['가모스'] }],
     ['02:00', { 1: ['크자카', '불가살'], 2: ['누베르', '우투리'], 3: ['오핀', '금돼지왕'], 4: ['카란다', '금돼지왕'], 5: ['쿠툼', '산군'], 6: ['쿠툼', '불가살'], 0: ['누베르', '산군'] }],
     ['11:00', { 1: ['누베르', '우투리'], 2: ['쿠툼', '금돼지왕'], 4: ['크자카', '산군'], 5: ['카란다', '불가살'], 6: ['카란다', '우투리'], 0: ['쿠툼', '불가살'] }],
@@ -22,6 +24,32 @@
     ['23:30', { 1: ['오핀', '불가살'], 2: ['카란다', '우투리'], 3: ['크자카', '우투리'], 4: ['쿠툼', '금돼지왕'], 5: ['오핀', '산군'], 0: ['누베르', '금돼지왕'] }],
   ];
   const KST = 9 * 3600 * 1000;
+  // 원격 시간표(bosses.json). 형식: { schedule: [ { time: '02:00', days: { '1': ['크자카', ...], ... } }, ... ] }
+  const BOSS_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/bosses.json';
+  const BOSS_REFRESH_MS = 6 * 3600000;
+  let schedule = DEFAULT_SCHEDULE;
+  let bossFetchedAt = 0;
+  function parseSchedule(j) {
+    if (!j || !Array.isArray(j.schedule) || !j.schedule.length) return null;
+    const out = [];
+    for (const r of j.schedule) {
+      if (!r || !/^\d{1,2}:\d{2}$/.test(String(r.time)) || !r.days || typeof r.days !== 'object') return null;
+      const days = {};
+      for (const k of Object.keys(r.days)) {
+        if (!/^[0-6]$/.test(k) || !Array.isArray(r.days[k])) return null;
+        days[k] = r.days[k].map(String);
+      }
+      out.push([String(r.time), days]);
+    }
+    return out;
+  }
+  function loadSchedule() {
+    bossFetchedAt = Date.now(); // 실패해도 6시간 뒤에 다시 시도
+    fetch(BOSS_URL + '?t=' + Date.now(), { cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('http'); return r.json(); })
+      .then((j) => { const s = parseSchedule(j); if (s) schedule = s; })
+      .catch(() => {}); // 실패하면 현재 시간표(처음엔 코드 기본값)를 유지
+  }
   const DAY = 86400000;
 
   function opt(key, def) {
@@ -34,7 +62,7 @@
     for (let off = 0; off < (days || 2); off++) {
       const base = midnight + off * DAY;
       const day = new Date(base + KST).getUTCDay();
-      for (const [hhmm, byDay] of SCHEDULE) {
+      for (const [hhmm, byDay] of schedule) {
         const bosses = byDay[day];
         if (!bosses) continue;
         const [h, m] = hhmm.split(':').map(Number);
@@ -277,6 +305,7 @@
     try {
       if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); return; }
       const now = Date.now();
+      if (now - bossFetchedAt >= BOSS_REFRESH_MS) loadSchedule(); // 처음 켜질 때 한 번, 이후 6시간마다
       updateNext(now);
       updateCoupons(now);
       const lead = Math.max(1, Math.min(30, Number(opt('lead', 3)) || 3)) * 60000;
