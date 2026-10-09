@@ -177,7 +177,7 @@ function showCallToast(nick, body) {
   while (box.children.length >= 5) box.firstChild?.remove();
   const t = document.createElement('div');
   t.className = '__kw_toast';
-  t.innerHTML = '<b>🔔 ' + escapeHtml((nick || 'CHZZK').slice(0, 24)) + '</b><span style="font-weight:normal">: ' + escapeHtml((body || '').slice(0, 60)) + '</span>';
+  t.innerHTML = '<b>🔔 ' + escapeHtml((nick || 'CHZZK').slice(0, 24)) + '</b><span style="font-weight:normal">: ' + escapeHtml((body || '').slice(0, 120)) + '</span>';
   t.onclick = () => { t.remove(); hideBoxIfEmpty(); };
   box.appendChild(t);
   setTimeout(() => { t.remove(); hideBoxIfEmpty(); }, TOAST_MS);
@@ -190,7 +190,7 @@ function showToast(text) {
   while (box.children.length >= 5) box.firstChild?.remove();
   const t = document.createElement('div');
   t.className = '__kw_toast';
-  t.textContent = '🔔 ' + text.slice(0, 80);
+  t.textContent = '🔔 ' + text.slice(0, 120);
   t.onclick = () => { t.remove(); hideBoxIfEmpty(); };
   box.appendChild(t);
   setTimeout(() => { t.remove(); hideBoxIfEmpty(); }, 5000);
