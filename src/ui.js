@@ -10,6 +10,39 @@ function setStackWidth(w) {
   curWidth = Math.max(216, Math.min(600, Math.round(w)));
   if (stackEl) stackEl.style.width = curWidth + 'px';
 }
+// 불린 대화 목록 높이: 위쪽 손잡이를 위로 끌면 커진다 (스택이 아래 고정이라). 한계 80px ~ 420px(화면 55% 이내)
+const LS_HH = '__kw_hits_h';
+const HH_MIN = 80, HH_DEF = 150;
+const hhMax = () => Math.max(HH_MIN, Math.min(420, Math.floor(window.innerHeight * 0.55)));
+let histH = HH_DEF;
+try { const hv = parseInt(localStorage.getItem(LS_HH), 10); if (hv >= HH_MIN && hv <= 420) histH = hv; } catch (e) {}
+function applyHistHeight() {
+  if (histBox) histBox.style.maxHeight = Math.min(histH, hhMax()) + 'px';
+}
+function wireHGrip() {
+  if (!histPanel) return;
+  const g = histPanel.querySelector('#__kw_hgrip');
+  if (!g || g.__kwWired) return;
+  g.__kwWired = true;
+  g.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    if (e.stopPropagation) e.stopPropagation();
+    const startY = e.clientY;
+    const startH = histBox ? histBox.getBoundingClientRect().height : histH;
+    const move = (ev) => {
+      histH = Math.max(HH_MIN, Math.min(hhMax(), Math.round(startH + (startY - ev.clientY))));
+      applyHistHeight();
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      try { localStorage.setItem(LS_HH, String(histH)); } catch (err) {}
+      dlog('hits-height', histH);
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+}
 let setPanel = null;
 let setOpen = false;
 try { setOpen = localStorage.getItem(LS_SET) === '1'; } catch (e) {}
@@ -68,6 +101,7 @@ function wireGrip() {
 function attachHistHandlers() {
   if (!histPanel || histPanel.__kwWired) return;
   histPanel.__kwWired = true;
+  wireHGrip();
   const c = histPanel.querySelector('#__kw_hits_clear');
   if (c) c.onclick = () => {
     hitLog = []; saveHits(); renderHitsList(); dlog('hits-cleared');
@@ -87,6 +121,7 @@ function ensureHistPanel() {
     histPanel = ex;
     histBox = ex.querySelector('#__kw_hits');
     histCount = ex.querySelector('#__kw_hits_count');
+    applyHistHeight();
     attachHistHandlers();
     applyHistVisibility();
     renderHitsList();
@@ -94,11 +129,12 @@ function ensureHistPanel() {
   }
   const d = document.createElement('div');
   d.id = '__kw_histp';
-  d.innerHTML = `<div id="__kw_hist_head"><span>🔔 불린 대화 <b id="__kw_hits_count">0</b></span><button class="__kw_ic" id="__kw_hits_clear" title="지우기">${IC.trash}</button></div><div id="__kw_hits"></div>`;
+  d.innerHTML = `<div id="__kw_hgrip" title="드래그로 높이 조절"></div><div id="__kw_hist_head"><span>🔔 불린 대화 <b id="__kw_hits_count">0</b></span><button class="__kw_ic" id="__kw_hits_clear" title="지우기">${IC.trash}</button></div><div id="__kw_hits"></div>`;
   stackEl.appendChild(d);
   histPanel = d;
   histBox = d.querySelector('#__kw_hits');
   histCount = d.querySelector('#__kw_hits_count');
+  applyHistHeight();
   attachHistHandlers();
   applyHistVisibility();
   renderHitsList();

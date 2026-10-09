@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '2.8-beta62';
+const SCRIPT_VERSION = '2.8-beta63';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -317,6 +317,11 @@ function ensureStyle() {
 #__kw_midrow{position:relative;width:100%}
 #__kw_grip{position:absolute;top:0;bottom:0;right:-6px;width:12px;cursor:ew-resize;z-index:1}
 #__kw_grip:hover{background:rgba(0,255,163,.25)}
+#__kw_grip::after{content:'';position:absolute;top:50%;left:50%;width:3px;height:30px;margin:-15px 0 0 -1.5px;border-radius:2px;background:rgba(255,255,255,.45)}
+#__kw_grip:hover::after{background:#00ffa3}
+#__kw_hgrip{position:relative;height:10px;margin:-4px 0 2px;cursor:ns-resize}
+#__kw_hgrip::after{content:'';position:absolute;top:50%;left:50%;width:32px;height:3px;margin:-1.5px 0 0 -16px;border-radius:2px;background:rgba(255,255,255,.45)}
+#__kw_hgrip:hover::after{background:#ffd400}
 #__kw_stack #__kw_box{position:static;transform:none;width:100%;max-width:none;margin:0;display:none;align-items:stretch}
 #__kw_box.fs{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:min(520px,90%);z-index:2147483647}
 #__kw_hist_head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-weight:bold}
