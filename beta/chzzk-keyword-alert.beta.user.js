@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CHZZK 채팅 호출 알림 (Beta)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-beta15
+// @version      2.8-beta16
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
 // @match        https://chzzk.naver.com/live/*
@@ -278,7 +278,7 @@
   #__kw_stack{position:fixed;bottom:14px;left:14px;z-index:2147483647;display:flex;flex-direction:column;gap:8px;align-items:stretch;width:350px;max-width:calc(100vw - 28px)}
   #__kw_stack #__kw_panel{position:static;width:100%;box-sizing:border-box;min-width:0;max-width:none}
   #__kw_histp{width:100%;box-sizing:border-box;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ffd400}
-  #__kw_setp{position:absolute;left:calc(100% + 8px);bottom:0;width:360px;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777}
+  #__kw_setp{position:absolute;left:calc(100% + 8px);bottom:0;width:360px;height:320px;box-sizing:border-box;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777}
   .__kw_tabs{display:flex;flex-direction:column;gap:4px;flex:none}
   .__kw_tab{border:1px solid #555;background:#222;color:#bbb;border-radius:8px;padding:6px 8px;font-size:12px;cursor:pointer;white-space:nowrap}
   .__kw_tab.on{background:#00ffa3;color:#000;border-color:#00ffa3;font-weight:bold}
@@ -931,12 +931,12 @@
   function renderSettings() {
     if (!setPanel) return;
     setPanel.innerHTML = `
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;height:100%">
         <div class="__kw_tabs">
           <button class="__kw_tab${setTab === 'general' ? ' on' : ''}" data-tab="general">일반설정</button>
           <button class="__kw_tab${setTab === 'words' ? ' on' : ''}" data-tab="words">단어설정</button>
         </div>
-        <div style="flex:1;min-width:0">
+        <div id="__kw_set_body" style="flex:1;min-width:0;min-height:0;overflow-y:auto">
           <div id="__kw_set_general" style="display:${setTab === 'general' ? 'block' : 'none'}">
             <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_auto" ${localStorage.getItem(LS_AUTO) === '1' ? 'checked' : ''}> 방송 들어가면 묻지 않고 자동으로 켜기</label></div>
             <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_hist" ${histOn() ? 'checked' : ''}> 불린 대화 목록 별도 표시 + 재알림 방지 (클릭 이동)</label></div>
