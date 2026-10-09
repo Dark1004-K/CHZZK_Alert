@@ -534,8 +534,7 @@ function renderSettings() {
           <div class="__kw_lbl" id="__kw_snd_msg" style="color:#ffd400"></div>
           <div class="__kw_lbl">볼륨 <b id="__kw_vol_val">${volPct()}%</b></div>
           <input type="range" id="__kw_vol" min="0" max="100" step="5" value="${volPct()}" style="width:220px;cursor:pointer">
-          <div class="__kw_lbl" style="color:#888">딩동·내 파일·검은사막 알림음에 적용됩니다. 0이면 소리가 나지 않습니다.</div>
-          <div class="__kw_lbl">알람 소리 출력 장치</div>
+          <div class="__kw_lbl">출력장치(알람소리만)</div>
           <div style="display:flex;align-items:center;gap:6px"><select class="__kw_in" id="__kw_sink" style="max-width:210px"><option value="">시스템 기본</option></select><button class="__kw_ic" id="__kw_sink_pick" title="스피커 목록 불러오기" style="color:#ccc">${IC.refresh}</button></div>
           <div class="__kw_lbl" id="__kw_sink_msg" style="color:#888"></div>
         </div>
