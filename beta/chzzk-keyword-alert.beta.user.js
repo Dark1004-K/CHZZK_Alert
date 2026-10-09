@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CHZZK Alert (Beta)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-beta26
+// @version      2.8-beta27
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
 // @match        https://chzzk.naver.com/live/*
@@ -27,7 +27,7 @@
   const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
   const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
   // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-  const SCRIPT_VERSION = '2.8-beta26';
+  const SCRIPT_VERSION = '2.8-beta27';
   const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js';
   const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
   const HITS_MAX = 30;
@@ -264,8 +264,9 @@
   #__kw_panel{position:fixed;bottom:14px;left:14px;z-index:2147483647;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:2px solid #00ffa3;user-select:none;min-width:250px;max-width:330px;display:none}
   #__kw_panel.show{display:block}
   #__kw_panel.off{border-color:#777}
-  #__kw_row{display:flex;align-items:flex-start;gap:8px}
-  #__kw_dot{width:11px;height:11px;border-radius:50%;background:#00ffa3;animation:__kwpulse 1.4s infinite;flex:none;margin-top:3px}
+  #__kw_row{display:flex;align-items:center;gap:8px}
+  #__kw_dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:#00ffa3;animation:__kwpulse 1.4s infinite;margin-right:8px;vertical-align:middle}
+  #__kw_ch{font-weight:bold;font-size:13px;margin-bottom:1px}
   #__kw_panel.off #__kw_dot{background:#ff4d4d;animation:none}
   #__kw_sub{font-size:11px;color:#aaa;margin-top:2px}
   .__kw_b{border:0;border-radius:8px;padding:5px 9px;font:bold 12px sans-serif;cursor:pointer}
@@ -568,6 +569,15 @@
     try { const m = location.pathname.match(/\/live\/([0-9a-f]{32})/i); return m ? m[1].toLowerCase() : ''; } catch (e) { return ''; }
   };
   const isLivePage = () => !!pageChannelId();
+  // 패널에 굵게 보여줄 채널명. 탭 제목 "채널명 - ... - CHZZK"의 첫 토막을 쓴다.
+  const pageChannelName = () => {
+    try {
+      const t = (document.title || '').split(' - ')[0].trim();
+      if (t && t !== '치지직' && !/CHZZK/i.test(t)) return t;
+    } catch (e) {}
+    const cid = pageChannelId();
+    return cid ? cid.slice(0, 8) + '…' : '';
+  };
 
   // 우리 자체 UI(패널/프롬프트/토스트/선택버튼)에서 발생한 변화는 절대 관리하지 않아야 무한루프를 막을 수 있음
   const isOwnUi = (node) =>
@@ -957,12 +967,8 @@
     renderSettings();
   }
 
-  // 채팅 카운트만 가벼게 갱신 (innerHTML 재생성 없음 → MutationObserver 루프 안 탈)
-  function updateStatsText() {
-    if (!panel) return;
-    const sub = panel.querySelector('#__kw_sub');
-    if (sub) sub.textContent = `감지 ${hits}회 · 내 채팅 제외`;
-  }
+  // 서브 카운트줄은 삭제됨. 남은 카운트(불린 대화 수)는 renderHitsList에서 처리.
+  function updateStatsText() {}
 
   // 통일 아이콘 세트 (인라인 SVG: 외부 요청 없이 단일 파일로 동작)
   const IC = {
@@ -978,8 +984,7 @@
     panel.className = 'show' + (running ? '' : ' off');
 
     panel.innerHTML = `
-      <div id="__kw_row"><div id="__kw_dot"></div>
-        <div style="flex:1"><div id="__kw_title"><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b> · 단어 ${keywords.length}개</div><div id="__kw_sub">감지 ${hits}회 · 내 채팅 제외</div></div>
+      <div id="__kw_row"><div style="flex:1"><div id="__kw_ch">${escapeHtml(pageChannelName())}</div><div id="__kw_title"><span id="__kw_dot"></span><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b> · 단어 ${keywords.length}개</div></div>
         <button class="__kw_ic" id="__kw_gear" title="설정" style="color:#ccc">${IC.sliders}</button>
         <button class="__kw_ic" id="__kw_btn" title="${running ? '정지' : '시작'}" style="color:${running ? '#ff6b6b' : '#00ffa3'}">${running ? IC.pause : IC.play}</button></div>
       <div id="__kw_warn" style="display:${limitedMode ? 'block' : 'none'};font-size:11px;color:#ffd400;margin-top:4px">⚠ 사용자 스크립트 허용 꺼짐: WS 감시 불가, DOM 감시만 동작. chrome://extensions → Tampermonkey 상세에서 허용 후 새로고침</div>`;
