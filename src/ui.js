@@ -329,6 +329,9 @@ function renderSettings() {
         <div id="__kw_set_about" style="display:${setTab === 'about' ? 'block' : 'none'}">
           <div class="__kw_lbl">프로그램</div>
           <div><b>CHZZK Alert</b></div>
+          <!-- [BETA-TEST-ONLY] 정식 릴리즈에서는 이 블록과 아래 핸들러를 제거 -->
+          <div style="margin-top:4px"><button class="__kw_b" id="__kw_t_drops" style="background:#ff9f1a;color:#000">드롭스 알림 테스트</button> <button class="__kw_b" id="__kw_t_boss" style="background:#ff9f1a;color:#000">보스 알람 테스트</button></div>
+          <div id="__kw_t_msg" class="__kw_lbl"></div>
           <div class="__kw_lbl">제작자</div>
           <div><b>비류라미</b></div>
           <div style="margin-top:6px;font-size:12px;color:#eee">검은사막에서 미리내ES 님과 놀다 겁나 심심해서 만듬</div>
@@ -339,10 +342,6 @@ function renderSettings() {
           <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span><button class="__kw_ic" id="__kw_update_check" title="업데이트 확인">${IC.refresh}</button><button class="__kw_upbtn" id="__kw_update_go" disabled>업데이트</button></div>
           <div id="__kw_update_msg" class="__kw_lbl"></div>
           <div class="__kw_lbl"><a href="https://github.com/Dark1004-K/Chzzk_Alert" target="_blank" rel="noopener" style="color:#00ffa3">GitHub 리포지토리</a> · <a href="https://github.com/Dark1004-K/Chzzk_Alert/blob/main/UPDATE.md" target="_blank" rel="noopener" style="color:#00ffa3">업데이트 내용</a></div>
-          <!-- [BETA-TEST-ONLY] 정식 릴리즈에서는 이 블록과 아래 핸들러를 제거 -->
-          <div class="__kw_lbl" style="margin-top:10px">베타 테스트 (정식 제외)</div>
-          <div><button class="__kw_b" id="__kw_t_drops" style="background:#ff9f1a;color:#000">드롭스 알림 테스트</button> <button class="__kw_b" id="__kw_t_boss" style="background:#ff9f1a;color:#000">보스 알람 테스트</button></div>
-          <div id="__kw_t_msg" class="__kw_lbl"></div>
         </div>
       </div>
     </div>`;
