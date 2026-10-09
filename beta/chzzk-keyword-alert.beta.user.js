@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CHZZK 채팅 호출 알림 (Beta)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-beta16
+// @version      2.8-beta17
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
 // @match        https://chzzk.naver.com/live/*
@@ -25,7 +25,10 @@
   const LS_HITS = '__kw_hits'; // 불린 대화 기록 (최대 30개, 새로고침 후에도 유지)
   const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외=켬)
   const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
-  const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words')
+  const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
+  // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
+  const SCRIPT_VERSION = '2.8-beta17';
+  const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js';
   const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
   const HITS_MAX = 30;
 
@@ -786,7 +789,7 @@
   let setOpen = false;
   try { setOpen = localStorage.getItem(LS_SET) === '1'; } catch (e) {}
   let setTab = 'general';
-  try { const st = localStorage.getItem(LS_TAB); if (st === 'words' || st === 'general') setTab = st; } catch (e) {}
+  try { const st = localStorage.getItem(LS_TAB); if (st === 'words' || st === 'general' || st === 'about') setTab = st; } catch (e) {}
   function ensureStack() {
     if (stackEl && stackEl.isConnected) return stackEl;
     let ex = null;
@@ -928,6 +931,60 @@
   }
 
   // ---------- 설정 별도 화면 (#__kw_setp, 감시 패널 아래) ----------
+  // 버전 비교: 같은 계열이면 숫자/베타번호로, 정식은 같은 번호의 베타보다 항상 새로움
+  function parseVer(v) {
+    const m = String(v || '').match(/(\d+)\.(\d+)(?:[-_]([A-Za-z]+)(\d*))?/);
+    if (!m) return null;
+    return { major: +m[1], minor: +m[2], pre: m[3] || '', preN: m[4] === '' || m[4] == null ? 0 : +m[4] };
+  }
+  function isNewer(remote, local) {
+    const r = parseVer(remote), l = parseVer(local);
+    if (!r || !l) return false;
+    if (r.major !== l.major) return r.major > l.major;
+    if (r.minor !== l.minor) return r.minor > l.minor;
+    const rs = r.pre === '', ls = l.pre === '';
+    if (rs !== ls) return rs;
+    if (r.pre !== l.pre) return false;
+    return r.preN > l.preN;
+  }
+  // 수동 업데이트 확인: 새 버전이 있을 때만 업데이트 버튼을 보여줌
+  function checkUpdate() {
+    const msg = setPanel ? setPanel.querySelector('#__kw_update_msg') : null;
+    const btn = setPanel ? setPanel.querySelector('#__kw_update_check') : null;
+    const say = (t) => { if (msg) msg.textContent = t; };
+    if (btn) btn.disabled = true;
+    say('확인 중...');
+    try {
+      fetch(UPDATE_URL + '?t=' + Date.now(), { cache: 'no-store' })
+        .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.text(); })
+        .then((t) => {
+          const m = t.match(/@version\s+([^\s]+)/);
+          if (!m) throw new Error('parse');
+          const remote = m[1].trim();
+          if (isNewer(remote, SCRIPT_VERSION)) {
+            if (msg) {
+              msg.innerHTML = '새 버전 있음: ' + escapeHtml(SCRIPT_VERSION) + ' → <b>' + escapeHtml(remote) + '</b> ';
+              const ub = document.createElement('button');
+              ub.className = '__kw_b';
+              ub.style.background = '#00ffa3';
+              ub.style.color = '#000';
+              ub.textContent = '업데이트';
+              ub.onclick = () => { try { window.open(UPDATE_URL, '_blank'); } catch (e) {} };
+              msg.appendChild(ub);
+            }
+            dlog('update-avail', remote);
+          } else {
+            say('최신 버전입니다 (' + SCRIPT_VERSION + ')');
+            dlog('update-latest', remote);
+          }
+        })
+        .catch(() => say('확인 실패 (네트워크)'))
+        .then(() => { if (btn) btn.disabled = false; });
+    } catch (e) {
+      say('확인 실패 (네트워크)');
+      if (btn) btn.disabled = false;
+    }
+  }
   function renderSettings() {
     if (!setPanel) return;
     setPanel.innerHTML = `
@@ -935,6 +992,7 @@
         <div class="__kw_tabs">
           <button class="__kw_tab${setTab === 'general' ? ' on' : ''}" data-tab="general">일반설정</button>
           <button class="__kw_tab${setTab === 'words' ? ' on' : ''}" data-tab="words">단어설정</button>
+          <button class="__kw_tab${setTab === 'about' ? ' on' : ''}" data-tab="about">어바웃</button>
         </div>
         <div id="__kw_set_body" style="flex:1;min-width:0;min-height:0;overflow-y:auto">
           <div id="__kw_set_general" style="display:${setTab === 'general' ? 'block' : 'none'}">
@@ -950,6 +1008,17 @@
               <button class="__kw_b" id="__kw_add" style="background:#00ffa3;color:#000">추가</button></div>
             <div class="__kw_lbl">내 닉네임 (이 닉네임의 채팅은 알림 제외)</div>
             <input class="__kw_in" id="__kw_nick" style="width:130px" value="${escapeHtml(myNick)}">
+          </div>
+          <div id="__kw_set_about" style="display:${setTab === 'about' ? 'block' : 'none'}">
+            <div class="__kw_lbl">프로그램</div>
+            <div><b>CHZZK 채팅 호출 알림</b></div>
+            <div class="__kw_lbl">제작자</div>
+            <div><b>비류라미</b></div>
+            <div class="__kw_lbl">현재 버전</div>
+            <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span></div>
+            <div style="margin-top:6px"><button class="__kw_b" id="__kw_update_check" style="background:#00ffa3;color:#000">업데이트 확인</button></div>
+            <div id="__kw_update_msg" class="__kw_lbl"></div>
+            <div class="__kw_lbl"><a href="https://github.com/Dark1004-K/chizizic_call_nickname" target="_blank" rel="noopener" style="color:#00ffa3">GitHub 리포지토리</a> · <a href="https://github.com/Dark1004-K/chizizic_call_nickname/blob/main/UPDATE.md" target="_blank" rel="noopener" style="color:#00ffa3">업데이트 내용</a></div>
           </div>
         </div>
       </div>`;
@@ -994,6 +1063,8 @@
       e.target.value = v;
       dlog('redup', v);
     };
+    const updateCheckBtn = setPanel.querySelector('#__kw_update_check');
+    if (updateCheckBtn) updateCheckBtn.onclick = () => checkUpdate();
     applySetVisibility();
   }
   function applySetVisibility() {
