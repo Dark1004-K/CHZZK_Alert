@@ -4,7 +4,8 @@
       "id": "tts",
       "name": "TTS 활성",
       "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/release/plugins/tts.js",
-      "on": true
+      "on": true,
+      "noOwner": true
     },
     {
       "id": "blackdesert",
@@ -23,6 +24,18 @@
         {
           "key": "sound",
           "label": "알림음",
+          "type": "bool",
+          "default": true
+        },
+        {
+          "key": "nextBoss",
+          "label": "다음 우두머리 창 표시",
+          "type": "bool",
+          "default": true
+        },
+        {
+          "key": "coupons",
+          "label": "쿠폰 모아보기 (창 표시)",
           "type": "bool",
           "default": true
         },
@@ -59,6 +72,25 @@
             "금돼지왕",
             "우투리",
             "불가살"
+          ],
+          "groups": [
+            [
+              "크자카",
+              "누베르",
+              "카란다",
+              "쿠툼",
+              "오핀",
+              "가모스",
+              "벨",
+              "귄트",
+              "무라카"
+            ],
+            [
+              "산군",
+              "금돼지왕",
+              "우투리",
+              "불가살"
+            ]
           ]
         }
       ]
