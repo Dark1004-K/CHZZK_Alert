@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.3.0-beta012';
+const SCRIPT_VERSION = '3.3.0-beta013';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -363,6 +363,9 @@ function ensureStyle() {
 .__kw_ic:hover{background:rgba(255,255,255,.12)}
 .__kw_ic:disabled{opacity:.3;cursor:default;background:transparent}
 .__kw_ic svg{width:16px;height:16px;display:block}
+.__kw_xabs{position:absolute;top:6px;right:8px;z-index:2}
+#__kw_dropsp,#__kw_histp{position:relative}
+#__kw_dropsp .__kw_dr{padding-right:26px;min-height:26px}
 .__kw_upbtn{background:#1f6feb;color:#fff;border:0;border-radius:8px;padding:5px 12px;font:bold 12px sans-serif;cursor:pointer;margin-left:6px}
 .__kw_upbtn:disabled{background:#333;color:#777;cursor:default}
 #__kw_update_msg{font-size:12px;color:#ddd;margin-top:4px}
@@ -374,14 +377,14 @@ function ensureStyle() {
 #__kw_grip:hover{background:rgba(0,255,163,.25)}
 #__kw_grip::after{content:'';position:absolute;top:50%;left:50%;width:3px;height:30px;margin:-15px 0 0 -1.5px;border-radius:2px;background:rgba(255,255,255,.45)}
 #__kw_grip:hover::after{background:#00ffa3}
-#__kw_hgrip{position:relative;height:10px;margin:-4px 0 2px;cursor:ns-resize}
+#__kw_hgrip{position:absolute;top:0;left:0;right:0;height:8px;cursor:ns-resize;z-index:1}
 #__kw_hgrip::after{content:'';position:absolute;top:50%;left:50%;width:32px;height:3px;margin:-1.5px 0 0 -16px;border-radius:2px;background:rgba(255,255,255,.45)}
 #__kw_hgrip:hover::after{background:#ffd400}
 #__kw_stack #__kw_midrow #__kw_box{position:absolute;top:auto;left:calc(100% + 8px);bottom:0;transform:none;width:440px;margin:0;align-items:stretch}
 #__kw_stack #__kw_midrow #__kw_box .__kw_toast{white-space:normal;word-break:break-all;overflow:visible;text-overflow:clip;line-height:1.35;max-width:none}
 #__kw_stack #__kw_box{position:static;transform:none;width:100%;max-width:none;margin:0;display:none;align-items:stretch}
 #__kw_box.fs{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:min(520px,90%);z-index:2147483647}
-#__kw_hist_head{flex:none;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-weight:bold}
+#__kw_hist_head{flex:none;display:flex;align-items:center;justify-content:space-between;min-height:26px;padding-right:26px;margin-bottom:2px;font-weight:bold}
 #__kw_hits{flex:0 1 auto;min-height:0;max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;user-select:text}
 #__kw_hits_clear{background:#444;color:#fff;padding:2px 7px;font-size:11px}
 /* 스크롤바: 창 색에 맞춤 */
