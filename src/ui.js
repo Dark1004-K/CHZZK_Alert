@@ -18,7 +18,7 @@ let histH = HH_DEF;
 try { const hv = parseInt(localStorage.getItem(LS_HH), 10); if (hv >= HH_MIN && hv <= 4000) histH = hv; } catch (e) {}
 let histCustom = false; // 사용자가 한 번이라도 끌어서 정한 높이면 항목 수와 상관없이 그 높이를 유지한다
 try { histCustom = !!localStorage.getItem(LS_HH); } catch (e) {}
-const HH_GAIN = 2; // 끄는 거리 대비 높이 변화 배율 (화면 위쪽에서 마우스가 더 못 올라가도 크게 늘릴 수 있게)
+const HH_GAIN = 1; // 끄는 거리 대비 높이 변화 배율. 1이면 창 위쪽 막대가 마우스를 그대로 따라온다
 function applyHistHeight() {
   if (!histBox) return;
   const h = Math.min(histH, hhMax());
