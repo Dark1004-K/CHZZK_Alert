@@ -430,6 +430,12 @@ function noteDenied(cid) {
   noteDenied._id = cid;
   showToast('인가되지 않은 채널입니다');
   dlog('allow-denied-notice', cid);
+  // 토스트가 끝나면 감시 중단 + UI 제거 (같은 채널로 다시 들어오면 토스트를 다시 띄움)
+  setTimeout(() => {
+    if (allowState !== 'denied') return;
+    noteDenied._id = null;
+    teardownUi();
+  }, TOAST_MS);
 }
 // 항목 정규화: "id" 문자열 또는 {id, name, discord, home} 객체
 const normEntry = (e) => {
@@ -512,9 +518,7 @@ function start() {
     if (!running) return;
     refreshAllowlist(true, () => {
       if (allowState === 'denied' && running) {
-        // 미인가 토스트가 끝나는 시점에 감시 중단
-        noteDenied(pageChannelId());
-        setTimeout(() => { if (allowState === 'denied' && running) stop(); }, TOAST_MS);
+        noteDenied(pageChannelId()); // 토스트 종료 시 감시 중단 + UI 제거
       }
     });
   }, 600000);
