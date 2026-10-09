@@ -530,11 +530,11 @@ function renderSettings() {
           <div style="margin-top:4px"><button class="__kw_b" id="__kw_t_drops" style="background:#ff9f1a;color:#000">드롭스 알림 테스트</button> <button class="__kw_b" id="__kw_t_boss" style="background:#ff9f1a;color:#000">보스 알람 테스트</button></div>
           <div id="__kw_t_msg" class="__kw_lbl"></div>
           <!-- [BETA-TEST-ONLY:end] -->
-          <div style="display:flex;align-items:flex-start;gap:12px;margin-top:8px;line-height:18px"><span class="__kw_lbl" style="margin:0;width:60px;flex:none;line-height:18px">제작자</span><b>비류라미</b></div>
+          <div style="display:flex;align-items:flex-start;gap:5px;margin-top:8px;line-height:18px"><span class="__kw_lbl" style="margin:0;width:5em;flex:none;line-height:18px">제작자</span><b>비류라미</b></div>
           <div style="margin-top:4px;font-size:12px;color:#eee">"검은사막에서 미리내ES 님과 놀다 겁나 심심해서 만듬"</div>
-          <div style="display:flex;align-items:flex-start;gap:12px;margin-top:8px;line-height:18px"><span class="__kw_lbl" style="margin:0;width:60px;flex:none;line-height:18px">테스터</span><b>데아앵커</b></div>
+          <div style="display:flex;align-items:flex-start;gap:5px;margin-top:8px;line-height:18px"><span class="__kw_lbl" style="margin:0;width:5em;flex:none;line-height:18px">테스터</span><b>데아앵커</b></div>
           <div style="margin-top:4px;font-size:12px;color:#eee">"미리내님ES님이 건강했으면 좋겠어요!"</div>
-          <div style="display:flex;align-items:flex-start;gap:12px;margin-top:8px;line-height:18px"><span class="__kw_lbl" style="margin:0;width:60px;flex:none;line-height:18px">최초설치자</span><b>털찐길냥이</b></div>
+          <div style="display:flex;align-items:flex-start;gap:5px;margin-top:8px;line-height:18px"><span class="__kw_lbl" style="margin:0;width:5em;flex:none;line-height:18px">최초설치자</span><b>털찐길냥이</b></div>
           <div style="margin-top:4px;font-size:12px;color:#eee">"하우징은 즐겁다옹!!"</div>
           <div class="__kw_lbl">현재 버전</div>
           <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span><button class="__kw_ic" id="__kw_update_check" title="업데이트 확인">${IC.refresh}</button><button class="__kw_upbtn" id="__kw_update_go" disabled>업데이트</button></div>
