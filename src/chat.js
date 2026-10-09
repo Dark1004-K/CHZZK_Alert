@@ -230,11 +230,15 @@ function renderHitsList() {
   if (histCount) histCount.textContent = String(hitLog.length);
   if (!histBox || !histBox.isConnected) return;
   if (!histOn()) { histBox.innerHTML = ''; return; }
-  histBox.innerHTML = hitLog.length ? hitLog.map((h, i) => {
+  // 오래된 것이 위, 최신이 아래(역순). 맨 아래를 보고 있었거나 처음이면 최신으로 스크롤한다.
+  const stick = histBox.dataset.init !== '1' || histBox.scrollHeight - histBox.scrollTop - histBox.clientHeight < 8;
+  histBox.innerHTML = hitLog.length ? hitLog.map((h, i) => ({ h, i })).reverse().map(({ h, i }) => {
     const body = splitBody(h.nick, h.text) || h.text;
     const nickHtml = h.nick ? `<b>${escapeHtml(h.nick)}</b> ` : '';
-    return `<div class="__kw_hit${h.gone ? ' gone' : ''}" data-i="${i}" title="클릭하면 해당 채팅으로 이동"><span class="__kw_hit_t">${fmtTime(h.t)}</span>${nickHtml}<span>${hiKw(body, h.kw)}</span>${h.gone ? '<span class="__kw_hit_gone">사라짐</span>' : ''}</div>`;
+    return `<div class="__kw_hit${h.gone ? ' gone' : ''}" data-i="${i}" title="클릭하면 해당 채팅으로 이동"><div class="__kw_hit_t">${fmtTime(h.t)}</div><div>${nickHtml}<span>${hiKw(body, h.kw)}</span>${h.gone ? '<span class="__kw_hit_gone">사라짐</span>' : ''}</div></div>`;
   }).join('') : '<div style="font-size:11px;color:#666">아직 없음</div>';
+  histBox.dataset.init = '1';
+  if (stick) { histBox.scrollTop = histBox.scrollHeight; requestAnimationFrame(() => { try { histBox.scrollTop = histBox.scrollHeight; } catch (e) {} }); }
 }
 function jumpToHit(i) {
   const h = hitLog[i];
