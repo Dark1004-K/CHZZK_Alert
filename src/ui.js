@@ -467,7 +467,7 @@ function setupDragToAdd() {
 // ---------- 드롭스 창 (#__kw_dropsp, 감시 패널과 불린 대화 사이) ----------
 // 공개 API로 채널의 드롭스 캠페인을 1분마다 확인하고, 없으면 창을 제거한다.
 const DROPS_API = 'https://api.chzzk.naver.com/service/';
-const DROPS_VAULT_URL = 'https://chzzk.naver.com/profile#drops';
+const DROPS_VAULT_URL = 'https://game.naver.com/profile#drops';
 let dropsPanel = null, dropsPoll = null, dropsTick = null;
 let dropsSaveN = 0;
 let dropsCid = '', dropsJoinAt = 0, dropsNo = 0, dropsInfo = null;
