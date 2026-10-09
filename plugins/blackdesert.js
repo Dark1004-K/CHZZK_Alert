@@ -113,7 +113,7 @@
     if (!nextEl || !nextEl.isConnected) {
       nextEl = document.createElement('div');
       nextEl.id = '__kw_bdop';
-      nextEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #3b9eff';
+      nextEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #3b9eff';
     }
     // 위치: 드롭스 창이 있으면 그 바로 아래, 없으면 불린 대화 창 바로 위
     const drops = document.getElementById('__kw_dropsp');
@@ -304,7 +304,7 @@
     if (!cpnEl || !cpnEl.isConnected) {
       cpnEl = document.createElement('div');
       cpnEl.id = '__kw_cpn';
-      cpnEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #b784ff';
+      cpnEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #b784ff';
       cpnSig = '';
     }
     // 위치: 다음 우두머리 창 바로 아래 → 없으면 드롭스 창 바로 아래 → 없으면 불린 대화 창 바로 위

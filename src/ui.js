@@ -371,7 +371,7 @@ function showReloadPopup(installWin) {
   let host = null;
   try { host = (setPanel && setPanel.isConnected && setPanel.style.display !== 'none') ? setPanel : stackEl; } catch (e) {}
   const hr = host && host.isConnected ? host.getBoundingClientRect() : null;
-  const base = 'z-index:2147483647;background:rgba(14,14,18,.94);color:#fff;font:13px sans-serif;border-radius:12px;border:2px solid #1f6feb;box-shadow:0 8px 28px rgba(0,0,0,.6);box-sizing:border-box;text-align:left;';
+  const base = 'z-index:2147483647;background:rgb(14,14,18);color:#fff;font:13px sans-serif;border-radius:12px;border:2px solid #1f6feb;box-shadow:0 8px 28px rgba(0,0,0,.6);box-sizing:border-box;text-align:left;';
   box.style.cssText = hr && hr.width > 120 && hr.height > 80
     ? base + 'position:fixed;left:' + hr.left + 'px;top:' + hr.top + 'px;width:' + hr.width + 'px;height:' + hr.height + 'px;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;overflow:auto'
     : base + 'position:fixed;top:28%;left:50%;transform:translateX(-50%);padding:16px 18px;max-width:340px';
