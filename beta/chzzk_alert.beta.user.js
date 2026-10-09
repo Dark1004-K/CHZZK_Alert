@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name         CHZZK Alert (Beta)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-beta31
+// @version      2.8-beta30
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
-// @author       비류라미
+// @author       DarkAngel
 // @match        https://chzzk.naver.com/live/*
 // @match        https://chzzk.naver.com/0a3deecf0fa1652445e3c97bc118272e*
 // @run-at       document-start
 // @grant        none
-// @downloadURL  https://github.com/Dark1004-K/CHZZK_Alert/blob/main/beta/chzzk_alert.beta.user.js
-// @updateURL    https://github.com/Dark1004-K/CHZZK_Alert/blob/main/beta/chzzk_alert.beta.user.js
+// @downloadURL  https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js
+// @updateURL    https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js
 // ==/UserScript==
 
 (function () {
@@ -27,8 +27,8 @@
   const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
   const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
   // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-  const SCRIPT_VERSION = '2.8-beta31';
-  const UPDATE_URL = 'https://github.com/Dark1004-K/CHZZK_Alert/blob/main/beta/chzzk_alert.beta.user.js';
+  const SCRIPT_VERSION = '2.8-beta30';
+  const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
   const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
   const HITS_MAX = 30;
 
@@ -77,6 +77,7 @@
     kwCache = keywords.map((k) => ({ tight: norm(k), loose: normLoose(k) })).filter((o) => o.tight);
     normMyNick = norm(myNick);
   }
+
 
   // ---------- TEST1 진단 로그 (콘솔 입력 없이 보기용, 10s 하트비트) ----------
   const KW_TEST_TAG = '[KW-BETA]';
@@ -736,7 +737,7 @@
 
   // ---------- 채널 인가 (allowlist.json, git에서 관리) ----------
   // 강제력은 없음(클라이언트 코드라 고치면 우회됨). 정직한 사용자용 관리 + 원격 킬스위치.
-  const ALLOW_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/allowlist.json';
+  const ALLOW_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/allowlist.json';
   const LS_ALLOW = '__kw_allow';
   let allowState = 'pending'; // pending | ok | denied
   function readAllowCache() {
@@ -1165,7 +1166,7 @@
             <div class="__kw_lbl">현재 버전</div>
             <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span><button class="__kw_ic" id="__kw_update_check" title="업데이트 확인">${IC.refresh}</button><button class="__kw_upbtn" id="__kw_update_go" disabled>업데이트</button></div>
             <div id="__kw_update_msg" class="__kw_lbl"></div>
-            <div class="__kw_lbl"><a href="https://github.com/Dark1004-K/chizizic_call_nickname" target="_blank" rel="noopener" style="color:#00ffa3">GitHub 리포지토리</a> · <a href="https://github.com/Dark1004-K/chizizic_call_nickname/blob/main/UPDATE.md" target="_blank" rel="noopener" style="color:#00ffa3">업데이트 내용</a></div>
+            <div class="__kw_lbl"><a href="https://github.com/Dark1004-K/Chzzk_Alert" target="_blank" rel="noopener" style="color:#00ffa3">GitHub 리포지토리</a> · <a href="https://github.com/Dark1004-K/Chzzk_Alert/blob/main/UPDATE.md" target="_blank" rel="noopener" style="color:#00ffa3">업데이트 내용</a></div>
           </div>
         </div>
       </div>`;
@@ -1353,7 +1354,7 @@
   // ---------- 플러그인 (plugins.json 매니페스트 기반 동적 로딩) ----------
   // MAIN world(사용자 스크립트 허용 켜짐)에서만 동작. 주입 <script>가 같은 window를 공유한다.
   // 플러그인은 window.__KW.on('hit', ({nick, text, kw}) => ...) 형태로 구독한다.
-  const PLUGIN_MANIFEST_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/plugins.json';
+  const PLUGIN_MANIFEST_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/plugins.json';
   const __kwListeners = {};
   try {
     window.__KW = window.__KW || {

@@ -61,7 +61,7 @@ https://raw.githubusercontent.com/Dark1004-K/CHZZK_Alert/main/chzzk_alert.user.j
 | Raw URL | 위 1.3 정식 주소 | 아래 베타 주소 |
 
 ```text
-https://github.com/Dark1004-K/CHZZK_Alert/blob/main/beta/chzzk_alert.beta.user.js
+https://raw.githubusercontent.com/Dark1004-K/CHZZK_Alert/main/beta/chzzk_alert.beta.user.js
 ```
 | 스크립트 이름 | CHZZK 채팅 호출 알림 (Keyword Alert) | CHZZK 채팅 호출 알림 (Beta) |
 | 자동 업데이트 | 버전 오르면 자동 (1일 1회 확인) | 버전 오르면 자동 (별개 채널) |
