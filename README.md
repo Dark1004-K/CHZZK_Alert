@@ -57,7 +57,7 @@ https://raw.githubusercontent.com/Dark1004-K/CHZZK_Alert/main/chzzk_alert.user.j
 
 | 구분 | 정식 | 베타 |
 | --- | --- | --- |
-| 파일 | `chzzk-keyword-alert.user.js` (루트) | `beta/chzzk-keyword-alert.beta.user.js` |
+| 파일 | `chzzk_alert.user.js` (루트) | `beta/chzzk_alert.beta.user.js` |
 | Raw URL | 위 1.3 정식 주소 | 아래 베타 주소 |
 
 ```text
@@ -108,9 +108,9 @@ https://github.com/Dark1004-K/CHZZK_Alert/blob/main/beta/chzzk_alert.beta.user.j
 ## 개발 (베타 작업 시)
 
 * 본체는 `src/` 모듈로 나눠져 있다. 직접 고치지 말고 모듈을 고친 뒤 빌드:
-  `node src/build.js` → `beta/chzzk-keyword-alert.beta.user.js` 재생성.
+  `node src/build.js` → `beta/chzzk_alert.beta.user.js` 재생성.
 * 빌드 후 하네스로 검증하고 커밋한다. (`src/` + 빌드 결과물 함께 커밋)
-* 정식(`chzzk-keyword-alert.user.js`)은 릴리즈 때만 베타 내용으로 갈아엎는다.
+* 정식(`chzzk_alert.user.js`)은 릴리즈 때만 베타 내용으로 갈아엎는다.
 
 ---
 

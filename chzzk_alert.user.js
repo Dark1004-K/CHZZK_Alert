@@ -8,8 +8,8 @@
 // @match        https://chzzk.naver.com/0a3deecf0fa1652445e3c97bc118272e*
 // @run-at       document-start
 // @grant        none
-// @downloadURL  https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/Chzzk_Alert.user.js
-// @updateURL    https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/Chzzk_Alert.user.js
+// @downloadURL  https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/chzzk_alert.user.js
+// @updateURL    https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/chzzk_alert.user.js
 // ==/UserScript==
 
 (function () {
