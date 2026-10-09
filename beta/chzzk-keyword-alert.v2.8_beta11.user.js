@@ -1,13 +1,15 @@
 // ==UserScript==
 // @name         CHZZK 채팅 호출 알림 (Keyword Alert)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-test12
+// @version      2.8_beta11
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
-// @match        https://chzzk.naver.com/live/*
+// @match        https://chzzk.naver.com/live/0a3deecf0fa1652445e3c97bc118272e*
 // @match        https://chzzk.naver.com/0a3deecf0fa1652445e3c97bc118272e*
 // @run-at       document-start
 // @grant        none
+// @downloadURL  https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.v2.8_beta11.user.js
+// @updateURL    https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.v2.8_beta11.user.js
 // ==/UserScript==
 
 (function () {
@@ -54,7 +56,7 @@
   }
 
   // ---------- TEST1 진단 로그 (콘솔 입력 없이 보기용, 10s 하트비트) ----------
-  const KW_TEST_TAG = '[KW-2.8T12]';
+  const KW_TEST_TAG = '[KW-2.8B11]';
   function dlog(...a) { try { console.log(KW_TEST_TAG, ...a); } catch (e) {} }
   function domMsgCount() {
     try { return document.querySelectorAll('[class*="chatting_message"]').length; }
@@ -70,7 +72,7 @@
       dom: domMsgCount(), folded: isChatFolded(),
       watched: !!watchedContainer, kw: keywords.length,
       mut: mutBatches, mutNodes, catchup: catchupFound,
-      ws: wsTracked, wsMsgs, hist: hitLog.length, limited: limitedMode, w: curWidth, allow: allowState,
+      ws: wsTracked, wsMsgs, hist: hitLog.length, limited: limitedMode, w: curWidth,
     }));
     mutBatches = 0; mutNodes = 0; catchupFound = 0; wsMsgs = 0;
   }
@@ -473,11 +475,8 @@
   }
 
   // ---------- 채팅 감시 ----------
-  // 현재 페이지의 라이브 채널 ID (32자리 hex). 인가 목록과 대조한다.
-  const pageChannelId = () => {
-    try { const m = location.pathname.match(/\/live\/([0-9a-f]{32})/i); return m ? m[1].toLowerCase() : ''; } catch (e) { return ''; }
-  };
-  const isLivePage = () => !!pageChannelId();
+  const CHANNEL_ID = '0a3deecf0fa1652445e3c97bc118272e'; // 미리내ES 채널로만 동작 제한
+  const isLivePage = () => /\/live\//.test(location.pathname) && location.pathname.includes(CHANNEL_ID);
 
   // 우리 자체 UI(패널/프롬프트/토스트/선택버튼)에서 발생한 변화는 절대 관리하지 않아야 무한루프를 막을 수 있음
   const isOwnUi = (node) =>
@@ -614,81 +613,11 @@
     observer.observe(container, { childList: true, subtree: true });
   }
 
-  // ---------- 채널 인가 (allowlist.json, git에서 관리) ----------
-  // 강제력은 없음(클라이언트 코드라 고치면 우회됨). 정직한 사용자용 관리 + 원격 킬스위치.
-  const ALLOW_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/allowlist.json';
-  const LS_ALLOW = '__kw_allow';
-  let allowState = 'pending'; // pending | ok | denied
-  function readAllowCache() {
-    try {
-      const o = JSON.parse(localStorage.getItem(LS_ALLOW));
-      if (o && Array.isArray(o.channels)) return o;
-    } catch (e) {}
-    return null;
-  }
-  function noteDenied(cid) {
-    if (noteDenied._id === cid) return;
-    noteDenied._id = cid;
-    showToast('인가되지 않은 채널입니다');
-    dlog('allow-denied-notice', cid);
-  }
-  function refreshAllowlist(silent, done) {
-    const cid = pageChannelId();
-    const finish = (st) => { allowState = st; if (done) { try { done(); } catch (e) {} } };
-    try {
-      fetch(ALLOW_URL + '?t=' + Math.floor(Date.now() / 3600000), { cache: 'no-store' })
-        .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
-        .then((j) => {
-          const list = j && Array.isArray(j.channels) ? j.channels.map(String) : null;
-          if (!list) throw new Error('format');
-          try { localStorage.setItem(LS_ALLOW, JSON.stringify({ channels: list, at: Date.now() })); } catch (e) {}
-          const ok = list.map((s) => s.toLowerCase()).includes(cid);
-          if (!silent) dlog(ok ? 'allow-ok' : 'allow-denied', cid);
-          if (!ok) noteDenied(cid);
-          finish(ok ? 'ok' : 'denied');
-        })
-        .catch(() => {
-          const c = readAllowCache();
-          if (c) {
-            const ok = c.channels.map(String).map((s) => s.toLowerCase()).includes(cid);
-            if (!silent) dlog(ok ? 'allow-cache-ok' : 'allow-cache-denied', cid);
-            if (!ok) noteDenied(cid);
-            finish(ok ? 'ok' : 'denied');
-          } else {
-            if (!silent) { dlog('allow-offline-open', cid); showToast('인가 목록 확인 불가(오프라인), 이번만 허용'); }
-            finish('ok');
-          }
-        });
-    } catch (e) { finish('ok'); }
-  }
-
   function start() {
     if (running) return;
-    const cid = pageChannelId();
-    if (!cid) return;
-    if (allowState === 'denied') { noteDenied(cid); renderPanel(); return; }
-    if (allowState !== 'ok') {
-      refreshAllowlist(false, () => {
-        if (allowState === 'ok') start();
-        else renderPanel();
-      });
-      return;
-    }
     ensurePermission();
     running = true;
     renderPanel();
-    // 인가 철회 대응: 10분마다 목록 재확인 (조용히)
-    if (allowTimer) { clearInterval(allowTimer); allowTimer = null; }
-    allowTimer = setInterval(() => {
-      if (!running) return;
-      refreshAllowlist(true, () => {
-        if (allowState === 'denied' && running) {
-          stop();
-          noteDenied(pageChannelId());
-          renderPanel();
-        }
-      });
-    }, 600000);
     dlog('start', JSON.stringify({ dom: domMsgCount(), folded: isChatFolded(), hasContainer: !!findChatContainer() }));
     hb('start');
 
@@ -727,13 +656,11 @@
       } catch (e) {}
     }, 1500);
   }
-  let allowTimer = null;
   function stop() {
     if (observer) observer.disconnect();
     observer = null;
     watchedContainer = null;
     if (containerCheckTimer) { clearInterval(containerCheckTimer); containerCheckTimer = null; }
-    if (allowTimer) { clearInterval(allowTimer); allowTimer = null; }
     running = false;
     dlog('stop');
     renderPanel();
@@ -1007,10 +934,6 @@
 
   // ---------- SPA 라우트 변경 감지 ----------
   let lastPath = location.pathname;
-  let lastCid = pageChannelId();
-
-  // 이 채널의 라이브 페이지가 아니면 패널/토스트박스/선택버튼 등 UI DOM을 통째로 제거한다.
-  // (CSS display:none으로 숨기는 게 아니라 실제로 DOM에서 없애서 "UI 자체가 안 보이게" 함)
 
   // 이 채널의 라이브 페이지가 아니면 패널/토스트박스/선택버튼 등 UI DOM을 통째로 제거한다.
   // (CSS display:none으로 숨기는 게 아니라 실제로 DOM에서 없애서 "UI 자체가 안 보이게" 함)
@@ -1041,16 +964,9 @@
   function checkRoute() {
     if (location.pathname !== lastPath) {
       lastPath = location.pathname;
-      const cid = pageChannelId();
-      if (cid) {
-        if (cid !== lastCid) { // 다른 채널로 이동: 감시 중단 + 인가 재확인
-          lastCid = cid;
-          allowState = 'pending';
-          try { stop(); } catch (e) {}
-        }
+      if (isLivePage()) {
         buildUi();
       } else {
-        lastCid = '';
         teardownUi();
       }
     }

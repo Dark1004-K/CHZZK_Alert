@@ -16,7 +16,15 @@
 
 루트 `chzzk-keyword-alert.user.js`에만 `@downloadURL`/`@updateURL`이
 붙어 있어서, `@version`이 오르면 Tampermonkey가 자동 갱신 (기본 1일 1회 확인).
-`v2.8_testN` 같은 테스트 파일은 수동 설치용이라 업데이트 헤더 없음.
+`beta/` 폴더의 베타 파일도 각자 자기 Raw 주소를 업데이트 URL로 가져서
+정식과 뒤섞이지 않음. 베타 설치는 해당 파일의 Raw URL로 수동 설치.
+
+## 폴더 구조
+
+* `chzzk-keyword-alert.user.js` — 정식 (자동 업데이트 대상)
+* `beta/` — 베타 스냅샷 (`v2.8_betaN`)
+* `history/` — 지난 정식/테스트 스냅샷
+* `allowlist.json` — 인가 채널 목록
 
 ## 인가 채널 (allowlist.json)
 
