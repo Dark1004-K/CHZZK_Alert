@@ -1,5 +1,7 @@
 # 치지직 채팅 호출 알림 (CHZZK Keyword Alert)
 
+> **업데이트 내용 보러가기 → [UPDATE.md](./UPDATE.md)**
+
 치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면
 브라우저 알림 + 화면 토스트 + 알림음으로 알려주는 Tampermonkey 사용자 스크립트.
 
@@ -9,8 +11,14 @@
 
 ### 1.1 Tampermonkey 설치
 
-1. 쓰는 브라우저(Chrome/Edge/Whale 등)에 Tampermonkey 확장을 설치한다.
-2. 툴바에 Tampermonkey 아이콘이 뜨는지 확인한다.
+1. 쓰는 브라우저의 확장 스토어에서 Tampermonkey를 설치한다.
+   * Chrome: [Chrome 웹스토어에서 설치](https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo)
+   * Edge: [Edge 추가 기능에서 설치](https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloendndfphd)
+   * Whale: 웨일 스토어에서 `Tampermonkey`를 검색해서 설치한다.
+2. 설치 후 툴바에 Tampermonkey 아이콘이 뜨는지 확인한다.
+   안 보이면 브라우저의 확장(퍼즐 조각) 메뉴 → Tampermonkey 옆 핀을 눌러 툴바에 고정한다.
+3. 아이콘을 눌렀을 때 `사용 가능` 상태로 뜨면 설치 완료다.
+   (이 리포지토리의 스크립트는 설치 후에 1.3/1.4 순서대로 넣는다.)
 
 ### 1.2 사용자 스크립트 허용 켜기 (필수)
 
