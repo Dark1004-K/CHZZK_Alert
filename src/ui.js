@@ -158,7 +158,7 @@ function ensureHistPanel() {
   }
   const d = document.createElement('div');
   d.id = '__kw_histp';
-  d.innerHTML = `<div id="__kw_hgrip" title="드래그로 높이 조절"></div><div id="__kw_hist_head"><span>🔔 불린 대화 <b id="__kw_hits_count">0</b></span><span style="display:inline-flex;align-items:center;gap:2px"><button class="__kw_ic" id="__kw_hits_clear" title="지우기">${IC.trash}</button><button class="__kw_ic __kw_xabs" id="__kw_hits_close" title="닫기 (설정 > 일반설정에서 다시 켤 수 있음)" style="color:#ffd400">${IC.close}</button></span></div><div id="__kw_hits"></div>`;
+  d.innerHTML = `<div id="__kw_hgrip" title="드래그로 높이 조절"></div><div id="__kw_hist_head"><span style="display:inline-flex;align-items:center;gap:4px"><span>🔔 불린 대화 <b id="__kw_hits_count">0</b></span><button class="__kw_ic" id="__kw_hits_clear" title="지우기" style="color:#ffd400">${IC.trash}</button></span><button class="__kw_ic __kw_xabs" id="__kw_hits_close" title="닫기 (설정 > 일반설정에서 다시 켤 수 있음)" style="color:#ffd400">${IC.close}</button></div><div id="__kw_hits"></div>`;
   stackEl.appendChild(d);
   histPanel = d;
   histBox = d.querySelector('#__kw_hits');
