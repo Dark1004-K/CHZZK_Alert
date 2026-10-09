@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CHZZK Alert (Beta)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-beta24
+// @version      2.8-beta25
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
 // @match        https://chzzk.naver.com/live/*
@@ -27,7 +27,7 @@
   const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
   const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
   // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-  const SCRIPT_VERSION = '2.8-beta24';
+  const SCRIPT_VERSION = '2.8-beta25';
   const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js';
   const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
   const HITS_MAX = 30;
@@ -298,6 +298,7 @@
   #__kw_grip{position:absolute;top:0;bottom:0;right:-6px;width:12px;cursor:ew-resize;z-index:1}
   #__kw_grip:hover{background:rgba(0,255,163,.25)}
   #__kw_stack #__kw_box{position:static;transform:none;width:100%;max-width:none;margin:0;display:none;align-items:stretch}
+  #__kw_box.fs{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:min(520px,90%);z-index:2147483647}
   #__kw_hist_head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-weight:bold}
   #__kw_hits{max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;user-select:text}
   #__kw_hits_clear{background:#444;color:#fff;padding:2px 7px;font-size:11px}
@@ -385,19 +386,48 @@
     } catch (e) {}
   }
   // 토스트 박스는 스택 맨 위(목록 위, 동일 너비)에 두고 비면 숨김
+  // 토스트 위치: 전체화면 중이면 비디오 안, 아니면 스택 맨 위(목록 위, 동일 너비)
+  function toastTarget() {
+    try { if (document.fullscreenElement) return document.fullscreenElement; } catch (e) {}
+    try {
+      const s = document.getElementById('__kw_stack');
+      if (s) return s;
+    } catch (e) {}
+    return document.body;
+  }
+  function placeToastBox(box) {
+    if (!box) return;
+    try {
+      const fsEl = document.fullscreenElement || null;
+      const target = toastTarget() || document.body;
+      if (box.parentElement !== target) {
+        if (target.id === '__kw_stack') target.prepend(box);
+        else target.appendChild(box);
+      }
+      if (box.classList) box.classList.toggle('fs', !!fsEl);
+    } catch (e) {}
+  }
+  let fsListenerAdded = false;
+  function setupFsReloc() {
+    if (fsListenerAdded) return;
+    fsListenerAdded = true;
+    try {
+      document.addEventListener('fullscreenchange', () => {
+        try {
+          const box = document.getElementById('__kw_box');
+          if (box && box.children.length) placeToastBox(box);
+        } catch (e) {}
+      });
+    } catch (e) {}
+  }
   function ensureToastBox() {
     let box = null;
     try { box = document.getElementById('__kw_box'); } catch (e) {}
-    let stack = null;
-    try { stack = document.getElementById('__kw_stack'); } catch (e) {}
     if (!box) {
       box = document.createElement('div');
       box.id = '__kw_box';
-      if (stack) stack.prepend(box);
-      else document.body.appendChild(box);
-    } else if (stack && box.parentElement !== stack) {
-      stack.prepend(box);
     }
+    placeToastBox(box);
     box.style.display = 'flex';
     return box;
   }
@@ -1187,6 +1217,7 @@
     if (!panel || !panel.isConnected) buildPanel();
     ensureSettingsPanel();
     setupDragToAdd();
+    setupFsReloc();
     panel.classList.add('show');
     applyHistVisibility();
     applySetVisibility();
