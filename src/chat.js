@@ -143,8 +143,9 @@ function showCallToast(nick, body) {
   t.innerHTML = '<b>🔔 ' + escapeHtml((nick || 'CHZZK').slice(0, 24)) + '</b><span style="font-weight:normal">: ' + escapeHtml((body || '').slice(0, 60)) + '</span>';
   t.onclick = () => { t.remove(); hideBoxIfEmpty(); };
   box.appendChild(t);
-  setTimeout(() => { t.remove(); hideBoxIfEmpty(); }, 5000);
+  setTimeout(() => { t.remove(); hideBoxIfEmpty(); }, TOAST_MS);
 }
+const TOAST_MS = 5000;
 function showToast(text) {
   const box = ensureToastBox();
   if (!box) return;
@@ -466,7 +467,7 @@ function judgeAllow(entries, cid, silent, tag) {
 }
 function refreshAllowlist(silent, done) {
   const cid = pageChannelId();
-  const finish = (st) => { allowState = st; if (done) { try { done(); } catch (e) {} } };
+  const finish = (st) => { allowState = st; if (st === 'ok') noteDenied._id = null; if (done) { try { done(); } catch (e) {} } };
   try {
     fetch(ALLOW_URL + '?t=' + Math.floor(Date.now() / 3600000), { cache: 'no-store' })
       .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
@@ -511,9 +512,9 @@ function start() {
     if (!running) return;
     refreshAllowlist(true, () => {
       if (allowState === 'denied' && running) {
-        stop();
+        // 미인가 토스트가 끝나는 시점에 감시 중단
         noteDenied(pageChannelId());
-        renderPanel();
+        setTimeout(() => { if (allowState === 'denied' && running) stop(); }, TOAST_MS);
       }
     });
   }, 600000);

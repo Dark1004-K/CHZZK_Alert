@@ -298,7 +298,7 @@ function renderSettings() {
           <div><b>CHZZK Alert</b></div>
           <div class="__kw_lbl">제작자</div>
           <div><b>비류라미</b></div>
-          <div style="margin-top:6px;font-size:12px;color:#eee">검은사막 게임을 하다 미리내ES 님과 놀다 심심해서 만듬</div>
+          <div style="margin-top:6px;font-size:12px;color:#eee">검은사막에서 미리내ES 님과 놀다 겁나 심심해서 만듬</div>
           <div class="__kw_lbl">테스터</div>
           <div><b>데아앵커</b></div>
           <div style="margin-top:2px;font-size:12px;color:#eee">쉬는 시간은 최고야!</div>
