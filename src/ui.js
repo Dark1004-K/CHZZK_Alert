@@ -57,7 +57,7 @@ let setPanel = null;
 let setOpen = false;
 try { setOpen = localStorage.getItem(LS_SET) === '1'; } catch (e) {}
 let setTab = 'general';
-try { const st = localStorage.getItem(LS_TAB); if (st === 'words' || st === 'general' || st === 'ext' || st === 'about') setTab = st; } catch (e) {}
+try { const st = localStorage.getItem(LS_TAB); if (st === 'words' || st === 'sound' || st === 'general' || st === 'ext' || st === 'about') setTab = st; } catch (e) {}
 // 창 투명도: 0~90%만 허용 (100%면 창이 안 보여서 되돌릴 수 없음). 앱 창 전체(#__kw_stack)에 적용.
 const LS_OPACITY = '__kw_transparency';
 function getTransparency() {
@@ -485,6 +485,7 @@ function renderSettings() {
     <div style="display:flex;gap:14px;height:calc(100% - 28px);margin-top:28px">
       <div class="__kw_tabs">
         <button class="__kw_tab${setTab === 'general' ? ' on' : ''}" data-tab="general">일반설정</button>
+        <button class="__kw_tab${setTab === 'sound' ? ' on' : ''}" data-tab="sound">음향설정</button>
         <button class="__kw_tab${setTab === 'words' ? ' on' : ''}" data-tab="words">단어설정</button>
         <button class="__kw_tab${setTab === 'ext' ? ' on' : ''}" data-tab="ext">확장</button>
         <button class="__kw_tab${setTab === 'about' ? ' on' : ''}" data-tab="about">앱 정보</button>
@@ -497,9 +498,6 @@ function renderSettings() {
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_mute" ${muted() ? 'checked' : ''}> 알람 끄기 (감지·기록은 유지)</label></div>
           <div class="__kw_lbl">창 투명도 <b id="__kw_op_val">${getTransparency()}%</b> <span style="color:#888">(0~90%)</span></div>
           <input type="range" id="__kw_op" min="0" max="90" step="5" value="${getTransparency()}" style="width:220px;cursor:pointer">
-          <div class="__kw_lbl">알림 소리 <select class="__kw_in" id="__kw_snd"><option value="dingdong">딩동</option><option value="custom">내 파일</option></select> <button class="__kw_b" id="__kw_snd_test" style="background:#444;color:#fff">들어보기</button></div>
-          <div class="__kw_lbl" id="__kw_snd_row" style="display:${sndMode() === 'custom' ? 'block' : 'none'}"><input type="file" id="__kw_snd_file" accept="audio/*" style="max-width:150px;font-size:11px"> <span id="__kw_snd_name" style="color:#aaa"></span></div>
-          <div class="__kw_lbl" id="__kw_snd_msg" style="color:#ffd400"></div>
           <div class="__kw_lbl"><label style="cursor:pointer;display:flex;align-items:center;gap:6px"><input type="checkbox" id="__kw_dedup" style="margin:0" ${dedupOn() ? 'checked' : ''}> 이미 울린 대화 재알림 방지</label></div>
           <div id="__kw_redup_grp" style="padding-left:20px;opacity:${dedupOn() ? 1 : 0.45}">
             <div class="__kw_lbl" style="margin-top:2px">같은 호출 다시 울리기까지 (0이면 항상 울림)</div>
@@ -509,6 +507,18 @@ function renderSettings() {
               <label style="cursor:pointer;display:flex;align-items:center;gap:4px;margin-left:6px" title="켜면 시간이 아무리 지나도 같은 내용(같은 단어)은 다시 울리지 않습니다"><input type="checkbox" id="__kw_redup_inf" style="margin:0" ${redupInf() ? 'checked' : ''} ${dedupOn() ? '' : 'disabled'}> 무제한</label>
             </div>
           </div>
+        </div>
+        <div id="__kw_set_sound" style="display:${setTab === 'sound' ? 'block' : 'none'}">
+          <div class="__kw_lbl" style="margin-top:0">알림 소리</div>
+          <div style="display:flex;align-items:center;gap:6px"><select class="__kw_in" id="__kw_snd"><option value="dingdong">딩동</option><option value="custom">내 파일</option></select><button class="__kw_ic" id="__kw_snd_test" title="들어보기" style="color:#00ffa3">${IC.play}</button></div>
+          <div class="__kw_lbl" id="__kw_snd_row" style="display:${sndMode() === 'custom' ? 'block' : 'none'}"><input type="file" id="__kw_snd_file" accept="audio/*" style="max-width:150px;font-size:11px"> <span id="__kw_snd_name" style="color:#aaa"></span></div>
+          <div class="__kw_lbl" id="__kw_snd_msg" style="color:#ffd400"></div>
+          <div class="__kw_lbl">볼륨 <b id="__kw_vol_val">${volPct()}%</b></div>
+          <input type="range" id="__kw_vol" min="0" max="100" step="5" value="${volPct()}" style="width:220px;cursor:pointer">
+          <div class="__kw_lbl" style="color:#888">딩동·내 파일·검은사막 알림음에 적용됩니다. 0이면 소리가 나지 않습니다.</div>
+          <div class="__kw_lbl">출력 장치</div>
+          <div style="display:flex;align-items:center;gap:6px"><select class="__kw_in" id="__kw_sink" style="max-width:210px"><option value="">시스템 기본</option></select><button class="__kw_ic" id="__kw_sink_pick" title="장치 선택 (브라우저 선택창)" style="color:#ccc">${IC.sliders}</button></div>
+          <div class="__kw_lbl" id="__kw_sink_msg" style="color:#888"></div>
         </div>
         <div id="__kw_set_words" style="display:${setTab === 'words' ? 'block' : 'none'}">
           <div class="__kw_lbl">호출 단어 (×로 삭제, 페이지 글자를 드래그해서도 추가 가능)</div>
@@ -656,6 +666,47 @@ function renderSettings() {
     rd.readAsDataURL(f);
   };
   setPanel.querySelector('#__kw_snd_test').onclick = () => { lastSoundAt = 0; playAlertSound(); };
+  // 볼륨
+  const volEl = setPanel.querySelector('#__kw_vol');
+  volEl.oninput = () => {
+    try { localStorage.setItem(LS_VOL, String(parseInt(volEl.value, 10) || 0)); } catch (e) {}
+    const l = setPanel.querySelector('#__kw_vol_val'); if (l) l.textContent = volPct() + '%';
+  };
+  volEl.onchange = () => { lastSoundAt = 0; playAlertSound(); }; // 놓으면 미리 들려줌
+  // 출력 장치 (알림음 출력용. 음성 읽기(TTS)는 브라우저가 장치를 바꿀 수 없어 기본 장치로 나감)
+  const sinkSel = setPanel.querySelector('#__kw_sink');
+  const sinkMsg = setPanel.querySelector('#__kw_sink_msg');
+  const canSink = typeof AudioContext !== 'undefined' && typeof AudioContext.prototype.setSinkId === 'function';
+  function fillSinks(list) {
+    const cur = sinkId();
+    let html = '<option value="">시스템 기본</option>';
+    const have = new Set(['']);
+    (list || []).forEach((d) => { if (d.deviceId && d.deviceId !== 'default' && !have.has(d.deviceId)) { have.add(d.deviceId); html += '<option value="' + escapeHtml(d.deviceId) + '">' + escapeHtml(d.label || '장치') + '</option>'; } });
+    if (cur && !have.has(cur)) { let nm = ''; try { nm = localStorage.getItem(LS_SINK_NAME) || ''; } catch (e) {} html += '<option value="' + escapeHtml(cur) + '">' + escapeHtml(nm || '선택한 장치') + '</option>'; }
+    sinkSel.innerHTML = html;
+    sinkSel.value = cur;
+  }
+  if (!canSink) {
+    sinkSel.disabled = true; setPanel.querySelector('#__kw_sink_pick').disabled = true;
+    sinkMsg.textContent = '이 브라우저는 출력 장치 선택을 지원하지 않습니다 (Chrome 110 이상)';
+  } else {
+    sinkMsg.textContent = '알림음이 나갈 장치입니다. 음성 읽기(TTS)는 시스템 기본 장치로 나갑니다.';
+    fillSinks([]);
+    try { navigator.mediaDevices.enumerateDevices().then((l) => fillSinks(l.filter((d) => d.kind === 'audiooutput' && d.label))).catch(() => {}); } catch (e) {}
+    sinkSel.onchange = () => {
+      try { localStorage.setItem(LS_SINK, sinkSel.value); localStorage.setItem(LS_SINK_NAME, sinkSel.options[sinkSel.selectedIndex].textContent || ''); } catch (e) {}
+      applySink(sharedCtx);
+      lastSoundAt = 0; playAlertSound();
+    };
+    setPanel.querySelector('#__kw_sink_pick').onclick = () => { // 장치 이름을 보려면 브라우저의 선택창으로 고른다
+      if (!navigator.mediaDevices || typeof navigator.mediaDevices.selectAudioOutput !== 'function') { sinkMsg.textContent = '이 브라우저는 장치 선택창을 지원하지 않습니다'; return; }
+      navigator.mediaDevices.selectAudioOutput().then((d) => {
+        try { localStorage.setItem(LS_SINK, d.deviceId === 'default' ? '' : d.deviceId); localStorage.setItem(LS_SINK_NAME, d.label || ''); } catch (e) {}
+        fillSinks([d]); applySink(sharedCtx);
+        lastSoundAt = 0; playAlertSound();
+      }).catch(() => { sinkMsg.textContent = '장치를 선택하지 않았습니다'; });
+    };
+  }
   const setBody = setPanel.querySelector('#__kw_set_body');
   if (setBody) setBody.addEventListener('wheel', (e) => { // 페이지가 휠을 가로채도 설정 본문은 스크롤되게
     if (setBody.scrollHeight <= setBody.clientHeight) return;

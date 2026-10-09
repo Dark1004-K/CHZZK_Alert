@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.3.0-beta025';
+const SCRIPT_VERSION = '3.3.0-beta026';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -37,6 +37,15 @@ const LS_SND = '__kw_snd'; // 알림 소리: 'dingdong'(기본) | 'custom'(내 �
 const LS_SND_DATA = '__kw_snd_data'; // 내 파일 (data URL)
 const LS_SND_NAME = '__kw_snd_name';
 const SND_MAX_BYTES = 1500000; // 내 파일 최대 크기 (localStorage 용량 보호)
+const LS_VOL = '__kw_vol'; // 알림 볼륨 0~100 (기본 100)
+const LS_SINK = '__kw_sink'; // 출력 장치 id ('' = 시스템 기본)
+const LS_SINK_NAME = '__kw_sink_name';
+const volPct = () => { try { const v = parseInt(localStorage.getItem(LS_VOL), 10); return isFinite(v) ? Math.max(0, Math.min(100, v)) : 100; } catch (e) { return 100; } };
+const sinkId = () => { try { return localStorage.getItem(LS_SINK) || ''; } catch (e) { return ''; } };
+// AudioContext / Audio 요소를 선택한 출력 장치로 보낸다 (지원하지 않는 브라우저는 무시)
+function applySink(target) {
+  try { if (target && typeof target.setSinkId === 'function') { const p = target.setSinkId(sinkId()); if (p && p.catch) p.catch(() => {}); } } catch (e) {}
+}
 const sndMode = () => { try { return localStorage.getItem(LS_SND) === 'custom' && localStorage.getItem(LS_SND_DATA) ? 'custom' : 'dingdong'; } catch (e) { return 'dingdong'; } };
 const LS_DROPS = '__kw_drops'; // 드롭스 창 표시 (기본 켜짐)
 const dropsOn = () => { try { return localStorage.getItem(LS_DROPS) !== '0'; } catch (e) { return true; } };

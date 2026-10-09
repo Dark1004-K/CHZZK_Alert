@@ -11,6 +11,7 @@
       const u = new SpeechSynthesisUtterance(text);
       u.lang = 'ko-KR';
       u.rate = 1.1;
+      try { if (typeof window.__KW.volume === 'function') u.volume = window.__KW.volume(); } catch (e) {}
       window.speechSynthesis.speak(u);
     } catch (e) {}
   }

@@ -150,13 +150,16 @@
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return;
       const ctx = new Ctx();
+      try { if (typeof KW.sink === 'function') KW.sink(ctx); } catch (e) {}
+      const vf = typeof KW.volume === 'function' ? KW.volume() : 1;
+      if (vf <= 0) { try { ctx.close(); } catch (e) {} return; }
       const now = ctx.currentTime;
       [0, 0.2, 0.4].forEach((o) => {
         const osc = ctx.createOscillator();
         const g = ctx.createGain();
         osc.frequency.value = 660;
         g.gain.setValueAtTime(0.0001, now + o);
-        g.gain.exponentialRampToValueAtTime(0.3, now + o + 0.02);
+        g.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.3 * vf), now + o + 0.02);
         g.gain.exponentialRampToValueAtTime(0.0001, now + o + 0.16);
         osc.connect(g); g.connect(ctx.destination);
         osc.start(now + o); osc.stop(now + o + 0.18);

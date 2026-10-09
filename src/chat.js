@@ -10,7 +10,7 @@ let lastSoundAt = 0;
 function getCtx() {
   const Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx) return null;
-  if (!sharedCtx || sharedCtx.state === 'closed') sharedCtx = new Ctx();
+  if (!sharedCtx || sharedCtx.state === 'closed') { sharedCtx = new Ctx(); applySink(sharedCtx); }
   if (sharedCtx.state === 'suspended') sharedCtx.resume();
   return sharedCtx;
 }
@@ -20,6 +20,7 @@ function playDingDong() {
     const ctx = getCtx();
     if (!ctx) return;
     const now = ctx.currentTime;
+    const vf = volPct() / 100;
     [[987.77, 0], [783.99, 0.3]].forEach(([f, o]) => {
       [[1, 0.3], [2.01, 0.08]].forEach(([mul, vol]) => {
         const osc = ctx.createOscillator();
@@ -27,7 +28,7 @@ function playDingDong() {
         osc.type = 'sine';
         osc.frequency.value = f * mul;
         gain.gain.setValueAtTime(0.0001, now + o);
-        gain.gain.exponentialRampToValueAtTime(vol, now + o + 0.015);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol * vf), now + o + 0.015);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + o + 0.9);
         osc.connect(gain);
         gain.connect(ctx.destination);
@@ -42,7 +43,8 @@ function playCustomSound() {
     const d = localStorage.getItem(LS_SND_DATA);
     if (!d) return false;
     const a = new Audio(d);
-    a.volume = 1;
+    a.volume = volPct() / 100;
+    applySink(a);
     const p = a.play();
     if (p && p.catch) p.catch(() => playDingDong());
     return true;
@@ -51,6 +53,7 @@ function playCustomSound() {
 function playAlertSound() {
   try {
     const nowMs = Date.now();
+    if (volPct() === 0) return;
     if (nowMs - lastSoundAt < 800) return; // 도배 시 사운드 스킵 (CPU/컨텍스트 보호)
     lastSoundAt = nowMs;
     if (sndMode() === 'custom' && playCustomSound()) return;
@@ -99,7 +102,7 @@ function unlockAudio() {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
-    if (!sharedCtx || sharedCtx.state === 'closed') sharedCtx = new Ctx();
+    if (!sharedCtx || sharedCtx.state === 'closed') { sharedCtx = new Ctx(); applySink(sharedCtx); }
     if (sharedCtx.state === 'suspended') sharedCtx.resume();
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission();
   } catch (e) {}
