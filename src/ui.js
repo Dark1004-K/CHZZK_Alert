@@ -536,7 +536,7 @@ function renderSettings() {
           <input type="range" id="__kw_vol" min="0" max="100" step="5" value="${volPct()}" style="width:220px;cursor:pointer">
           <div class="__kw_lbl" style="color:#888">딩동·내 파일·검은사막 알림음에 적용됩니다. 0이면 소리가 나지 않습니다.</div>
           <div class="__kw_lbl">출력 장치</div>
-          <div style="display:flex;align-items:center;gap:6px"><select class="__kw_in" id="__kw_sink" style="max-width:210px"><option value="">시스템 기본</option></select><button class="__kw_ic" id="__kw_sink_pick" title="스피커 목록 새로고침" style="color:#ccc">${IC.refresh}</button></div>
+          <div style="display:flex;align-items:center;gap:6px"><select class="__kw_in" id="__kw_sink" style="max-width:210px"><option value="">시스템 기본</option></select><button class="__kw_ic" id="__kw_sink_pick" title="스피커 목록 불러오기" style="color:#ccc">${IC.refresh}</button></div>
           <div class="__kw_lbl" id="__kw_sink_msg" style="color:#888"></div>
         </div>
         <div id="__kw_set_words" style="display:${setTab === 'words' ? 'block' : 'none'}">
@@ -706,13 +706,16 @@ function renderSettings() {
     sinkSel.value = cur;
   }
   // 스피커(출력) 장치 목록. 이름은 브라우저가 권한 없이는 숨기므로 이름이 없으면 "스피커 1, 2.."로 보여준다 (고르면 바로 소리가 나서 구분 가능)
-  function loadSinks() {
+  function loadSinks(ask) {
     try {
-      navigator.mediaDevices.enumerateDevices().then((l) => {
+      const list = () => navigator.mediaDevices.enumerateDevices();
+      // Chrome은 마이크 권한이 없으면 스피커를 "기본" 하나만 보여준다(개인정보 보호). 목록 버튼을 누르면 권한을 한 번 요청해 전체를 읽고 마이크는 바로 끈다.
+      const first = ask === true ? navigator.mediaDevices.getUserMedia({ audio: true }).then((st) => { try { st.getTracks().forEach((t) => t.stop()); } catch (e) {} return list(); }) : list();
+      first.then((l) => {
         const outs = l.filter((d) => d.kind === 'audiooutput' && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications');
         fillSinks(outs.map((d, i) => ({ deviceId: d.deviceId, label: d.label || ('스피커 ' + (i + 1)) })));
-        sinkMsg.textContent = outs.length ? '알림음이 나갈 스피커입니다. 고르면 바로 소리가 납니다. 음성 읽기(TTS)는 시스템 기본 장치로 나갑니다.' : '시스템 기본 외에 찾은 스피커가 없습니다';
-      }).catch(() => {});
+        sinkMsg.textContent = outs.length ? '알림음이 나갈 스피커입니다. 고르면 바로 소리가 납니다. 음성 읽기(TTS)는 시스템 기본 장치로 나갑니다.' : '다른 스피커가 보이지 않습니다. 오른쪽 버튼을 눌러 스피커 목록을 불러오세요 (브라우저가 마이크 허용을 한 번 묻습니다. 마이크는 바로 끄고 녹음하지 않으며, 스피커 이름을 읽기 위한 것입니다).';
+      }).catch(() => { sinkMsg.textContent = '허용되지 않아 스피커 목록을 읽을 수 없습니다. 주소창 왼쪽 자물쇠에서 마이크를 허용하거나, 시스템 기본 장치를 쓰세요.'; });
     } catch (e) {}
   }
   if (!canSink) {
@@ -721,13 +724,13 @@ function renderSettings() {
   } else {
     fillSinks([]);
     loadSinks();
-    try { navigator.mediaDevices.addEventListener('devicechange', loadSinks); } catch (e) {} // 장치를 꽂거나 뽑으면 목록 갱신
+    try { navigator.mediaDevices.addEventListener('devicechange', () => loadSinks()); } catch (e) {} // 장치를 꽂거나 뽑으면 목록 갱신
     sinkSel.onchange = () => {
       try { localStorage.setItem(LS_SINK, sinkSel.value); localStorage.setItem(LS_SINK_NAME, sinkSel.options[sinkSel.selectedIndex].textContent || ''); } catch (e) {}
       applySink(sharedCtx);
       lastSoundAt = 0; playAlertSound();
     };
-    setPanel.querySelector('#__kw_sink_pick').onclick = loadSinks; // 목록 새로고침
+    setPanel.querySelector('#__kw_sink_pick').onclick = () => loadSinks(true); // 스피커 목록 불러오기(필요하면 권한 요청)
   }
   const setBody = setPanel.querySelector('#__kw_set_body');
   if (setBody) setBody.addEventListener('wheel', (e) => { // 페이지가 휠을 가로채도 설정 본문은 스크롤되게
