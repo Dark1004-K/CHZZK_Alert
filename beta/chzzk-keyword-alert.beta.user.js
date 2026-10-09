@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CHZZK Alert (Beta)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-beta19
+// @version      2.8-beta21
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
 // @match        https://chzzk.naver.com/live/*
@@ -27,7 +27,7 @@
   const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
   const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
   // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-  const SCRIPT_VERSION = '2.8-beta19';
+  const SCRIPT_VERSION = '2.8-beta21';
   const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js';
   const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
   const HITS_MAX = 30;
@@ -285,6 +285,9 @@
   .__kw_tabs{display:flex;flex-direction:column;gap:4px;flex:none}
   .__kw_tab{border:1px solid #555;background:#222;color:#bbb;border-radius:8px;padding:6px 8px;font-size:12px;cursor:pointer;white-space:nowrap}
   .__kw_tab.on{background:#00ffa3;color:#000;border-color:#00ffa3;font-weight:bold}
+  .__kw_iconbtn{background:#222;border:1px solid #555;color:#fff;border-radius:8px;padding:3px 8px;font-size:14px;cursor:pointer;margin-left:4px}
+  .__kw_iconbtn:disabled{opacity:.35;cursor:default}
+  .__kw_iconbtn.go{background:#00ffa3;border-color:#00ffa3}
   #__kw_set_body .__kw_lbl:first-child{margin-top:0}
   #__kw_midrow{position:relative;width:100%}
   #__kw_grip{position:absolute;top:0;bottom:0;right:-6px;width:12px;cursor:ew-resize;z-index:1}
@@ -870,7 +873,7 @@
     }
     const d = document.createElement('div');
     d.id = '__kw_histp';
-    d.innerHTML = `<div id="__kw_hist_head"><span>🔔 불린 대화 <b id="__kw_hits_count">0</b></span><button class="__kw_b" id="__kw_hits_clear">지우기</button></div><div id="__kw_hits"></div>`;
+    d.innerHTML = `<div id="__kw_hist_head"><span>🔔 불린 대화 <b id="__kw_hits_count">0</b></span><button class="__kw_b" id="__kw_hits_clear" title="지우기">🗑️</button></div><div id="__kw_hits"></div>`;
     stackEl.appendChild(d);
     histPanel = d;
     histBox = d.querySelector('#__kw_hits');
@@ -918,8 +921,8 @@
     panel.innerHTML = `
       <div id="__kw_row"><div id="__kw_dot"></div>
         <div style="flex:1"><div id="__kw_title"><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b> · 단어 ${keywords.length}개</div><div id="__kw_sub">감지 ${hits}회 · 내 채팅 제외</div></div>
-        <button class="__kw_b" id="__kw_gear" title="설정">설정</button>
-        <button class="__kw_b" id="__kw_btn">${running ? '정지' : '시작'}</button></div>
+        <button class="__kw_b" id="__kw_gear" title="설정">⚙️</button>
+        <button class="__kw_b" id="__kw_btn" title="${running ? '정지' : '시작'}">${running ? '⏸️' : '▶️'}</button></div>
       <div id="__kw_warn" style="display:${limitedMode ? 'block' : 'none'};font-size:11px;color:#ffd400;margin-top:4px">⚠ 사용자 스크립트 허용 꺼짐: WS 감시 불가, DOM 감시만 동작. chrome://extensions → Tampermonkey 상세에서 허용 후 새로고침</div>`;
 
     panel.querySelector('#__kw_btn').onclick = () => (running ? stop() : start());
@@ -952,9 +955,11 @@
   function checkUpdate() {
     const msg = setPanel ? setPanel.querySelector('#__kw_update_msg') : null;
     const btn = setPanel ? setPanel.querySelector('#__kw_update_check') : null;
+    const go = setPanel ? setPanel.querySelector('#__kw_update_go') : null;
     const say = (t) => { if (msg) msg.textContent = t; };
-    if (btn) btn.disabled = true;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
     say('확인 중...');
+    const done = () => { if (btn) { btn.disabled = false; btn.textContent = '🔄'; } };
     try {
       fetch(UPDATE_URL + '?t=' + Date.now(), { cache: 'no-store' })
         .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.text(); })
@@ -963,16 +968,8 @@
           if (!m) throw new Error('parse');
           const remote = m[1].trim();
           if (isNewer(remote, SCRIPT_VERSION)) {
-            if (msg) {
-              msg.innerHTML = '새 버전 있음: ' + escapeHtml(SCRIPT_VERSION) + ' → <b>' + escapeHtml(remote) + '</b> ';
-              const ub = document.createElement('button');
-              ub.className = '__kw_b';
-              ub.style.background = '#00ffa3';
-              ub.style.color = '#000';
-              ub.textContent = '업데이트';
-              ub.onclick = () => { try { window.open(UPDATE_URL, '_blank'); } catch (e) {} };
-              msg.appendChild(ub);
-            }
+            say('새 버전 있음: ' + SCRIPT_VERSION + ' → ' + remote);
+            if (go) { go.disabled = false; go.classList.add('go'); }
             dlog('update-avail', remote);
           } else {
             say('최신 버전입니다 (' + SCRIPT_VERSION + ')');
@@ -980,10 +977,10 @@
           }
         })
         .catch(() => say('확인 실패 (네트워크)'))
-        .then(() => { if (btn) btn.disabled = false; });
+        .then(done);
     } catch (e) {
       say('확인 실패 (네트워크)');
-      if (btn) btn.disabled = false;
+      done();
     }
   }
   function renderSettings() {
@@ -1017,8 +1014,7 @@
             <div><b>비류라미</b></div>
             <div style="margin-top:6px;font-size:12px;color:#eee">검은사막 게임을 하다 미리내ES 님과 놀다 심심해서 만듬</div>
             <div class="__kw_lbl">현재 버전</div>
-            <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span></div>
-            <div style="margin-top:6px"><button class="__kw_b" id="__kw_update_check" style="background:#00ffa3;color:#000">업데이트 확인</button></div>
+            <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span><button class="__kw_iconbtn" id="__kw_update_check" title="업데이트 확인">🔄</button><button class="__kw_iconbtn" id="__kw_update_go" title="업데이트" disabled>⬇️</button></div>
             <div id="__kw_update_msg" class="__kw_lbl"></div>
             <div class="__kw_lbl"><a href="https://github.com/Dark1004-K/chizizic_call_nickname" target="_blank" rel="noopener" style="color:#00ffa3">GitHub 리포지토리</a> · <a href="https://github.com/Dark1004-K/chizizic_call_nickname/blob/main/UPDATE.md" target="_blank" rel="noopener" style="color:#00ffa3">업데이트 내용</a></div>
           </div>
@@ -1067,6 +1063,8 @@
     };
     const updateCheckBtn = setPanel.querySelector('#__kw_update_check');
     if (updateCheckBtn) updateCheckBtn.onclick = () => checkUpdate();
+    const updateGoBtn = setPanel.querySelector('#__kw_update_go');
+    if (updateGoBtn) updateGoBtn.onclick = () => { try { window.open(UPDATE_URL, '_blank'); } catch (e) {} };
     applySetVisibility();
   }
   function applySetVisibility() {
