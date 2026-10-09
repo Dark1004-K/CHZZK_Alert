@@ -167,6 +167,10 @@
   let cpnData = null; // 마지막으로 받은 coupons.json
   let cpnState = 'idle'; // idle | loading | ok | err
   let cpnSig = ''; // 마지막으로 그린 내용의 서명 (바뀔 때만 다시 그림)
+  let cpnFetchedAt = 0; // 마지막으로 받아온 시각
+  const CPN_REFRESH_MS = 3600000; // 1시간마다 자동으로 다시 받는다
+  const ICON_COPY = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
+  const ICON_OK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#7dffb3" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function cpnFolded() { try { return localStorage.getItem(LS_CPN_FOLD) === '1'; } catch (e) { return false; } }
   function cpnVisible(now) {
@@ -186,6 +190,7 @@
       .then((r) => { if (!r.ok) throw new Error('http'); return r.json(); })
       .then((j) => { if (!j || !Array.isArray(j.coupons)) throw new Error('format'); cpnData = j; cpnState = 'ok'; })
       .catch(() => { cpnState = cpnData ? 'ok' : 'err'; }) // 실패해도 이전에 받은 목록은 유지
+      .then(() => { cpnFetchedAt = Date.now(); }) // 실패해도 1시간 뒤에 다시 시도
       .then(() => { cpnSig = ''; });
   }
   function copyText(text, done) {
@@ -216,9 +221,9 @@
       list.forEach((c) => {
         h += '<div style="margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)">' +
           '<div style="font-size:12px;font-weight:bold">' + esc(c.name || '쿠폰') + '</div>' +
-          '<div style="margin:2px 0"><code class="__kw_cpn_code" data-code="' + esc(c.code) + '" title="누르면 복사" style="cursor:pointer;background:#2a2433;color:#e6d8ff;padding:1px 6px;border-radius:5px;font-size:12px;user-select:text;word-break:break-all">' + esc(c.code) + '</code> <span style="color:#888;font-size:10px">눌러서 복사</span></div>' +
-          ((c.rewards && c.rewards.length) ? '<div style="font-size:11px;color:#ccc;line-height:1.35">' + c.rewards.map(esc).join(' · ') + '</div>' : '') +
-          (c.expires ? '<div style="font-size:11px;color:#b784ff;margin-top:1px">⏱ ' + esc(c.expires) + '</div>' : '') + '</div>';
+          '<div style="margin:2px 0;display:flex;align-items:center;gap:6px"><code style="background:#2a2433;color:#e6d8ff;padding:1px 6px;border-radius:5px;font-size:12px;user-select:text;word-break:break-all">' + esc(c.code) + '</code>' +
+          '<button class="__kw_cpn_cp" data-code="' + esc(c.code) + '" title="복사" style="border:0;background:transparent;color:#b784ff;cursor:pointer;padding:2px;display:inline-flex;align-items:center">' + ICON_COPY + '</button></div>' +
+          (c.expires ? '<div style="font-size:11px;color:#b784ff">⏱ 만료 ' + esc(c.expires) + '</div>' : '') + '</div>';
       });
       if (cpnData && cpnData.updatedAt) {
         const d = new Date(cpnData.updatedAt + KST);
@@ -236,11 +241,12 @@
     };
     const rf = cpnEl.querySelector('#__kw_cpn_rf');
     if (rf) rf.onclick = (e) => { e.stopPropagation(); loadCoupons(); };
-    cpnEl.querySelectorAll('.__kw_cpn_code').forEach((el) => {
+    cpnEl.querySelectorAll('.__kw_cpn_cp').forEach((el) => {
       el.onclick = (e) => {
         e.stopPropagation();
-        const code = el.getAttribute('data-code');
-        copyText(code, (ok) => { el.textContent = ok ? '복사됨!' : code; if (ok) setTimeout(() => { cpnSig = ''; }, 900); });
+        copyText(el.getAttribute('data-code'), (ok) => {
+          if (ok) { el.innerHTML = ICON_OK; el.title = '복사됨'; setTimeout(() => { cpnSig = ''; }, 1000); } // 잠깐 체크 표시 후 원래 아이콘으로
+        });
       };
     });
   }
@@ -249,6 +255,7 @@
     const panel = document.getElementById('__kw_panel');
     if (!opt('coupons', true) || !stack || !panel || !panel.classList.contains('show')) { removeCoupons(); return; }
     if (cpnState === 'idle') loadCoupons(); // 처음 켜질 때 한 번 받아온다
+    else if (cpnState !== 'loading' && now - cpnFetchedAt >= CPN_REFRESH_MS) loadCoupons(); // 이후 1시간마다 자동 갱신
     if (!cpnEl || !cpnEl.isConnected) {
       cpnEl = document.createElement('div');
       cpnEl.id = '__kw_cpn';
