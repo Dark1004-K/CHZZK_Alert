@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CHZZK Alert (Beta)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-beta25
+// @version      2.8-beta26
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
 // @match        https://chzzk.naver.com/live/*
@@ -27,7 +27,7 @@
   const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
   const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
   // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-  const SCRIPT_VERSION = '2.8-beta25';
+  const SCRIPT_VERSION = '2.8-beta26';
   const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js';
   const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
   const HITS_MAX = 30;
@@ -39,6 +39,16 @@
   const loadNick = () => localStorage.getItem(LS_NICK) ?? localStorage.getItem(LS_NICK_OLD) ?? '';
   const saveNick = (v) => localStorage.setItem(LS_NICK, v);
   const histOn = () => { try { return localStorage.getItem(LS_HIST) !== '0'; } catch (e) { return true; } };
+  const LS_DEDUP = '__kw_dedup'; // 재알림 방지 옵션. 미설정 시 기존 목록옵션 값을 물려받음
+  const dedupOn = () => {
+    try {
+      const v = localStorage.getItem(LS_DEDUP);
+      if (v === null) return localStorage.getItem(LS_HIST) !== '0';
+      return v !== '0';
+    } catch (e) { return true; }
+  };
+  const LS_MUTE = '__kw_mute'; // 알람 끄기 (감지·기록은 유지, 알림/토스트/소리만 생략)
+  const muted = () => { try { return localStorage.getItem(LS_MUTE) === '1'; } catch (e) { return false; } };
   const LS_REDUP = '__kw_redup_min'; // 같은 호출 재알림 간격 (분, 기본 5, 0이면 항상 울림)
   function redupMin() {
     try {
@@ -222,7 +232,7 @@
   let hitLog = loadHits();
   // 기록에 같은 서명이 간격 안에 있으면 재알림 생략 (스크롤 백필·접힘 리렌더·WS 리플레이 대응)
   function histSuppressed(sig) {
-    if (!histOn() || !sig) return false;
+    if (!dedupOn() || !sig) return false;
     const now = Date.now();
     const ttl = redupMs();
     for (const h of hitLog) {
@@ -284,7 +294,9 @@
   .__kw_tabs{display:flex;flex-direction:column;gap:4px;flex:none}
   .__kw_tab{border:1px solid #555;background:#222;color:#bbb;border-radius:8px;padding:6px 8px;font-size:12px;cursor:pointer;white-space:nowrap}
   .__kw_tab.on{background:#00ffa3;color:#000;border-color:#00ffa3;font-weight:bold}
-  .__kw_ic{background:transparent;border:0;padding:5px;border-radius:8px;cursor:pointer;color:#ddd;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .__kw_ic{background:transparent;border:0;padding:5px;border-radius:8px;cursor:pointer;color:#ddd;display:inline-flex;align-items:center;justify-content:center;flex:none;vertical-align:middle}
+  #__kw_row .__kw_ic{align-self:center}
+  #__kw_stack input[type="checkbox"], #__kw_ask input[type="checkbox"]{accent-color:#00ffa3;width:14px;height:14px;vertical-align:-2px}
   .__kw_ic:hover{background:rgba(255,255,255,.12)}
   .__kw_ic:disabled{opacity:.3;cursor:default;background:transparent}
   .__kw_ic svg{width:16px;height:16px;display:block}
@@ -364,15 +376,17 @@
   function fireAlert(nick, text, el) {
     const body = splitBody(nick, text);
     const title = nick ? '🔔 ' + nick : '🔔 CHZZK 채팅 호출';
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      try {
-        // 다른 탭을 보고 있어도 놓치지 않도록: 겹치지 않는 태그 + 직접 닫을 때까지 유지 + 클릭 시 창 포커스
-        const n = new Notification(title, { body: body.slice(0, 120), tag: 'kw-' + Date.now() + '-' + Math.floor(Math.random() * 1e6), requireInteraction: true });
-        n.onclick = () => { try { window.focus(); } catch (e) {} try { n.close(); } catch (e2) {} };
-      } catch (e) {}
+    if (!muted()) {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try {
+          // 다른 탭을 보고 있어도 놓치지 않도록: 겹치지 않는 태그 + 직접 닫을 때까지 유지 + 클릭 시 창 포커스
+          const n = new Notification(title, { body: body.slice(0, 120), tag: 'kw-' + Date.now() + '-' + Math.floor(Math.random() * 1e6), requireInteraction: true });
+          n.onclick = () => { try { window.focus(); } catch (e) {} try { n.close(); } catch (e2) {} };
+        } catch (e) {}
+      }
+      showCallToast(nick, body);
+      playAlertSound();
     }
-    showCallToast(nick, body);
-    playAlertSound();
     highlightMessage(el);
   }
   // 백그라운드 탭에서도 소리가 나도록: 첫 제스처 때 오디오를 미리 깨워둠
@@ -474,7 +488,7 @@
     try { return new Date(t).toTimeString().slice(0, 8); } catch (e) { return ''; }
   }
   function recordHit(nick, text, kw, sig, el) {
-    if (!histOn()) return;
+    if (!histOn() && !dedupOn()) return;
     hitLog.unshift({ t: Date.now(), nick: nick || '', text: (text || '').slice(0, 120), kw, sig, el: el || null });
     while (hitLog.length > HITS_MAX) hitLog.pop();
     saveHits();
@@ -1045,7 +1059,9 @@
         <div id="__kw_set_body" style="flex:1;min-width:0;min-height:0;overflow-y:auto">
           <div id="__kw_set_general" style="display:${setTab === 'general' ? 'block' : 'none'}">
             <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_auto" ${localStorage.getItem(LS_AUTO) === '1' ? 'checked' : ''}> 방송 들어가면 묻지 않고 자동으로 켜기</label></div>
-            <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_hist" ${histOn() ? 'checked' : ''}> 불린 대화 목록 별도 표시 + 재알림 방지 (클릭 이동)</label></div>
+            <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_hist" ${histOn() ? 'checked' : ''}> 불린 대화 목록 별도 표시 (클릭 이동)</label></div>
+            <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_dedup" ${dedupOn() ? 'checked' : ''}> 이미 울린 대화 재알림 방지</label></div>
+            <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_mute" ${muted() ? 'checked' : ''}> 알람 끄기 (감지·기록은 유지)</label></div>
             <div class="__kw_lbl">같은 호출 다시 울리기까지 (분, 0이면 항상 울림)</div>
             <input class="__kw_in" id="__kw_redup" type="number" min="0" max="120" step="1" style="width:80px" value="${redupMin()}">
           </div>
@@ -1102,6 +1118,13 @@
       try { localStorage.setItem(LS_HIST, e.target.checked ? '1' : '0'); } catch (err) {}
       applyHistVisibility();
       renderHitsList();
+    };
+    setPanel.querySelector('#__kw_dedup').onchange = (e) => {
+      try { localStorage.setItem(LS_DEDUP, e.target.checked ? '1' : '0'); } catch (err) {}
+    };
+    setPanel.querySelector('#__kw_mute').onchange = (e) => {
+      try { localStorage.setItem(LS_MUTE, e.target.checked ? '1' : '0'); } catch (err) {}
+      dlog('mute', e.target.checked);
     };
     setPanel.querySelector('#__kw_redup').onchange = (e) => {
       let v = parseFloat(e.target.value);
