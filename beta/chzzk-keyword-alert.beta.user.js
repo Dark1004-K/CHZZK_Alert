@@ -1,15 +1,15 @@
 // ==UserScript==
-// @name         CHZZK 채팅 호출 알림 (Keyword Alert)
+// @name         CHZZK 채팅 호출 알림 (Beta)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8_beta13
+// @version      2.8-beta13
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
 // @match        https://chzzk.naver.com/live/*
 // @match        https://chzzk.naver.com/0a3deecf0fa1652445e3c97bc118272e*
 // @run-at       document-start
 // @grant        none
-// @downloadURL  https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.v2.8_beta13.user.js
-// @updateURL    https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.v2.8_beta13.user.js
+// @downloadURL  https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js
+// @updateURL    https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js
 // ==/UserScript==
 
 (function () {
@@ -57,7 +57,7 @@
   }
 
   // ---------- TEST1 진단 로그 (콘솔 입력 없이 보기용, 10s 하트비트) ----------
-  const KW_TEST_TAG = '[KW-2.8B13]';
+  const KW_TEST_TAG = '[KW-BETA]';
   function dlog(...a) { try { console.log(KW_TEST_TAG, ...a); } catch (e) {} }
   function domMsgCount() {
     try { return document.querySelectorAll('[class*="chatting_message"]').length; }
