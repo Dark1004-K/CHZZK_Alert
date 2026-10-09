@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '2.8-beta55';
+const SCRIPT_VERSION = '2.8-beta56';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -35,7 +35,7 @@ const muted = () => { try { return localStorage.getItem(LS_MUTE) === '1'; } catc
 const autoOn = () => { try { return localStorage.getItem(LS_AUTO) !== '0'; } catch (e) { return true; } }; // 기본 켜짐
 const LS_DROPS = '__kw_drops'; // 드롭스 창 표시 (기본 켜짐)
 const dropsOn = () => { try { return localStorage.getItem(LS_DROPS) !== '0'; } catch (e) { return true; } };
-const LS_REDUP = '__kw_redup_sec'; // 같은 호출 재알림 간격 (초, 기본 300, 0이면 항상 울림)
+const LS_REDUP = '__kw_redup_sec'; // 같은 호출 재알림 간격 (초, 기본 5, 0이면 항상 울림)
 const LS_REDUP_OLD = '__kw_redup_min'; // 이전 버전(분 단위) 값은 초로 환산해 물려받음
 function redupSec() {
   try {
@@ -44,7 +44,7 @@ function redupSec() {
     const o = parseFloat(localStorage.getItem(LS_REDUP_OLD));
     if (isFinite(o) && o >= 0 && o <= 120) return o * 60;
   } catch (e) {}
-  return 300;
+  return 5;
 }
 const redupMs = () => redupSec() * 1000;
 const LS_HITS_CID = '__kw_hits_cid'; // 불린 대화가 속한 채널 (다른 채널이면 초기화)
