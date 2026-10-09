@@ -334,6 +334,11 @@ function scheduleStatsUpdate() {
   });
 }
 
+// 이미 목록/기억에 있는 호출이 DOM에 다시 나타났을 때: 맨 아래(새 메시지 자리)에 붙은 게 아니면 스크롤 백필·재렌더로 본다.
+// (위로 스크롤하면 채팅이 옛 메시지를 위쪽에 다시 그리는데, 이걸 새 호출로 오인해 다시 울리던 버그)
+function domRepeatBlocked(sig, el) {
+  try { return alreadyListed(sig) && !!el.nextElementSibling; } catch (e) { return false; }
+}
 function scanSingle(el) {
   if (!(el instanceof HTMLElement)) return false;
   if (seen.has(el)) return false;
@@ -356,6 +361,7 @@ function scanSingle(el) {
       const sig = hitSig(text) + '|' + kt;
       // 기록에 있는 건 경로/시점 불문 재알림 생략 (스크롤 백필·접힘 리렌더·WS 리플레이 대응)
       if (histSuppressed(sig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kl })); break; }
+      if (domRepeatBlocked(sig, el)) { dlog('DUP-scroll-skip', JSON.stringify({ kw: kl })); break; }
       if (!takeHit(sig)) { dlog('DUP-dom-skip', JSON.stringify({ kw: kl })); break; }
       if (isQuietNow()) { // 다시 그려진 옛 채팅 등: 울리지 않고, 목록에 같은 내용이 없을 때만 추가
         if (!alreadyListed(sig)) { hits++; recordHit(senderName, text, kl, sig, el); dlog('HIT-quiet-dom', JSON.stringify({ kw: kl })); }
@@ -381,6 +387,7 @@ function scanSingle(el) {
     if (inToken) {
       const sig = hitSig(text) + '|' + kt;
       if (histSuppressed(sig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kt })); break; }
+      if (domRepeatBlocked(sig, el)) { dlog('DUP-scroll-skip', JSON.stringify({ kw: kt })); break; }
       if (!takeHit(sig)) { dlog('DUP-dom-skip', JSON.stringify({ kw: kt })); break; }
       if (isQuietNow()) {
         if (!alreadyListed(sig)) { hits++; recordHit(senderName, text, kt, sig, el); dlog('HIT-quiet-dom', JSON.stringify({ kw: kt })); }
