@@ -301,7 +301,7 @@ function showReloadPopup(installWin) {
   box.id = '__kw_upd';
   box.style.cssText = 'position:fixed;top:28%;left:50%;transform:translateX(-50%);z-index:2147483647;background:rgba(20,20,24,.97);color:#fff;font:13px sans-serif;padding:16px 18px;border-radius:12px;border:2px solid #1f6feb;box-shadow:0 8px 28px rgba(0,0,0,.6);max-width:340px;text-align:left';
   box.innerHTML = '<div style="font-size:14px"><b>🔄 업데이트 설치 후 새로고침</b></div>' +
-    '<div style="font-size:12px;color:#bbb;margin:8px 0 10px;line-height:1.5">새로 열린 Tampermonkey 창에서 <b>설치/업데이트</b> 버튼을 눌러 주세요.<br>설치 창이 닫히면 자동으로 새로고침하고, 아니면 아래 버튼을 누르세요.</div>' +
+    '<div style="font-size:12px;color:#bbb;margin:8px 0 10px;line-height:1.5">새로 열린 Tampermonkey 창에서 <b>재설치/업데이트</b>를 누르세요<br>이후 화면이 갱신되면 알람 초기화가 일어날 수 있습니다</div>' +
     '<button class="__kw_b" id="__kw_upd_go" style="background:#1f6feb;color:#fff">새로고침</button> ' +
     '<button class="__kw_b" id="__kw_upd_x" style="background:#444;color:#fff">나중에</button>' +
     '<div id="__kw_upd_msg" style="font-size:12px;color:#ffd400;margin-top:8px"></div>';
