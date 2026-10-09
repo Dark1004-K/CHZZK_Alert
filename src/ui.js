@@ -58,16 +58,26 @@ let setOpen = false;
 try { setOpen = localStorage.getItem(LS_SET) === '1'; } catch (e) {}
 let setTab = 'general';
 try { const st = localStorage.getItem(LS_TAB); if (st === 'words' || st === 'general' || st === 'ext' || st === 'about') setTab = st; } catch (e) {}
+// 창 투명도: 0~90%만 허용 (100%면 창이 안 보여서 되돌릴 수 없음). 앱 창 전체(#__kw_stack)에 적용.
+const LS_OPACITY = '__kw_transparency';
+function getTransparency() {
+  try { const v = parseInt(localStorage.getItem(LS_OPACITY), 10); if (isFinite(v)) return Math.max(0, Math.min(90, v)); } catch (e) {}
+  return 0;
+}
+function applyOpacity() {
+  try { if (stackEl) stackEl.style.opacity = String((100 - getTransparency()) / 100); } catch (e) {}
+}
 function ensureStack() {
   if (stackEl && stackEl.isConnected) return stackEl;
   let ex = null;
   try { ex = document.getElementById('__kw_stack'); } catch (e) {}
-  if (ex) { stackEl = ex; setStackWidth(curWidth); return ex; }
+  if (ex) { stackEl = ex; setStackWidth(curWidth); applyOpacity(); return ex; }
   const s = document.createElement('div');
   s.id = '__kw_stack';
   document.body.appendChild(s);
   stackEl = s;
   setStackWidth(curWidth);
+  applyOpacity();
   return s;
 }
 function ensureMidrow() {
@@ -328,8 +338,11 @@ function extOptHtml(p) {
     if (o.type === 'number') return `<div>${lb} <input class="__kw_in __kw_popt" type="number" ${at} min="${Number(o.min) || 0}" max="${Number(o.max) || 999}" step="1" style="width:60px" value="${escapeHtml(String(v))}"></div>`;
     if (o.type === 'multi') {
       const sel = Array.isArray(v) ? v : [];
-      const boxes = (o.choices || []).map((c) => `<label style="cursor:pointer;white-space:nowrap"><input type="checkbox" class="__kw_popt_m" ${at} data-val="${escapeHtml(c)}" ${sel.includes(c) ? 'checked' : ''}> ${escapeHtml(c)}</label>`).join('');
-      return `<div>${lb}<div style="display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:2px">${boxes}</div></div>`;
+      const box = (c) => `<label style="cursor:pointer;white-space:nowrap"><input type="checkbox" class="__kw_popt_m" ${at} data-val="${escapeHtml(c)}" ${sel.includes(c) ? 'checked' : ''}> ${escapeHtml(c)}</label>`;
+      // groups가 있으면 묶음마다 한 줄로 그린다 (예: 아침의 나라 우두머리 4종은 같은 줄)
+      const groups = Array.isArray(o.groups) && o.groups.length ? o.groups : [o.choices || []];
+      const rowsHtml = groups.map((g) => `<div style="display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:2px">${g.map(box).join('')}</div>`).join('');
+      return `<div>${lb}${rowsHtml}</div>`;
     }
     return '';
   }).join('');
@@ -339,7 +352,11 @@ function extListHtml() {
   if (limitedMode) return '<div class="__kw_lbl" style="color:#ffd400">사용자 스크립트 허용이 꺼져 있어 확장을 쓸 수 없습니다</div>';
   if (pluginList === null) return '<div class="__kw_lbl">목록을 불러오는 중...</div>';
   if (!pluginList.length) return '<div class="__kw_lbl">등록된 확장이 없습니다</div>';
-  return pluginList.map((p) => `<div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" ${pluginIsOn(p) ? 'checked' : ''}> ${escapeHtml(p.name || p.id)}</label>${p.desc ? ` <span style="color:#888">${escapeHtml(p.desc)}</span>` : ''}</div>${extOptHtml(p)}`).join('');
+  return pluginList.map((p) => {
+    const blocked = !!(p.noOwner && isOwner()); // 방장은 이 확장을 켤 수 없다
+    const note = blocked ? ' <span style="color:#ffd400">(방장은 사용할 수 없음)</span>' : (p.desc ? ` <span style="color:#888">${escapeHtml(p.desc)}</span>` : '');
+    return `<div class="__kw_lbl"><label style="cursor:${blocked ? 'default' : 'pointer'}${blocked ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${note}</div>${extOptHtml(p)}`;
+  }).join('');
 }
 // 업데이트 설치(Tampermonkey 설치 창) 후 새로고침 안내 팝업.
 // 설치 완료 여부는 직접 알 수 없어서, 설치 창이 닫히면 자동으로, 아니면 버튼으로 새로고침한다.
@@ -407,6 +424,8 @@ function renderSettings() {
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_hist" ${histOn() ? 'checked' : ''}> 불린 대화 목록 별도 표시 (클릭 이동)</label></div>
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_drops" ${dropsOn() ? 'checked' : ''}> 드롭스 보기 (진행 중인 드롭스가 있을 때만 표시)</label></div>
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_mute" ${muted() ? 'checked' : ''}> 알람 끄기 (감지·기록은 유지)</label></div>
+          <div class="__kw_lbl">창 투명도 <b id="__kw_op_val">${getTransparency()}%</b> <span style="color:#888">(0~90%)</span></div>
+          <input type="range" id="__kw_op" min="0" max="90" step="5" value="${getTransparency()}" style="width:220px;cursor:pointer">
           <div class="__kw_lbl">알림 소리 <select class="__kw_in" id="__kw_snd"><option value="dingdong">딩동</option><option value="custom">내 파일</option></select> <button class="__kw_b" id="__kw_snd_test" style="background:#444;color:#fff">들어보기</button></div>
           <div class="__kw_lbl" id="__kw_snd_row" style="display:${sndMode() === 'custom' ? 'block' : 'none'}"><input type="file" id="__kw_snd_file" accept="audio/*" style="max-width:150px;font-size:11px"> <span id="__kw_snd_name" style="color:#aaa"></span></div>
           <div class="__kw_lbl" id="__kw_snd_msg" style="color:#ffd400"></div>
@@ -515,6 +534,14 @@ function renderSettings() {
       pluginOptSet(c.dataset.pid, c.dataset.key, all.filter((x) => x.checked).map((x) => x.dataset.val));
     };
   });
+  const opInput = setPanel.querySelector('#__kw_op');
+  if (opInput) opInput.oninput = () => {
+    const v = Math.max(0, Math.min(90, parseInt(opInput.value, 10) || 0)); // 최대 90%
+    try { localStorage.setItem(LS_OPACITY, String(v)); } catch (e) {}
+    const lbl = setPanel.querySelector('#__kw_op_val');
+    if (lbl) lbl.textContent = v + '%';
+    applyOpacity();
+  };
   setPanel.querySelector('#__kw_drops').onchange = (e) => {
     try { localStorage.setItem(LS_DROPS, e.target.checked ? '1' : '0'); } catch (err) {}
     if (e.target.checked) startDrops(); else stopDrops();
@@ -648,7 +675,7 @@ let dragListenerAdded = false;
 function setupDragToAdd() {
   if (dragListenerAdded) return;
   dragListenerAdded = true;
-  document.addEventListener('mouseup', () => {
+  document.addEventListener('mouseup', (ev) => {
     if (!isLivePage()) return; // 이 채널의 라이브 페이지가 아니면 아무 것도 하지 않음
     let sel = document.getElementById('__kw_sel');
     if (!sel) {
@@ -658,6 +685,9 @@ function setupDragToAdd() {
     }
     const s = window.getSelection();
     const text = s ? s.toString().trim() : '';
+    // 우리 앱 창 안에서 끌었으면 아무 것도 띄우지 않는다
+    const inApp = (n) => { try { const el = n && (n.nodeType === 1 ? n : n.parentElement); return !!(el && el.closest && el.closest('#__kw_stack,#__kw_upd,#__kw_ask,#__kw_box,#__kw_sel')); } catch (e) { return false; } };
+    if (inApp(ev && ev.target) || (s && (inApp(s.anchorNode) || inApp(s.focusNode)))) { sel.style.display = 'none'; return; }
     if (!text || text.length > 30 || text.includes('\n')) { sel.style.display = 'none'; return; }
     const range = s.getRangeAt(0);
     const rect = range.getBoundingClientRect();

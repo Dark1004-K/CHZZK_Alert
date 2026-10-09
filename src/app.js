@@ -47,6 +47,7 @@ function checkRoute() {
         allowEntry = null;
         try { stop(); } catch (e) {}
         hitLog = []; hitTimes.clear(); saveHits(); renderHitsList(); // 다른 채널: 불린 대화 초기화
+        try { syncPlugins(); } catch (e) {}
       }
       buildUi();
     } else {
@@ -70,6 +71,7 @@ function pluginStateMap() {
   try { return JSON.parse(localStorage.getItem(LS_PLUG)) || {}; } catch (e) { return {}; }
 }
 function pluginIsOn(p) {
+  if (p.noOwner && isOwner()) return false; // 방장이면 항상 꺼짐 (사용자 선택보다 우선)
   const m = pluginStateMap();
   return p.id in m ? !!m[p.id] : p.on !== false;
 }
@@ -96,6 +98,11 @@ function pluginOptSet(id, key, v) {
   const m = pluginOptMap();
   (m[id] = m[id] || {})[key] = v;
   try { localStorage.setItem(LS_PLUGOPT, JSON.stringify(m)); } catch (e) {}
+}
+// 켜져 있는데 아직 안 불러온 확장을 불러온다 (채널 이동으로 방장 여부가 바뀐 경우 등)
+function syncPlugins() {
+  if (limitedMode || !pluginList) return;
+  pluginList.forEach((p) => { if (pluginIsOn(p) && !pluginLoaded[p.id]) injectPlugin(p); });
 }
 function setPluginOn(p, on) {
   const m = pluginStateMap();
@@ -165,10 +172,16 @@ function injectPlugin(p) {
 
 // 치지직 로그인이 안 되어 있으면 앱을 실행하지 않는다 (확인 실패도 미실행, 1분마다 재확인)
 let appStarted = false;
+let myUserIdHash = ''; // 로그인한 내 치지직 ID (채널 ID와 같으면 그 방송의 방장)
+const isOwner = () => !!myUserIdHash && myUserIdHash === pageChannelId();
 function checkLogin() {
   return fetch('https://comm-api.game.naver.com/nng_main/v1/user/getUserStatus', { credentials: 'include' })
     .then((r) => r.json())
-    .then((j) => !!(j && j.content && j.content.loggedIn))
+    .then((j) => {
+      const c = j && j.content;
+      myUserIdHash = c && c.loggedIn && c.userIdHash ? String(c.userIdHash).toLowerCase() : '';
+      return !!(c && c.loggedIn);
+    })
     .catch(() => false);
 }
 function init() {

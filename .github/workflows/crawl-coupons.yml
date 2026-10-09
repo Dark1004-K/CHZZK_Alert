@@ -1,0 +1,33 @@
+name: crawl-coupons
+
+# 검은사막 "쿠폰 모두 모아보기" 페이지를 주기적으로 읽어서 coupons.json을 갱신한다.
+# (브라우저에서는 CORS 때문에 직접 읽을 수 없어서, 앱은 이 파일을 받아간다)
+on:
+  schedule:
+    - cron: '17 */3 * * *' # 3시간마다
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Crawl coupons
+        run: node scripts/crawl-coupons.js
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- coupons.json; then
+            echo "no changes"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add coupons.json
+            git commit -m "chore: update coupons.json"
+            git push
+          fi

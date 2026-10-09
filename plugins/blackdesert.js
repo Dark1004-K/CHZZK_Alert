@@ -93,7 +93,8 @@
     if (drops && drops.parentNode === stack) {
       if (nextEl.previousSibling !== drops) stack.insertBefore(nextEl, drops.nextSibling);
     } else if (hist && hist.parentNode === stack) {
-      if (nextEl.nextSibling !== hist) stack.insertBefore(nextEl, hist);
+      // 불린 대화 창 앞쪽에만 있으면 된다 (그 사이에 쿠폰 창이 끼어도 괜찮음)
+      if (!nextEl.parentNode || !(nextEl.compareDocumentPosition(hist) & 4)) stack.insertBefore(nextEl, hist);
     } else if (!nextEl.parentNode) stack.appendChild(nextEl);
     const when = new Date(next.t + KST);
     const days = Math.floor((next.t + KST) / DAY) - Math.floor((now + KST) / DAY);
@@ -156,11 +157,121 @@
   function clearAll() {
     for (const t of [...items.keys()]) removeItem(t);
   }
+  // ---------- 쿠폰 모아보기 (#__kw_cpn) ----------
+  // 검은사막 사이트는 다른 사이트(치지직 페이지)에서 직접 읽을 수 없어서(CORS), 저장소의 coupons.json을 받아온다.
+  // coupons.json은 scripts/crawl-coupons.js가 "쿠폰 모두 모아보기" 페이지를 읽어 갱신한다.
+  // 앱이 켜질 때 한 번 받고, 창의 새로고침 버튼을 누르면 다시 받는다.
+  const CPN_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/coupons.json';
+  const LS_CPN_FOLD = '__kw_cpn_fold';
+  let cpnEl = null;
+  let cpnData = null; // 마지막으로 받은 coupons.json
+  let cpnState = 'idle'; // idle | loading | ok | err
+  let cpnSig = ''; // 마지막으로 그린 내용의 서명 (바뀔 때만 다시 그림)
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function cpnFolded() { try { return localStorage.getItem(LS_CPN_FOLD) === '1'; } catch (e) { return false; } }
+  function cpnVisible(now) {
+    const l = cpnData && Array.isArray(cpnData.coupons) ? cpnData.coupons : [];
+    return l.filter((c) => c && c.code && (!c.expiresAt || c.expiresAt > now)); // 기간이 지난 쿠폰은 숨김
+  }
+  function removeCoupons() {
+    if (cpnEl) { try { cpnEl.remove(); } catch (e) {} }
+    cpnEl = null;
+    cpnSig = '';
+  }
+  function loadCoupons() {
+    if (cpnState === 'loading') return;
+    cpnState = 'loading';
+    cpnSig = '';
+    fetch(CPN_URL + '?t=' + Date.now(), { cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('http'); return r.json(); })
+      .then((j) => { if (!j || !Array.isArray(j.coupons)) throw new Error('format'); cpnData = j; cpnState = 'ok'; })
+      .catch(() => { cpnState = cpnData ? 'ok' : 'err'; }) // 실패해도 이전에 받은 목록은 유지
+      .then(() => { cpnSig = ''; });
+  }
+  function copyText(text, done) {
+    const fallback = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done(true);
+      } catch (e) { done(false); }
+    };
+    try { navigator.clipboard.writeText(text).then(() => done(true), fallback); } catch (e) { fallback(); }
+  }
+  function renderCoupons(now) {
+    const list = cpnVisible(now);
+    const fold = cpnFolded();
+    const sig = [cpnState, fold ? 1 : 0, cpnData ? cpnData.updatedAt : 0, list.map((c) => c.code).join(',')].join('|');
+    if (sig === cpnSig && cpnEl && cpnEl.isConnected) return;
+    cpnSig = sig;
+    let h = '<div id="__kw_cpn_hd" style="display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer">' +
+      '<b style="font-size:12px">🎟 쿠폰 모아보기 <span style="color:#b784ff">(' + list.length + ')</span></b>' +
+      '<span><button id="__kw_cpn_rf" title="새로고침" style="border:0;background:transparent;color:#b784ff;cursor:pointer;font-size:15px;padding:0 4px">' + (cpnState === 'loading' ? '…' : '↻') + '</button>' +
+      '<span style="color:#aaa;font-size:11px">' + (fold ? '▸' : '▾') + '</span></span></div>';
+    if (!fold) {
+      h += '<div style="max-height:190px;overflow-y:auto;margin-top:2px">';
+      if (cpnState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">쿠폰 목록을 받지 못했습니다. 새로고침(↻)을 눌러 보세요.</div>';
+      else if (cpnState === 'idle' || (cpnState === 'loading' && !cpnData)) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
+      else if (!list.length) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">사용할 수 있는 쿠폰이 없습니다.</div>';
+      list.forEach((c) => {
+        h += '<div style="margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)">' +
+          '<div style="font-size:12px;font-weight:bold">' + esc(c.name || '쿠폰') + '</div>' +
+          '<div style="margin:2px 0"><code class="__kw_cpn_code" data-code="' + esc(c.code) + '" title="누르면 복사" style="cursor:pointer;background:#2a2433;color:#e6d8ff;padding:1px 6px;border-radius:5px;font-size:12px;user-select:text;word-break:break-all">' + esc(c.code) + '</code> <span style="color:#888;font-size:10px">눌러서 복사</span></div>' +
+          ((c.rewards && c.rewards.length) ? '<div style="font-size:11px;color:#ccc;line-height:1.35">' + c.rewards.map(esc).join(' · ') + '</div>' : '') +
+          (c.expires ? '<div style="font-size:11px;color:#b784ff;margin-top:1px">⏱ ' + esc(c.expires) + '</div>' : '') + '</div>';
+      });
+      if (cpnData && cpnData.updatedAt) {
+        const d = new Date(cpnData.updatedAt + KST);
+        const p2 = (n) => String(n).padStart(2, '0');
+        h += '<div style="font-size:10px;color:#777;margin-top:6px">목록 갱신 ' + (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + '</div>';
+      }
+      h += '</div>';
+    }
+    cpnEl.innerHTML = h;
+    const hd = cpnEl.querySelector('#__kw_cpn_hd');
+    if (hd) hd.onclick = (e) => {
+      if (e.target && e.target.id === '__kw_cpn_rf') return;
+      try { localStorage.setItem(LS_CPN_FOLD, cpnFolded() ? '0' : '1'); } catch (er) {}
+      cpnSig = '';
+    };
+    const rf = cpnEl.querySelector('#__kw_cpn_rf');
+    if (rf) rf.onclick = (e) => { e.stopPropagation(); loadCoupons(); };
+    cpnEl.querySelectorAll('.__kw_cpn_code').forEach((el) => {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const code = el.getAttribute('data-code');
+        copyText(code, (ok) => { el.textContent = ok ? '복사됨!' : code; if (ok) setTimeout(() => { cpnSig = ''; }, 900); });
+      };
+    });
+  }
+  function updateCoupons(now) {
+    const stack = document.getElementById('__kw_stack');
+    const panel = document.getElementById('__kw_panel');
+    if (!opt('coupons', true) || !stack || !panel || !panel.classList.contains('show')) { removeCoupons(); return; }
+    if (cpnState === 'idle') loadCoupons(); // 처음 켜질 때 한 번 받아온다
+    if (!cpnEl || !cpnEl.isConnected) {
+      cpnEl = document.createElement('div');
+      cpnEl.id = '__kw_cpn';
+      cpnEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #b784ff';
+      cpnSig = '';
+    }
+    // 위치: 다음 우두머리 창 바로 아래 → 없으면 드롭스 창 바로 아래 → 없으면 불린 대화 창 바로 위
+    const anchor = document.getElementById('__kw_bdop') || document.getElementById('__kw_dropsp');
+    const hist = document.getElementById('__kw_histp');
+    if (anchor && anchor.parentNode === stack) {
+      if (cpnEl.previousSibling !== anchor) stack.insertBefore(cpnEl, anchor.nextSibling);
+    } else if (hist && hist.parentNode === stack) {
+      if (cpnEl.nextSibling !== hist) stack.insertBefore(cpnEl, hist);
+    } else if (!cpnEl.parentNode) stack.appendChild(cpnEl);
+    renderCoupons(now);
+  }
+
   function tick() {
     try {
-      if (!KW.enabled(ID)) { clearAll(); removeNext(); return; }
+      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); return; }
       const now = Date.now();
       updateNext(now);
+      updateCoupons(now);
       const lead = Math.max(1, Math.min(30, Number(opt('lead', 3)) || 3)) * 60000;
       const sel = opt('bosses', null);
       const active = new Set();
