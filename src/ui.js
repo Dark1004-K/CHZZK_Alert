@@ -126,6 +126,14 @@ function attachHistHandlers() {
   if (c) c.onclick = () => {
     hitLog = []; saveHits(); renderHitsList(); dlog('hits-cleared');
   };
+  const x = histPanel.querySelector('#__kw_hits_close');
+  if (x) x.onclick = () => { // X = 설정의 "불린 대화 목록 별도 표시" 체크를 끈 것과 같음
+    try { localStorage.setItem(LS_HIST, '0'); } catch (e) {}
+    applyHistVisibility();
+    renderHitsList();
+    refreshSettingsIfOpen();
+    dlog('hist-closed');
+  };
   const b = histPanel.querySelector('#__kw_hits');
   if (b) b.onclick = (ev) => {
     const it = ev.target && ev.target.closest ? ev.target.closest('.__kw_hit') : null;
@@ -149,7 +157,7 @@ function ensureHistPanel() {
   }
   const d = document.createElement('div');
   d.id = '__kw_histp';
-  d.innerHTML = `<div id="__kw_hgrip" title="드래그로 높이 조절"></div><div id="__kw_hist_head"><span>🔔 불린 대화 <b id="__kw_hits_count">0</b></span><button class="__kw_ic" id="__kw_hits_clear" title="지우기">${IC.trash}</button></div><div id="__kw_hits"></div>`;
+  d.innerHTML = `<div id="__kw_hgrip" title="드래그로 높이 조절"></div><div id="__kw_hist_head"><span>🔔 불린 대화 <b id="__kw_hits_count">0</b></span><span style="display:inline-flex;align-items:center;gap:2px"><button class="__kw_ic" id="__kw_hits_clear" title="지우기">${IC.trash}</button><button class="__kw_ic" id="__kw_hits_close" title="닫기 (설정 > 일반설정에서 다시 켤 수 있음)" style="color:#ffd400">${IC.close}</button></span></div><div id="__kw_hits"></div>`;
   stackEl.appendChild(d);
   histPanel = d;
   histBox = d.querySelector('#__kw_hits');
@@ -196,6 +204,7 @@ const IC = {
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l.9 12.1a1 1 0 0 0 1 .9h7.2a1 1 0 0 0 1-.9L17.5 7M10 11v6M14 11v6"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 3v5h-5"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>',
   house: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7M6 9.5V20h12V9.5"/></svg>',
   box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5V8zM3 8l9 5 9-5M12 13v8"/></svg>',
@@ -414,6 +423,7 @@ function showReloadPopup(installWin) {
 function renderSettings() {
   if (!setPanel) return;
   setPanel.innerHTML = `
+    <button class="__kw_ic" id="__kw_set_close" title="설정 닫기" style="position:absolute;top:6px;right:8px;z-index:2;color:#aaaab9">${IC.close}</button>
     <div style="display:flex;gap:14px;height:100%">
       <div class="__kw_tabs">
         <button class="__kw_tab${setTab === 'general' ? ' on' : ''}" data-tab="general">일반설정</button>
@@ -421,7 +431,7 @@ function renderSettings() {
         <button class="__kw_tab${setTab === 'ext' ? ' on' : ''}" data-tab="ext">확장</button>
         <button class="__kw_tab${setTab === 'about' ? ' on' : ''}" data-tab="about">앱 정보</button>
       </div>
-      <div id="__kw_set_body" style="flex:1;min-width:0;min-height:0;overflow-y:auto;display:flex;flex-direction:column">
+      <div id="__kw_set_body" style="flex:1;min-width:0;min-height:0;overflow-y:auto;display:flex;flex-direction:column;padding-right:22px">
         <div id="__kw_set_general" style="display:${setTab === 'general' ? 'block' : 'none'}">
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_auto" ${autoOn() ? 'checked' : ''}> 방송 들어가면 묻지 않고 자동으로 켜기</label></div>
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_hist" ${histOn() ? 'checked' : ''}> 불린 대화 목록 별도 표시 (클릭 이동)</label></div>
@@ -472,6 +482,11 @@ function renderSettings() {
       </div>
     </div>`;
 
+  setPanel.querySelector('#__kw_set_close').onclick = () => { // X = 설정 창 닫기 (⚙ 버튼과 같음)
+    setOpen = false;
+    try { localStorage.setItem(LS_SET, '0'); } catch (e) {}
+    applySetVisibility();
+  };
   setPanel.querySelectorAll('.__kw_tab').forEach((t) => {
     t.onclick = () => {
       setTab = t.dataset.tab;
@@ -734,6 +749,10 @@ function saveJoinAt() {
   if (!dropsCid) return;
   try { localStorage.setItem(LS_DJOIN, JSON.stringify({ cid: dropsCid, joinAt: dropsJoinAt, seen: Date.now(), done: [...dropsDone] })); } catch (e) {}
 }
+// 창의 X 버튼으로 옵션을 껐을 때, 열려 있는 설정 화면의 체크 상태도 맞춘다
+function refreshSettingsIfOpen() {
+  try { if (setPanel && setPanel.isConnected) renderSettings(); } catch (e) {}
+}
 // 새로고침 버튼 상태(눌렀는지 알 수 있게): 도는 중 / 완료 체크 / 마지막 갱신 시각 툴팁
 let dropsSpinning = false, dropsFlashUntil = 0, dropsRefreshedAt = 0;
 function refreshTitle(at) {
@@ -788,7 +807,13 @@ function renderDrops() {
   dropsCurNo = cur ? cur.rewardNo : 'done';
   const title = r ? r.title : dropsInfo.title;
   const img = r && r.imageUrl ? `<img src="${escapeHtml(r.imageUrl)}" alt="">` : '';
-  dropsPanel.innerHTML = `<div class="__kw_dr">${img}<div class="__kw_dr_b"><div class="__kw_dr_t" title="${escapeHtml(dropsInfo.title || '')}">🎁 ${escapeHtml(title || '드롭스')}</div><div class="__kw_dr_s">${dropsSubHtml(elapsed, cur)}</div></div><button class="__kw_ic${dropsSpinning ? ' __kw_spin' : ''}" id="__kw_dr_refresh" title="${escapeHtml(refreshTitle(dropsRefreshedAt))}" style="color:${Date.now() < dropsFlashUntil ? '#7dffb3' : '#ff9f1a'}">${Date.now() < dropsFlashUntil ? IC.check : IC.refresh}</button><button class="__kw_ic" id="__kw_dr_vault" title="보관함" style="color:#ff9f1a">${IC.box}</button></div>`;
+  dropsPanel.innerHTML = `<div class="__kw_dr">${img}<div class="__kw_dr_b"><div class="__kw_dr_t" title="${escapeHtml(dropsInfo.title || '')}">🎁 ${escapeHtml(title || '드롭스')}</div><div class="__kw_dr_s">${dropsSubHtml(elapsed, cur)}</div></div><button class="__kw_ic${dropsSpinning ? ' __kw_spin' : ''}" id="__kw_dr_refresh" title="${escapeHtml(refreshTitle(dropsRefreshedAt))}" style="color:${Date.now() < dropsFlashUntil ? '#7dffb3' : '#ff9f1a'}">${Date.now() < dropsFlashUntil ? IC.check : IC.refresh}</button><button class="__kw_ic" id="__kw_dr_vault" title="보관함" style="color:#ff9f1a">${IC.box}</button><button class="__kw_ic" id="__kw_dr_close" title="닫기 (설정 > 일반설정 > 드롭스 보기에서 다시 켤 수 있음)" style="color:#ff9f1a">${IC.close}</button></div>`;
+  dropsPanel.querySelector('#__kw_dr_close').onclick = () => { // X = 설정의 "드롭스 보기" 체크를 끈 것과 같음
+    try { localStorage.setItem(LS_DROPS, '0'); } catch (e) {}
+    stopDrops();
+    refreshSettingsIfOpen();
+    dlog('drops-closed');
+  };
   const rf = dropsPanel.querySelector('#__kw_dr_refresh');
   rf.onclick = () => { // 드롭스 정보와 서버 시청 시간을 바로 다시 가져옴
     if (dropsSpinning) return; // 이미 가져오는 중이면 연타 무시

@@ -28,6 +28,12 @@
           "default": true
         },
         {
+          "key": "nextBoss",
+          "label": "다음 우두머리 창 표시",
+          "type": "bool",
+          "default": true
+        },
+        {
           "key": "coupons",
           "label": "쿠폰 모아보기 (창 표시)",
           "type": "bool",

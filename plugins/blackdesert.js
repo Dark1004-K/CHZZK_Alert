@@ -101,7 +101,7 @@
   function updateNext(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
-    if (!stack || !panel || !panel.classList.contains('show')) { removeNext(); return; }
+    if (!opt('nextBoss', true) || !stack || !panel || !panel.classList.contains('show')) { removeNext(); return; }
     const sel = opt('bosses', null);
     let next = null;
     for (const o of occurrences(now, 8).sort((a, b) => a.t - b.t)) {
@@ -113,7 +113,10 @@
     if (!nextEl || !nextEl.isConnected) {
       nextEl = document.createElement('div');
       nextEl.id = '__kw_bdop';
-      nextEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #3b9eff';
+      nextEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #3b9eff;position:relative;padding-right:30px';
+      nextEl.onclick = (e) => { // X 버튼 (내용을 매초 다시 그리므로 창에 한 번만 달아 둔다)
+        if (e.target && e.target.closest && e.target.closest('#__kw_bdop_x')) { turnOff('nextBoss'); removeNext(); }
+      };
     }
     // 위치: 드롭스 창이 있으면 그 바로 아래, 없으면 불린 대화 창 바로 위
     const drops = document.getElementById('__kw_dropsp');
@@ -128,7 +131,7 @@
     const days = Math.floor((next.t + KST) / DAY) - Math.floor((now + KST) / DAY);
     const dayTxt = days === 0 ? '' : days === 1 ? '내일 ' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + '요일 ';
     nextEl.innerHTML = '<div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⚔ 다음 우두머리 · <b>' + next.bosses.join(' / ') + '</b></div>' +
-      '<div style="font-size:11px;color:#3b9eff;margin-top:2px">' + dayTxt + next.hhmm + ' · ' + fmtLong(next.t - now) + ' 후</div>';
+      '<div style="font-size:11px;color:#3b9eff;margin-top:2px">' + dayTxt + next.hhmm + ' · ' + fmtLong(next.t - now) + ' 후</div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:6px;right:8px');
   }
 
   let box = null;
@@ -204,6 +207,9 @@
   const ICON_DONE = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#7dffb3" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   const ICON_FAIL = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#ff7b7b" stroke-width="2.6" stroke-linecap="round"><path d="M12 6v8M12 18v.5"/></svg>';
   const pad2 = (n) => String(n).padStart(2, '0');
+  // 창 오른쪽 위 X 버튼 (창 색에 맞춤). 누르면 설정 > 확장의 해당 옵션을 끈다.
+  const xBtn = (id, color, style) => '<button id="' + id + '" title="닫기 (설정 > 확장에서 다시 켤 수 있음)" style="border:0;background:transparent;color:' + color + ';cursor:pointer;padding:2px;display:inline-flex;align-items:center;' + (style || '') + '"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+  const turnOff = (key) => { try { if (typeof KW.setOption === 'function') KW.setOption(ID, key, false); } catch (e) {} };
   const ICON_COPY = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
   const ICON_OK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#7dffb3" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -257,7 +263,7 @@
     let h = '<div id="__kw_cpn_hd" style="display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer">' +
       '<b style="font-size:12px">🎟 쿠폰 모아보기 <span style="color:#b784ff">(' + list.length + ')</span></b>' +
       '<span><button id="__kw_cpn_rf" class="' + (busy ? '__kw_ic __kw_spin' : '') + '" title="' + (cpnFetchedAt ? '새로고침 (마지막 갱신 ' + pad2(new Date(cpnFetchedAt).getHours()) + ':' + pad2(new Date(cpnFetchedAt).getMinutes()) + ':' + pad2(new Date(cpnFetchedAt).getSeconds()) + ')' : '새로고침') + '" style="border:0;background:transparent;color:#b784ff;cursor:pointer;padding:0 4px;display:inline-flex;align-items:center;vertical-align:middle">' + (busy ? ICON_REFRESH : flash ? (cpnFlashErr ? ICON_FAIL : ICON_DONE) : ICON_REFRESH) + '</button>' +
-      '<span style="color:#aaa;font-size:11px">' + (fold ? '▸' : '▾') + '</span></span></div>';
+      '<span style="color:#aaa;font-size:11px">' + (fold ? '▸' : '▾') + '</span> ' + xBtn('__kw_cpn_x', '#b784ff') + '</span></div>';
     if (!fold) {
       h += '<div class="__kw_sb_cpn" style="max-height:190px;overflow-y:auto;margin-top:2px">';
       if (cpnState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">쿠폰 목록을 받지 못했습니다. 새로고침(↻)을 눌러 보세요.</div>';
@@ -280,6 +286,7 @@
     cpnEl.innerHTML = h;
     const hd = cpnEl.querySelector('#__kw_cpn_hd');
     if (hd) hd.onclick = (e) => {
+      if (e.target && e.target.closest && e.target.closest('#__kw_cpn_x')) { turnOff('coupons'); removeCoupons(); return; }
       if (e.target && e.target.id === '__kw_cpn_rf') return;
       try { localStorage.setItem(LS_CPN_FOLD, cpnFolded() ? '0' : '1'); } catch (er) {}
       cpnSig = '';

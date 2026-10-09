@@ -123,6 +123,7 @@ try {
     toast(nick, body) { showCallToast(nick, body); },
     option(id, key) { return pluginOptGet(id, key); }, // 설정 > 확장에서 사용자가 고른 옵션 값
     enabled(id) { return pluginIdIsOn(id); }, // 설정 > 확장에서 켜져 있는지
+    setOption(id, key, v) { pluginOptSet(id, key, v); try { if (setPanel && setPanel.isConnected) renderSettings(); } catch (e) {} }, // 플러그인 창의 X 버튼이 옵션을 끌 때 (설정 화면도 갱신)
     sound() { playAlertSound(); }, // 설정 > 일반설정의 알림 소리 재생
     emit(evt, data) { kwEmit('ext:' + evt, data); }, // 플러그인끼리 이벤트 전달 (구독은 on('ext:이름'))
   };
