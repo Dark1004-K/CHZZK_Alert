@@ -5,9 +5,9 @@ let panel;
 let stackEl = null, histPanel = null, histBox = null, histCount = null;
 let midRowEl = null;
 let curWidth = 350;
-try { const wv = parseInt(localStorage.getItem(LS_W), 10); if (wv >= 240 && wv <= 600) curWidth = wv; } catch (e) {}
+try { const wv = parseInt(localStorage.getItem(LS_W), 10); if (wv >= 216 && wv <= 600) curWidth = wv; } catch (e) {}
 function setStackWidth(w) {
-  curWidth = Math.max(240, Math.min(600, Math.round(w)));
+  curWidth = Math.max(216, Math.min(600, Math.round(w)));
   if (stackEl) stackEl.style.width = curWidth + 'px';
 }
 let setPanel = null;
