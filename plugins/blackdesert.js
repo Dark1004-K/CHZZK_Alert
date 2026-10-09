@@ -83,10 +83,14 @@
       nextEl.id = '__kw_bdop';
       nextEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgba(20,20,24,.94);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #3b9eff';
     }
-    // 위치: 드롭스 창이 있으면 그 바로 아래, 없으면 감시 패널 줄 바로 아래
-    const anchor = document.getElementById('__kw_dropsp') || document.getElementById('__kw_midrow');
-    if (anchor && anchor.parentNode === stack && nextEl.previousSibling !== anchor) stack.insertBefore(nextEl, anchor.nextSibling);
-    else if (!nextEl.parentNode) stack.appendChild(nextEl);
+    // 위치: 드롭스 창이 있으면 그 바로 아래, 없으면 불린 대화 창 바로 위
+    const drops = document.getElementById('__kw_dropsp');
+    const hist = document.getElementById('__kw_histp');
+    if (drops && drops.parentNode === stack) {
+      if (nextEl.previousSibling !== drops) stack.insertBefore(nextEl, drops.nextSibling);
+    } else if (hist && hist.parentNode === stack) {
+      if (nextEl.nextSibling !== hist) stack.insertBefore(nextEl, hist);
+    } else if (!nextEl.parentNode) stack.appendChild(nextEl);
     const when = new Date(next.t + KST);
     const days = Math.floor((next.t + KST) / DAY) - Math.floor((now + KST) / DAY);
     const dayTxt = days === 0 ? '' : days === 1 ? '내일 ' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + '요일 ';
