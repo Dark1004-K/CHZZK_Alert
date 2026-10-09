@@ -334,10 +334,16 @@ function scheduleStatsUpdate() {
   });
 }
 
-// 이미 목록/기억에 있는 호출이 DOM에 다시 나타났을 때: 맨 아래(새 메시지 자리)에 붙은 게 아니면 스크롤 백필·재렌더로 본다.
-// (위로 스크롤하면 채팅이 옛 메시지를 위쪽에 다시 그리는데, 이걸 새 호출로 오인해 다시 울리던 버그)
+// 이미 목록/기억(최대 400개)에 있는 호출이 DOM에 다시 나타났을 때의 처리.
+// 채팅창은 보이는 일부만 DOM에 두고 스크롤하면 옛 메시지를 위/아래에 다시 그리므로, DOM에서 본 것만으로는 새 메시지인지 알 수 없다.
+// 실시간 새 메시지는 WS로 먼저 들어오므로, WS가 동작 중이면 기억에 있는 호출은 DOM 경로에서 항상 무시한다.
+// WS를 못 쓰는 경우(제한 모드 등)에만 맨 아래에 새로 붙은 것은 새 메시지로 인정한다.
 function domRepeatBlocked(sig, el) {
-  try { return alreadyListed(sig) && !!el.nextElementSibling; } catch (e) { return false; }
+  try {
+    if (!alreadyListed(sig)) return false;
+    if (limitedMode || !wsTracked) return !!el.nextElementSibling;
+    return true;
+  } catch (e) { return false; }
 }
 function scanSingle(el) {
   if (!(el instanceof HTMLElement)) return false;
