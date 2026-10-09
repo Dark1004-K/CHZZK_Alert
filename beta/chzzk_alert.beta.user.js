@@ -3,13 +3,13 @@
 // @namespace    https://chzzk.naver.com/
 // @version      2.8-beta31
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
-// @author       DarkAngel
+// @author       비류라미
 // @match        https://chzzk.naver.com/live/*
 // @match        https://chzzk.naver.com/0a3deecf0fa1652445e3c97bc118272e*
 // @run-at       document-start
 // @grant        none
-// @downloadURL  https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js
-// @updateURL    https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js
+// @downloadURL  https://github.com/Dark1004-K/CHZZK_Alert/blob/main/beta/chzzk_alert.beta.user.js
+// @updateURL    https://github.com/Dark1004-K/CHZZK_Alert/blob/main/beta/chzzk_alert.beta.user.js
 // ==/UserScript==
 
 (function () {
@@ -27,8 +27,8 @@
   const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
   const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
   // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-  const SCRIPT_VERSION = '2.8-beta30';
-  const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js';
+  const SCRIPT_VERSION = '2.8-beta31';
+  const UPDATE_URL = 'https://github.com/Dark1004-K/CHZZK_Alert/blob/main/beta/chzzk_alert.beta.user.js';
   const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
   const HITS_MAX = 30;
 
