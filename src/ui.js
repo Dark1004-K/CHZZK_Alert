@@ -543,7 +543,7 @@ function renderSettings() {
           <div style="display:flex;align-items:flex-start;gap:5px;margin-top:8px;line-height:18px"><span class="__kw_lbl" style="margin:0;width:5em;flex:none;line-height:18px">제작자</span><b>비류라미</b></div>
           <div style="margin-top:4px;font-size:12px;color:#eee">"검은사막에서 미리내ES 님과 놀다 겁나 심심해서 만듬"</div>
           <div style="display:flex;align-items:flex-start;gap:5px;margin-top:8px;line-height:18px"><span class="__kw_lbl" style="margin:0;width:5em;flex:none;line-height:18px">테스터</span><b>데아앵커</b></div>
-          <div style="margin-top:4px;font-size:12px;color:#eee">"미리내님ES님이 건강했으면 좋겠어요!"</div>
+          <div style="margin-top:4px;font-size:12px;color:#eee">"쉬는 시간은 최고야!"</div>
           <div style="display:flex;align-items:flex-start;gap:5px;margin-top:8px;line-height:18px"><span class="__kw_lbl" style="margin:0;width:5em;flex:none;line-height:18px">최초설치자</span><b>털찐길냥이</b></div>
           <div style="margin-top:4px;font-size:12px;color:#eee">"하우징은 즐겁다옹!!"</div>
           <div class="__kw_lbl">현재 버전</div>
