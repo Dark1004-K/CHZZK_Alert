@@ -44,7 +44,7 @@
 1. 아래 Raw URL을 브라우저 주소창에 붙여넣고 연다. (코드 블록 우상단 복사 버튼 이용)
 
 ```text
-https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/chzzk-keyword-alert.user.js
+https://raw.githubusercontent.com/Dark1004-K/CHZZK_Alert/main/chzzk_alert.user.js
 ```
 
    (또는 Tampermonkey 대시보드 → Utilities → Install from URL에 붙여넣기)
@@ -61,7 +61,7 @@ https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/chzzk-k
 | Raw URL | 위 1.3 정식 주소 | 아래 베타 주소 |
 
 ```text
-https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js
+https://github.com/Dark1004-K/CHZZK_Alert/blob/main/beta/chzzk_alert.beta.user.js
 ```
 | 스크립트 이름 | CHZZK 채팅 호출 알림 (Keyword Alert) | CHZZK 채팅 호출 알림 (Beta) |
 | 자동 업데이트 | 버전 오르면 자동 (1일 1회 확인) | 버전 오르면 자동 (별개 채널) |
