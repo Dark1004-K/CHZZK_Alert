@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CHZZK 채팅 호출 알림 (Beta)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-beta14
+// @version      2.8-beta15
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
 // @match        https://chzzk.naver.com/live/*
@@ -36,6 +36,15 @@
   const loadNick = () => localStorage.getItem(LS_NICK) ?? localStorage.getItem(LS_NICK_OLD) ?? '';
   const saveNick = (v) => localStorage.setItem(LS_NICK, v);
   const histOn = () => { try { return localStorage.getItem(LS_HIST) !== '0'; } catch (e) { return true; } };
+  const LS_REDUP = '__kw_redup_min'; // 같은 호출 재알림 간격 (분, 기본 5, 0이면 항상 울림)
+  function redupMin() {
+    try {
+      const v = parseFloat(localStorage.getItem(LS_REDUP));
+      if (isFinite(v) && v >= 0 && v <= 120) return v;
+    } catch (e) {}
+    return 5;
+  }
+  const redupMs = () => redupMin() * 60000;
   const loadHits = () => {
     try {
       const a = JSON.parse(localStorage.getItem(LS_HITS)) || [];
@@ -107,7 +116,7 @@
       }
       if (hit) {
         const fullSig = sig + '|' + kt;
-        if (histOn() && histSigs.has(fullSig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kt })); return; }
+        if (histSuppressed(fullSig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kt })); return; }
         if (!takeHit(fullSig)) { dlog('DUP-ws-skip', JSON.stringify({ kw: kt })); return; }
         hits++;
         recordHit(nick, text, kt, fullSig, null);
@@ -206,9 +215,18 @@
   const seen = new WeakSet();
   // DOM/WS 중복 발화 방지: 같은 본문 서명은 8초 내 1회만 알림
   const hitTimes = new Map();
-  // 불린 대화 목록: 장기 중복 회피(재오픈 시 과거분 refill) + 클릭 이동용
+  // 불린 대화 목록: 클릭 이동용 + 같은 호출 재알림 간격 계산용
   let hitLog = loadHits();
-  const histSigs = new Set(hitLog.map((h) => h.sig).filter(Boolean));
+  // 기록에 같은 서명이 간격 안에 있으면 재알림 생략 (스크롤 백필·접힘 리렌더·WS 리플레이 대응)
+  function histSuppressed(sig) {
+    if (!histOn() || !sig) return false;
+    const now = Date.now();
+    const ttl = redupMs();
+    for (const h of hitLog) {
+      if (h.sig === sig && now - h.t < ttl) return true;
+    }
+    return false;
+  }
   function hitSig(text) { try { return norm(text).slice(0, 80); } catch (e) { return ''; } }
   function takeHit(sig) {
     const now = Date.now();
@@ -416,11 +434,7 @@
   function recordHit(nick, text, kw, sig, el) {
     if (!histOn()) return;
     hitLog.unshift({ t: Date.now(), nick: nick || '', text: (text || '').slice(0, 120), kw, sig, el: el || null });
-    histSigs.add(sig);
-    while (hitLog.length > HITS_MAX) {
-      const rm = hitLog.pop();
-      if (rm && rm.sig && !hitLog.some((h) => h.sig === rm.sig)) histSigs.delete(rm.sig);
-    }
+    while (hitLog.length > HITS_MAX) hitLog.pop();
     saveHits();
     renderHitsList();
   }
@@ -474,7 +488,6 @@
     }
     // 진짜 사라짐 → 목록에서 제거하고 알림
     hitLog.splice(i, 1);
-    if (h.sig && !hitLog.some((x) => x.sig === h.sig)) histSigs.delete(h.sig);
     saveHits();
     renderHitsList();
     showToast('이미 사라진 대화입니다' + (h.text ? ': ' + h.text.slice(0, 40) : ''));
@@ -533,7 +546,7 @@
       if (kl && tl.includes(kl)) {
         const sig = hitSig(text) + '|' + kt;
         // 기록에 있는 건 경로/시점 불문 재알림 생략 (스크롤 백필·접힘 리렌더·WS 리플레이 대응)
-        if (histOn() && histSigs.has(sig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kl })); break; }
+        if (histSuppressed(sig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kl })); break; }
         if (!takeHit(sig)) { dlog('DUP-dom-skip', JSON.stringify({ kw: kl })); break; }
         hits++;
         recordHit(senderName, text, kl, sig, el);
@@ -554,7 +567,7 @@
       }
       if (inToken) {
         const sig = hitSig(text) + '|' + kt;
-        if (histOn() && histSigs.has(sig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kt })); break; }
+        if (histSuppressed(sig)) { dlog('DUP-hist-skip', JSON.stringify({ kw: kt })); break; }
         if (!takeHit(sig)) { dlog('DUP-dom-skip', JSON.stringify({ kw: kt })); break; }
         hits++;
         recordHit(senderName, text, kt, sig, el);
@@ -829,7 +842,7 @@
     histPanel.__kwWired = true;
     const c = histPanel.querySelector('#__kw_hits_clear');
     if (c) c.onclick = () => {
-      hitLog = []; histSigs.clear(); saveHits(); renderHitsList(); dlog('hits-cleared');
+      hitLog = []; saveHits(); renderHitsList(); dlog('hits-cleared');
     };
     const b = histPanel.querySelector('#__kw_hits');
     if (b) b.onclick = (ev) => {
@@ -927,6 +940,8 @@
           <div id="__kw_set_general" style="display:${setTab === 'general' ? 'block' : 'none'}">
             <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_auto" ${localStorage.getItem(LS_AUTO) === '1' ? 'checked' : ''}> 방송 들어가면 묻지 않고 자동으로 켜기</label></div>
             <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_hist" ${histOn() ? 'checked' : ''}> 불린 대화 목록 별도 표시 + 재알림 방지 (클릭 이동)</label></div>
+            <div class="__kw_lbl">같은 호출 다시 울리기까지 (분, 0이면 항상 울림)</div>
+            <input class="__kw_in" id="__kw_redup" type="number" min="0" max="120" step="1" style="width:80px" value="${redupMin()}">
           </div>
           <div id="__kw_set_words" style="display:${setTab === 'words' ? 'block' : 'none'}">
             <div class="__kw_lbl">호출 단어 (×로 삭제, 페이지 글자를 드래그해서도 추가 가능)</div>
@@ -970,6 +985,14 @@
       try { localStorage.setItem(LS_HIST, e.target.checked ? '1' : '0'); } catch (err) {}
       applyHistVisibility();
       renderHitsList();
+    };
+    setPanel.querySelector('#__kw_redup').onchange = (e) => {
+      let v = parseFloat(e.target.value);
+      if (!isFinite(v) || v < 0) v = 0;
+      if (v > 120) v = 120;
+      try { localStorage.setItem(LS_REDUP, String(v)); } catch (err) {}
+      e.target.value = v;
+      dlog('redup', v);
     };
     applySetVisibility();
   }
