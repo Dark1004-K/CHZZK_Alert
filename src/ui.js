@@ -451,7 +451,22 @@ function setupDragToAdd() {
 const DROPS_API = 'https://api.chzzk.naver.com/service/';
 const DROPS_VAULT_URL = 'https://chzzk.naver.com/profile#drops';
 let dropsPanel = null, dropsPoll = null, dropsTick = null;
+let dropsSaveN = 0;
 let dropsCid = '', dropsJoinAt = 0, dropsNo = 0, dropsInfo = null;
+// 새로고침해도 접속 시간 유지: 같은 채널이면 마지막 확인 후 10분 안에 돌아온 경우 이어서 센다
+const LS_DJOIN = '__kw_drops_join';
+const DROPS_RESUME_MS = 600000;
+function loadJoinAt(cid) {
+  try {
+    const o = JSON.parse(localStorage.getItem(LS_DJOIN));
+    if (o && o.cid === cid && o.joinAt && Date.now() - o.seen < DROPS_RESUME_MS) return o.joinAt;
+  } catch (e) {}
+  return Date.now();
+}
+function saveJoinAt() {
+  if (!dropsCid) return;
+  try { localStorage.setItem(LS_DJOIN, JSON.stringify({ cid: dropsCid, joinAt: dropsJoinAt, seen: Date.now() })); } catch (e) {}
+}
 function fmtElapsed(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
@@ -486,7 +501,7 @@ function pollDrops() {
   const cid = pageChannelId();
   if (!cid) return;
   if (cid !== dropsCid) { // 채널이 바뀌면 접속 시간 초기화
-    dropsCid = cid; dropsJoinAt = Date.now(); dropsNo = 0; dropsInfo = null; removeDropsPanel();
+    dropsCid = cid; dropsJoinAt = loadJoinAt(cid); saveJoinAt(); dropsNo = 0; dropsInfo = null; removeDropsPanel();
   }
   fetch(DROPS_API + 'v3.2/channels/' + cid + '/live-detail')
     .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
@@ -513,6 +528,7 @@ function startDrops() {
     dropsTick = setInterval(() => {
       const t = dropsPanel ? dropsPanel.querySelector('#__kw_dr_time') : null;
       if (t) t.textContent = fmtElapsed(Date.now() - dropsJoinAt);
+      if (++dropsSaveN % 10 === 0) saveJoinAt();
     }, 1000);
   }
   pollDrops();
