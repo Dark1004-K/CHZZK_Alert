@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         CHZZK 채팅 호출 알림 (Beta)
+// @name         CHZZK Alert (Beta)
 // @namespace    https://chzzk.naver.com/
-// @version      2.8-beta18
+// @version      2.8-beta19
 // @description  치지직(CHZZK) 생방송 채팅에서 등록한 단어(닉네임 등)가 언급되면 브라우저 알림 + 화면 토스트를 띄워줍니다.
 // @author       DarkAngel
 // @match        https://chzzk.naver.com/live/*
@@ -27,7 +27,7 @@
   const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
   const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
   // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-  const SCRIPT_VERSION = '2.8-beta18';
+  const SCRIPT_VERSION = '2.8-beta19';
   const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/chizizic_call_nickname/main/beta/chzzk-keyword-alert.beta.user.js';
   const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
   const HITS_MAX = 30;
@@ -285,6 +285,7 @@
   .__kw_tabs{display:flex;flex-direction:column;gap:4px;flex:none}
   .__kw_tab{border:1px solid #555;background:#222;color:#bbb;border-radius:8px;padding:6px 8px;font-size:12px;cursor:pointer;white-space:nowrap}
   .__kw_tab.on{background:#00ffa3;color:#000;border-color:#00ffa3;font-weight:bold}
+  #__kw_set_body .__kw_lbl:first-child{margin-top:0}
   #__kw_midrow{position:relative;width:100%}
   #__kw_grip{position:absolute;top:0;bottom:0;right:-6px;width:12px;cursor:ew-resize;z-index:1}
   #__kw_grip:hover{background:rgba(0,255,163,.25)}
@@ -988,11 +989,11 @@
   function renderSettings() {
     if (!setPanel) return;
     setPanel.innerHTML = `
-      <div style="display:flex;gap:8px;height:100%">
+      <div style="display:flex;gap:14px;height:100%">
         <div class="__kw_tabs">
           <button class="__kw_tab${setTab === 'general' ? ' on' : ''}" data-tab="general">일반설정</button>
           <button class="__kw_tab${setTab === 'words' ? ' on' : ''}" data-tab="words">단어설정</button>
-          <button class="__kw_tab${setTab === 'about' ? ' on' : ''}" data-tab="about">어바웃</button>
+          <button class="__kw_tab${setTab === 'about' ? ' on' : ''}" data-tab="about">앱 정보</button>
         </div>
         <div id="__kw_set_body" style="flex:1;min-width:0;min-height:0;overflow-y:auto">
           <div id="__kw_set_general" style="display:${setTab === 'general' ? 'block' : 'none'}">
@@ -1011,10 +1012,10 @@
           </div>
           <div id="__kw_set_about" style="display:${setTab === 'about' ? 'block' : 'none'}">
             <div class="__kw_lbl">프로그램</div>
-            <div><b>CHZZK 채팅 호출 알림</b></div>
+            <div><b>CHZZK Alert</b></div>
             <div class="__kw_lbl">제작자</div>
             <div><b>비류라미</b></div>
-            <div class="__kw_lbl" style="color:#888">검은사막 게임을 하다 미리내ES 님과 놀다 심심해서 만듬</div>
+            <div style="margin-top:6px;font-size:12px;color:#eee">검은사막 게임을 하다 미리내ES 님과 놀다 심심해서 만듬</div>
             <div class="__kw_lbl">현재 버전</div>
             <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span></div>
             <div style="margin-top:6px"><button class="__kw_b" id="__kw_update_check" style="background:#00ffa3;color:#000">업데이트 확인</button></div>
