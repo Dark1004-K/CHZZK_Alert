@@ -2,14 +2,13 @@
   "plugins": [
     {
       "id": "tts",
-      "name": "호출 TTS (누가 불렀는지 음성 안내)",
+      "name": "TTS 활성",
       "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/plugins/tts.js",
       "on": true
     },
     {
       "id": "blackdesert",
-      "name": "검은사막",
-      "desc": "월드 우두머리 레이드 출현 전 주황색 알림",
+      "name": "검은사막 확장 활성",
       "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/plugins/blackdesert.js",
       "on": true,
       "options": [

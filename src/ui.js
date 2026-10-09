@@ -308,6 +308,7 @@ function checkUpdate() {
 }
 // 플러그인 옵션 입력칸 (type: bool | number | multi)
 function extOptHtml(p) {
+  if (!pluginIsOn(p)) return ''; // 켜져 있을 때만 옵션을 보여준다
   if (!Array.isArray(p.options) || !p.options.length) return '';
   const rows = p.options.map((o) => {
     const v = pluginOptGet(p.id, o.key);
@@ -407,7 +408,7 @@ function renderSettings() {
           <input class="__kw_in" id="__kw_nick" style="width:130px" value="${escapeHtml(myNick)}">
         </div>
         <div id="__kw_set_ext" style="display:${setTab === 'ext' ? 'flex' : 'none'};flex-direction:column;flex:1">
-          <div class="__kw_lbl">등록된 확장 (체크하면 켜짐)</div>
+          <div class="__kw_lbl">확장 모듈 설정(체크하면 켜짐)</div>
           ${extListHtml()}
           <div class="__kw_lbl" style="color:#888;margin-top:auto">끄면 이벤트 전달이 멈추고, 완전한 해제는 새로고침 후 적용됩니다</div>
         </div>
@@ -472,7 +473,7 @@ function renderSettings() {
   setPanel.querySelectorAll('.__kw_plug').forEach((c) => {
     c.onchange = () => {
       const p = (pluginList || []).find((x) => x.id === c.dataset.id);
-      if (p) setPluginOn(p, c.checked);
+      if (p) { setPluginOn(p, c.checked); renderSettings(); } // 옵션 보임/숨김을 다시 그림
     };
   });
   setPanel.querySelectorAll('.__kw_popt').forEach((c) => {
