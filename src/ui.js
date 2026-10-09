@@ -16,8 +16,14 @@ const HH_MIN = 80, HH_DEF = 150;
 const hhMax = () => Math.max(HH_MIN, Math.floor(window.innerHeight * 0.85));
 let histH = HH_DEF;
 try { const hv = parseInt(localStorage.getItem(LS_HH), 10); if (hv >= HH_MIN && hv <= 4000) histH = hv; } catch (e) {}
+let histCustom = false; // 사용자가 한 번이라도 끌어서 정한 높이면 항목 수와 상관없이 그 높이를 유지한다
+try { histCustom = !!localStorage.getItem(LS_HH); } catch (e) {}
+const HH_GAIN = 2; // 끄는 거리 대비 높이 변화 배율 (화면 위쪽에서 마우스가 더 못 올라가도 크게 늘릴 수 있게)
 function applyHistHeight() {
-  if (histBox) histBox.style.maxHeight = Math.min(histH, hhMax()) + 'px';
+  if (!histBox) return;
+  const h = Math.min(histH, hhMax());
+  histBox.style.maxHeight = h + 'px';
+  histBox.style.height = histCustom ? h + 'px' : '';
 }
 function wireHGrip() {
   if (!histPanel) return;
@@ -30,7 +36,8 @@ function wireHGrip() {
     const startY = e.clientY;
     const startH = histBox ? histBox.getBoundingClientRect().height : histH;
     const move = (ev) => {
-      histH = Math.max(HH_MIN, Math.min(hhMax(), Math.round(startH + (startY - ev.clientY))));
+      histCustom = true;
+      histH = Math.max(HH_MIN, Math.min(hhMax(), Math.round(startH + (startY - ev.clientY) * HH_GAIN)));
       applyHistHeight();
     };
     const up = () => {
