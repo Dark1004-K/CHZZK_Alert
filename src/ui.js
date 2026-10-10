@@ -903,7 +903,7 @@ function renderSettings() {
             <div style="display:flex;align-items:center;gap:6px">
               <input class="__kw_in" id="__kw_redup" type="number" min="0" max="999" maxlength="3" oninput="if(this.value.length>3)this.value=this.value.slice(0,3)" step="1" style="width:42px;text-align:center;padding:4px 2px;${redupInf() ? 'opacity:.45' : ''}" value="${redupSec()}" ${dedupOn() && !redupInf() ? '' : 'disabled'}>
               <span>초</span>
-              <label style="cursor:pointer;display:flex;align-items:center;gap:4px;margin-left:6px" title="켜면 시간이 아무리 지나도 같은 내용(같은 단어)은 다시 울리지 않습니다"><input type="checkbox" id="__kw_redup_inf" style="margin:0" ${redupInf() ? 'checked' : ''} ${dedupOn() ? '' : 'disabled'}> 무제한</label>
+              <label style="cursor:pointer;display:flex;align-items:center;gap:4px;margin-left:6px" title="같은 내용이 연속으로 올 때만 다시 울리지 않습니다. 다른 호출이 중간에 끼면 다시 울립니다."><input type="checkbox" id="__kw_redup_inf" style="margin:0" ${redupInf() ? 'checked' : ''} ${dedupOn() ? '' : 'disabled'}> 무제한</label>
             </div>
           </div>
         </div>

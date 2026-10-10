@@ -400,6 +400,7 @@ function scanSingle(el) {
       hits++;
       recordHit(senderName, text, kl, sig, el);
       dlog('HIT-loose', JSON.stringify({ kw: kl, nick: senderName.slice(0, 30), text: text.slice(0, 60) }));
+      lastHitSig = sig;
       fireAlert(senderName, text, el, kl);
       break;
     }
@@ -426,6 +427,7 @@ function scanSingle(el) {
       hits++;
       recordHit(senderName, text, kt, sig, el);
       dlog('HIT-token', JSON.stringify({ kw: kt, nick: senderName.slice(0, 30), text: text.slice(0, 60) }));
+      lastHitSig = sig;
       fireAlert(senderName, text, el, kt);
       break;
     }

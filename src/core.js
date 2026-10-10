@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.4.0-beta032';
+const SCRIPT_VERSION = '3.4.0-beta033';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -194,6 +194,7 @@ function wsMatch(nick, msg, stale) {
       recordHit(nick, text, kt, fullSig, null);
       scheduleStatsUpdate();
       dlog('HIT-ws', JSON.stringify({ kw: kt, nick: (nick || '').slice(0, 30), text: text.slice(0, 60) }));
+      lastHitSig = fullSig;
       fireAlert(nick, text, null, kt);
       return;
     }
@@ -299,9 +300,10 @@ function alreadyListed(sig) {
   for (const h of hitLog) { if (h.sig === sig) return true; }
   return false;
 }
+let lastHitSig = ''; // 마지막으로 울린 호출 서명 (무제한=연속 도배 차단용. 다른 호출이 끼면 해제)
 function histSuppressed(sig) {
   if (!dedupOn() || !sig) return false;
-  if (redupInf() && alreadyListed(sig)) return true; // 무제한: 시간이 얼마가 지나도 같은 내용은 울리지 않음
+  if (redupInf()) return sig === lastHitSig; // 무제한: 같은 내용이 연속으로 올 때만 차단
   const now = Date.now();
   const ttl = redupMs();
   const st = seenTimes.get(sig);
