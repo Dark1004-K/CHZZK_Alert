@@ -516,8 +516,8 @@ function showReloadPopup(openInstall) {
 function renderSettings() {
   if (!setPanel) return;
   setPanel.innerHTML = `
-    <b id="__kw_set_title" title="끌어서 설정 창 이동" style="position:absolute;top:10px;left:12px;font-size:14px;color:#fff;cursor:grab;touch-action:none;user-select:none">설정</b>
-    <button class="__kw_ic __kw_xabs" id="__kw_set_move" title="드래그로 설정 창 이동 (화면 가장자리·다른 창에 자석처럼 붙음) · 더블클릭: 원래 자리로" style="right:29px;color:#aaaab9;cursor:grab;touch-action:none">${IC.move}</button>
+    <b id="__kw_set_title" title="끌어서 설정 창 이동" style="position:absolute;top:10px;left:26px;font-size:14px;color:#fff;cursor:grab;touch-action:none;user-select:none">설정</b>
+    <button class="__kw_ic" id="__kw_set_move" title="드래그로 설정 창 이동 (화면 가장자리·다른 창에 자석처럼 붙음) · 더블클릭: 원래 자리로" style="position:absolute;left:-9px;top:-9px;width:24px;height:24px;padding:3px;box-sizing:border-box;border-radius:50%;background:rgb(20,20,24);border:1px solid #777;color:#ccc;cursor:grab;touch-action:none;z-index:3;box-shadow:0 2px 6px rgba(0,0,0,.5)">${IC.move}</button>
     <button class="__kw_ic __kw_xabs" id="__kw_set_close" title="설정 닫기" style="color:#aaaab9">${IC.close}</button>
     <div style="display:flex;gap:14px;height:calc(100% - 28px);margin-top:28px">
       <div class="__kw_tabs">
