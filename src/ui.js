@@ -595,11 +595,11 @@ function checkUpdate() {
         if (!m) throw new Error('parse');
         const remote = m[1].trim();
         if (isNewer(remote, SCRIPT_VERSION)) {
-          say('새 버전 있음: ' + SCRIPT_VERSION + ' → ' + remote + ' · ' + stamp() + ' 확인', true);
+          say('새버전 : ' + remote + ' + ' + stamp(), true);
           if (go) go.disabled = false;
           dlog('update-avail', remote);
         } else {
-          say('최신 버전입니다 (' + SCRIPT_VERSION + ') · ' + stamp() + ' 확인', false);
+          say('최신 버전입니다 (' + SCRIPT_VERSION + ') · ' + stamp(), false);
           dlog('update-latest', remote);
         }
       })
