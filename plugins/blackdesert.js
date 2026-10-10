@@ -116,7 +116,7 @@
       });
     } catch (e) {}
   }
-  // 띄우기 위치 {x,y,w} (본체 KW.float이 읽는 형식과 동일). w는 216~600으로 감시중 창을 따름.
+  // 띄우기 위치 {x,y,w} (본체 KW.float이 읽는 형식과 동일). w는 246~600으로 감시중 창을 따름.
   const LS_BDOPPOS = '__kw_bdop_pos';
   const LS_CPNNPOS = '__kw_cpn_pos';
   const LS_PARTYPOS = '__kw_party_pos';
@@ -124,7 +124,7 @@
     try {
       const o = JSON.parse(localStorage.getItem(key));
       if (o && isFinite(o.x) && isFinite(o.y)) {
-        return { x: +o.x, y: +o.y, w: isFinite(o.w) ? Math.max(216, Math.min(600, Math.round(o.w))) : 0 };
+        return { x: +o.x, y: +o.y, w: isFinite(o.w) ? Math.max(246, Math.min(600, Math.round(o.w))) : 0 };
       }
     } catch (e) {}
     return null;
@@ -393,7 +393,7 @@
           if (cpos) {
             base.wMode = 'self';
             base.getW = () => cpnEl.getBoundingClientRect().width;
-            base.setW = (v) => { cpnEl.style.width = Math.max(216, Math.min(600, Math.round(v))) + 'px'; };
+            base.setW = (v) => { cpnEl.style.width = Math.max(246, Math.min(600, Math.round(v))) + 'px'; };
           }
           KW.rsz(cpnEl, base);
         }

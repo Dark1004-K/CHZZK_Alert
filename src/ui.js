@@ -4,10 +4,10 @@
 let panel;
 let stackEl = null, histPanel = null, histBox = null, histCount = null;
 let midRowEl = null;
-let curWidth = 216; // 처음 시작은 최소 너비
-try { const wv = parseInt(localStorage.getItem(LS_W), 10); if (wv >= 216 && wv <= 600) curWidth = wv; } catch (e) {}
+let curWidth = 246; // 처음 시작은 최소 너비
+try { const wv = parseInt(localStorage.getItem(LS_W), 10); if (wv >= 246 && wv <= 600) curWidth = wv; } catch (e) {}
 function setStackWidth(w) {
-  curWidth = Math.max(216, Math.min(600, Math.round(w)));
+  curWidth = Math.max(246, Math.min(600, Math.round(w)));
   if (stackEl) stackEl.style.width = curWidth + 'px';
 }
 // 불린 대화 목록 높이: 위쪽 손잡이를 위로 끌면 커진다 (스택이 아래 고정이라). 한계 80px ~ 화면 높이의 85%
@@ -70,7 +70,7 @@ function ensureMidrow() {
 
 // ---------- 통일 핸들 (우하 리사이즈 .__kw_rsz + 좌상 이동 .__kw_mv) ----------
 // dir 'h'=가로만(스택너비 공유) 'v'=세로만 'd'=대각(가로+세로).
-// 떠있는 창(setp/optwin)은 wMode:'self'로 자기 너비를 쓴다 (범위만 216~600으로 감시중 창을 따름).
+// 떠있는 창(setp/optwin)은 wMode:'self'로 자기 너비를 쓴다 (범위만 246~600으로 감시중 창을 따름).
 const RSZ_GLYPH = { h: '↔', v: '↕', d: '⤡' };
 function kwStackW(v) {
   if (v === undefined) return curWidth;
@@ -167,7 +167,7 @@ function loadFloatPos(key) {
     if (o && isFinite(o.x) && isFinite(o.y)) {
       return {
         x: Math.round(o.x), y: Math.round(o.y),
-        w: isFinite(o.w) ? Math.max(216, Math.min(600, Math.round(o.w))) : curWidth,
+        w: isFinite(o.w) ? Math.max(246, Math.min(600, Math.round(o.w))) : curWidth,
       };
     }
   } catch (e) {}
@@ -281,7 +281,7 @@ function kwFloatKey(el, o) {
 // cfg: { color(창색, +원·리사이즈원 테두리), posKey(위치 저장키, 없으면 이동 불가),
 //   rsz: null|'h'(가로)|'v'(세로)|'d'(가로+세로),
 //   getH/setH (v/d용 세로값), saveH (세로 저장),
-//   getW/setW (floating 자기너비 직접 지정 시, 생략하면 기본 216~600),
+//   getW/setW (floating 자기너비 직접 지정 시, 생략하면 기본 246~600),
 //   dock (더블클릭 복귀 추가동작), onMove/onDrop (드래그 중/후 추가동작) }
 // 가로축: dock 상태면 스택너비 공유(감시중 창을 따름), float 상태면 자기너비.
 // innerHTML 재렌더 대응 멱등: 매 렌더 후 다시 호출해도 위치를 리셋하지 않음.
@@ -297,7 +297,7 @@ function kwWindow(el, cfg) {
       if (floating) {
         o.wMode = 'self';
         o.getW = cfg.getW || (() => { try { return el.getBoundingClientRect().width; } catch (e) { return curWidth; } });
-        o.setW = cfg.setW || ((v) => { el.style.width = Math.max(216, Math.min(600, Math.round(v))) + 'px'; });
+        o.setW = cfg.setW || ((v) => { el.style.width = Math.max(246, Math.min(600, Math.round(v))) + 'px'; });
       }
     }
     if (dir === 'v' || dir === 'd') { o.getH = cfg.getH; o.setH = cfg.setH; }
@@ -692,7 +692,7 @@ function loadOptSize() {
   try {
     const o = JSON.parse(localStorage.getItem(LS_OPTSIZE));
     if (o && isFinite(o.w) && isFinite(o.h)) {
-      return { w: Math.max(216, Math.min(600, Math.round(o.w))), h: Math.max(OPT_H_MIN, Math.min(4000, Math.round(o.h))) };
+      return { w: Math.max(246, Math.min(600, Math.round(o.w))), h: Math.max(OPT_H_MIN, Math.min(4000, Math.round(o.h))) };
     }
   } catch (e) {}
   return null;
@@ -713,7 +713,7 @@ function renderOptWin() {
     const r = setPanel && setPanel.isConnected && setPanel.style.display !== 'none' ? setPanel.getBoundingClientRect() : null;
     if (r && r.width > 0 && r.right + 330 < window.innerWidth) pos = 'bottom:' + Math.max(8, Math.round(window.innerHeight - r.bottom)) + 'px;left:' + Math.round(r.right + 8) + 'px';
   } catch (e) {}
-  w.style.cssText = 'position:fixed;' + pos + ';z-index:2147483647;width:fit-content;min-width:min(216px,92vw);max-width:96vw;min-height:min(470px,86vh);max-height:86vh;overflow:visible;display:flex;flex-direction:column;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777;opacity:' + ((100 - getTransparency()) / 100);
+  w.style.cssText = 'position:fixed;' + pos + ';z-index:2147483647;width:fit-content;min-width:min(246px,92vw);max-width:96vw;min-height:min(470px,86vh);max-height:86vh;overflow:visible;display:flex;flex-direction:column;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777;opacity:' + ((100 - getTransparency()) / 100);
   try { // 저장된 위치/크기가 있으면 우선 (통일: 좌상 + 이동, 우하 대각 리사이즈)
     const sp = loadOptPos();
     if (sp) {
@@ -753,7 +753,7 @@ function renderOptWin() {
     },
     onDock: () => renderOptWin(),
     getW: () => w.getBoundingClientRect().width || 340,
-    setW: (v) => { w.style.width = Math.max(216, Math.min(600, Math.round(v))) + 'px'; },
+    setW: (v) => { w.style.width = Math.max(246, Math.min(600, Math.round(v))) + 'px'; },
     getH: () => w.getBoundingClientRect().height || 470,
     setH: (v) => { w.style.height = Math.max(OPT_H_MIN, Math.min(optHMax(), v)) + 'px'; },
     saveSize: () => {
@@ -946,7 +946,7 @@ function renderSettings() {
     onMove: () => { try { const ow = document.getElementById('__kw_optwin'); if (ow) renderOptWin(); } catch (err) {} }, // 옵션 창은 설정 창 옆을 따라감
     onDrop: () => { try { const tb = document.getElementById('__kw_box'); if (tb) placeToastBox(tb); } catch (err) {} }, // 열려 있는 알람 토스트가 옮긴 창과 겹치면 위로
     getW: () => setPanel.getBoundingClientRect().width || SET_W_DEF,
-    setW: (v) => { setPanel.style.width = Math.max(216, Math.min(600, Math.round(v))) + 'px'; },
+    setW: (v) => { setPanel.style.width = Math.max(246, Math.min(600, Math.round(v))) + 'px'; },
     getH: () => setPanel.getBoundingClientRect().height || SET_H_DEF,
     setH: (v) => { setPanel.style.height = Math.max(SET_H_MIN, Math.min(setHMax(), v)) + 'px'; },
     saveSize: () => {
@@ -1172,6 +1172,7 @@ function applySetPos() {
   setPanel.style.bottom = 'auto';
 }
 // 자석 대상 창들의 rect 목록 (skipEl 자신은 제외). 이동(snapRect)·늘리기(snapLen) 공용.
+// 우리 창만: id가 __kw_ 로 시작 + 지금 화면에 보이는 것(computed display/visibility)만. 뒷배경(치지직 페이지)은 절대 포함 안 됨.
 function snapRects(skipEl) {
   const out = [];
   const seen = new Set();
@@ -1179,18 +1180,24 @@ function snapRects(skipEl) {
     if (!el || el === skipEl || (skipEl && skipEl.contains && skipEl.contains(el))) return;
     if (seen.has(el)) return;
     seen.add(el);
+    try { if (!el.isConnected) return; } catch (e3) {}
+    try { // 화면에 안 보이는 창(CSS로 숨김 포함)은 제외
+      const cs = getComputedStyle(el);
+      if (!cs || cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse') return;
+    } catch (e4) {}
     let r = null;
     try { r = el.getBoundingClientRect(); } catch (e) { return; }
     if (!r || r.width < 20 || r.height < 20) return;
-    try { if (el.style && el.style.display === 'none') return; } catch (e2) {}
-    try { if (!el.isConnected) return; } catch (e3) {}
     out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom });
   };
   ['__kw_panel', '__kw_dropsp', '__kw_histp', '__kw_bdop', '__kw_cpn', '__kw_bdo_party', '__kw_setp', '__kw_optwin'].forEach((id) => {
     try { pushEl(document.getElementById(id)); } catch (e) {}
   });
-  try { // 신규 창 자동 포함 (KW.float/window으로 등록된 창)
-    document.querySelectorAll('[data-kw-float]').forEach(pushEl);
+  try { // 신규 창 자동 포함 (KW.float/window으로 등록된 창). id가 __kw_ 로 시작하지 않으면 제외.
+    document.querySelectorAll('[data-kw-float]').forEach((el) => {
+      try { if (el.id && el.id.indexOf('__kw_') !== 0) return; } catch (e5) {}
+      pushEl(el);
+    });
   } catch (e) {}
   return out;
 }
@@ -1219,7 +1226,7 @@ function applySetVisibility() {
   applySetPos();
   try { const tb = document.getElementById('__kw_box'); if (tb) placeToastBox(tb); } catch (e) {} // 열려 있는 알람 토스트 위치 갱신
 }
-// ---------- 설정 창 크기 (대각 핸들, 가로는 216~600으로 감시중 창을 따름) ----------
+// ---------- 설정 창 크기 (대각 핸들, 가로는 246~600으로 감시중 창을 따름) ----------
 const LS_SETSIZE = '__kw_set_size';
 const SET_W_DEF = 440, SET_H_DEF = 320, SET_H_MIN = 200;
 const setHMax = () => Math.max(SET_H_MIN, window.innerHeight - 16);
@@ -1228,7 +1235,7 @@ function loadSetSize() {
     const o = JSON.parse(localStorage.getItem(LS_SETSIZE));
     if (o && isFinite(o.w) && isFinite(o.h)) {
       return {
-        w: Math.max(216, Math.min(600, Math.round(o.w))),
+        w: Math.max(246, Math.min(600, Math.round(o.w))),
         h: Math.max(SET_H_MIN, Math.min(4000, Math.round(o.h))),
       };
     }
