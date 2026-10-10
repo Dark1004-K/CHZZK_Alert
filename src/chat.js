@@ -529,7 +529,7 @@ const normEntry = (e) => {
       name: String(e.name || ''),
       discord: String(e.discord || ''),
       home: String(e.home || ''),
-      expires: String(e.expires || ''), // 만료일 "YYYY-MM-DD" (한국시간 그날 끝까지). 없으면 만료 없음
+      expires: String(e.expires || '').trim(), // 만료일 "YYYY-MM-DD" (한국시간 그날 끝까지). 비어 있거나 없으면 무기한
     };
   }
   return null;
