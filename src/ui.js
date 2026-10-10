@@ -412,7 +412,7 @@ function renderOptWin() {
     const r = setPanel && setPanel.isConnected && setPanel.style.display !== 'none' ? setPanel.getBoundingClientRect() : null;
     if (r && r.width > 0 && r.right + 330 < window.innerWidth) pos = 'bottom:' + Math.max(8, Math.round(window.innerHeight - r.bottom)) + 'px;left:' + Math.round(r.right + 8) + 'px';
   } catch (e) {}
-  w.style.cssText = 'position:fixed;' + pos + ';z-index:2147483647;width:min(320px,92vw);max-height:80vh;overflow-y:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777;scrollbar-width:thin;opacity:' + ((100 - getTransparency()) / 100);
+  w.style.cssText = 'position:fixed;' + pos + ';z-index:2147483647;width:min(320px,92vw);min-height:min(470px,86vh);max-height:86vh;overflow-y:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777;scrollbar-width:thin;opacity:' + ((100 - getTransparency()) / 100);
   w.innerHTML = `<div style="display:flex;align-items:center;min-height:26px;padding-right:26px;margin-bottom:8px"><b>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button>${extOptHtml(p)}`;
   if (!old) document.body.appendChild(w);
   w.querySelector('#__kw_optwin_x').onclick = closeOptWin;
@@ -852,6 +852,7 @@ function startSetDrag(e) {
     document.documentElement.style.cursor = prevCur;
     setPanel.style.boxShadow = '';
     try { localStorage.setItem(LS_SETPOS, JSON.stringify(cur)); } catch (err) {}
+    try { const tb = document.getElementById('__kw_box'); if (tb) placeToastBox(tb); } catch (err) {} // 열려 있는 알람 토스트가 옮긴 창과 겹치면 위로
   };
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', up);

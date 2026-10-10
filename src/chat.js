@@ -130,13 +130,29 @@ function placeToastBox(box) {
       else target.appendChild(box);
     }
     if (box.classList) box.classList.toggle('fs', !!fsEl);
-    // 녹색 창 옆에 붙일 때: 설정 창이 열려 있으면 그 바로 위로, 화면 오른쪽을 넘지 않게 폭 제한
+    // 녹색 창 옆에 붙일 때: 설정 창·확장 창(옮겨 놓은 곳 포함)·옵션 창과 겹치면 그 바로 위로, 화면 오른쪽을 넘지 않게 폭 제한
     if (target.id === '__kw_midrow' && !fsEl) {
-      const sp = document.getElementById('__kw_setp');
-      const open = !!(sp && sp.style.display !== 'none' && sp.offsetHeight > 0);
-      box.style.bottom = open ? (sp.offsetHeight + 8) + 'px' : '0';
       const r = target.getBoundingClientRect();
       box.style.maxWidth = Math.max(220, window.innerWidth - r.right - 8 - 14) + 'px';
+      box.style.bottom = '0';
+      const obs = ['__kw_setp', '__kw_bdo_grp', '__kw_optwin'].map((id) => document.getElementById(id)).filter((el) => {
+        if (!el || el.style.display === 'none') return false;
+        const q = el.getBoundingClientRect();
+        return q.width > 20 && q.height > 20;
+      });
+      let b = 0;
+      for (let i = 0; i < 6 && obs.length; i++) { // 겹치는 창이 있으면 그 위로 올린다 (여러 개면 반복)
+        const bw = box.offsetWidth, bh = box.offsetHeight;
+        const bl = r.right + 8, bt = r.bottom - b - bh, bb = r.bottom - b, br = bl + bw;
+        let hit = null;
+        for (const el of obs) {
+          const q = el.getBoundingClientRect();
+          if (q.left < br && q.right > bl && q.top < bb && q.bottom > bt) { if (!hit || q.top < hit.top) hit = q; }
+        }
+        if (!hit) break;
+        b = Math.max(b, r.bottom - hit.top + 8);
+        box.style.bottom = b + 'px';
+      }
     } else {
       box.style.bottom = '';
       box.style.maxWidth = '';

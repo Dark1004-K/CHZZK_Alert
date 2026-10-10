@@ -29,14 +29,14 @@
           "default": true
         },
         {
-          "key": "nextBoss",
-          "label": "다음 우두머리 창 표시",
+          "key": "coupons",
+          "label": "쿠폰 모아보기 창 표시",
           "type": "bool",
           "default": true
         },
         {
-          "key": "coupons",
-          "label": "쿠폰 모아보기 (창 표시)",
+          "key": "nextBoss",
+          "label": "다음 우두머리 창 표시",
           "type": "bool",
           "default": true
         },
@@ -93,6 +93,12 @@
               "불가살"
             ]
           ]
+        },
+        {
+          "key": "party",
+          "label": "파티모집 창 표시",
+          "type": "bool",
+          "default": true
         }
       ]
     }
