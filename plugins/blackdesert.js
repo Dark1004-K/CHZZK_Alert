@@ -103,17 +103,36 @@
   const partyHMax = () => Math.max(PARTY_H_MIN, Math.floor(window.innerHeight * 0.85));
   let partyH = PARTY_H_DEF;
   try { const phv = parseInt(localStorage.getItem(LS_PARTYH), 10); if (phv >= PARTY_H_MIN && phv <= 4000) partyH = phv; } catch (e) {}
-  function bdoOrder() { // 스택 안에서 다음→쿠폰→파티 순서로, 불린대화 창 바로 위에 둔다
+  function bdoOrder() { // 스택 안에서 다음→쿠폰→파티 순서로, 불린대화 창 바로 위에 둔다 (띄운 창은 제외)
     try {
       const stack = document.getElementById('__kw_stack');
       if (!stack) return;
       const hist = document.getElementById('__kw_histp');
       const ref = (hist && hist.parentNode === stack) ? hist : null;
       [nextEl, cpnEl, partyEl].forEach((el) => {
-        if (el && el.isConnected && el.parentNode === stack && ref && el !== ref) {
+        if (el && el.isConnected && el.parentNode === stack && el.style.position !== 'fixed' && ref && el !== ref) {
           try { stack.insertBefore(el, ref); } catch (er) {}
         }
       });
+    } catch (e) {}
+  }
+  // 띄우기 위치 {x,y,w} (본체 KW.float이 읽는 형식과 동일). w는 216~600으로 감시중 창을 따름.
+  const LS_BDOPPOS = '__kw_bdop_pos';
+  const LS_CPNNPOS = '__kw_cpn_pos';
+  const LS_PARTYPOS = '__kw_party_pos';
+  function bdoPosGet(key) {
+    try {
+      const o = JSON.parse(localStorage.getItem(key));
+      if (o && isFinite(o.x) && isFinite(o.y)) {
+        return { x: +o.x, y: +o.y, w: isFinite(o.w) ? Math.max(216, Math.min(600, Math.round(o.w))) : 0 };
+      }
+    } catch (e) {}
+    return null;
+  }
+  function bdoPosSaveEl(key, el) {
+    try {
+      const r = el.getBoundingClientRect();
+      localStorage.setItem(key, JSON.stringify({ x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width) }));
     } catch (e) {}
   }
   // 창 제목 아이콘 (이모지는 색을 못 바꿔서 SVG로): 다음 우두머리=파랑, 쿠폰=보라, 파티=주황
@@ -166,7 +185,12 @@
       '<div style="font-size:13px;font-weight:bold;display:flex;flex-wrap:wrap;gap:2px 10px;word-break:keep-all;min-width:0">' + next.bosses.map((n) => '<span>' + esc(n) + '</span>').join('') + '</div>' +
       '<span style="flex:none;font-size:12px;color:#3b9eff;white-space:nowrap">' + dayTxt + next.hhmm + '</span>' +
       '<span style="flex:none;margin-left:auto;font-size:12px;font-weight:bold;color:#3b9eff;white-space:nowrap">' + fmtLong(next.t - now) + '</span></div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:2px;right:3px');
-    try { if (KW && typeof KW.rsz === 'function') KW.rsz(nextEl, { dir: 'h', color: '#3b9eff' }); } catch (e) {}
+    try { if (KW && typeof KW.float === 'function') KW.float(nextEl, { color: '#3b9eff', key: LS_BDOPPOS, dock: () => bdoOrder() }); } catch (e) {}
+    if (bdoPosGet(LS_BDOPPOS)) { // 띄운 상태: 가로는 자기 너비
+      try { if (KW && typeof KW.rsz === 'function') KW.rsz(nextEl, { dir: 'h', color: '#3b9eff', wMode: 'self', getW: () => nextEl.getBoundingClientRect().width, setW: (v) => { nextEl.style.width = Math.max(216, Math.min(600, Math.round(v))) + 'px'; }, save: () => bdoPosSaveEl(LS_BDOPPOS, nextEl) }); } catch (e) {}
+    } else {
+      try { if (KW && typeof KW.rsz === 'function') KW.rsz(nextEl, { dir: 'h', color: '#3b9eff' }); } catch (e) {}
+    }
   }
 
   let box = null;
@@ -340,18 +364,31 @@
         });
       };
     });
-    try { // 우하단 대각 핸들: 가로는 스택너비 공유, 세로는 목록 높이
-      if (KW && typeof KW.rsz === 'function') KW.rsz(cpnEl, {
-        dir: 'd', color: '#b784ff',
-        getH: () => cpnH,
-        setH: (v) => {
-          cpnH = Math.max(CPN_H_MIN, Math.min(cpnHMax(), v));
-          const lst = cpnEl.querySelector('.__kw_sb_cpn');
-          if (lst) lst.style.maxHeight = Math.min(cpnH, cpnHMax()) + 'px';
-        },
-        save: () => { try { localStorage.setItem(LS_CPNH, String(cpnH)); } catch (er) {} },
-      });
+    try { // 우하단 대각 핸들: 가로는 스택너비 공유(띄운 상태면 자기 너비), 세로는 목록 높이
+      if (KW && typeof KW.rsz === 'function') {
+        const cpos = bdoPosGet(LS_CPNNPOS);
+        const base = {
+          dir: 'd', color: '#b784ff',
+          getH: () => cpnH,
+          setH: (v) => {
+            cpnH = Math.max(CPN_H_MIN, Math.min(cpnHMax(), v));
+            const lst = cpnEl.querySelector('.__kw_sb_cpn');
+            if (lst) lst.style.maxHeight = Math.min(cpnH, cpnHMax()) + 'px';
+          },
+          save: () => {
+            try { localStorage.setItem(LS_CPNH, String(cpnH)); } catch (er) {}
+            if (cpos) bdoPosSaveEl(LS_CPNNPOS, cpnEl);
+          },
+        };
+        if (cpos) {
+          base.wMode = 'self';
+          base.getW = () => cpnEl.getBoundingClientRect().width;
+          base.setW = (v) => { cpnEl.style.width = Math.max(216, Math.min(600, Math.round(v))) + 'px'; };
+        }
+        KW.rsz(cpnEl, base);
+      }
     } catch (e) {}
+    try { if (KW && typeof KW.float === 'function') KW.float(cpnEl, { color: '#b784ff', key: LS_CPNNPOS, dock: () => bdoOrder() }); } catch (e) {}
   }
   function updateCoupons(now) {
     const stack = document.getElementById('__kw_stack');
@@ -547,6 +584,7 @@
         save: () => { try { localStorage.setItem(LS_PARTYH, String(partyH)); } catch (er) {} },
       });
     } catch (e) {}
+    try { if (KW && typeof KW.float === 'function') KW.float(partyEl, { color: '#ff7a59', key: LS_PARTYPOS, dock: () => bdoOrder() }); } catch (e) {}
   }
 
   function tick() {

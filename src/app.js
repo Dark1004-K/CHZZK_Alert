@@ -149,6 +149,7 @@ try {
     highlight(el) { highlightMessage(el); }, // 채팅 한 줄을 잠깐 강조 (불린 대화 이동과 같은 효과)
     sound() { playAlertSound(); }, // 설정 > 일반설정의 알림 소리 재생
     rsz(el, o) { try { return kwRsz(el, o); } catch (e) {} }, // 우하 리사이즈 핸들 (dir h=가로공유/v=세로/d=대각)
+    float(el, o) { try { return kwFloatKey(el, o); } catch (e) {} }, // 좌상 + 띄우기 (key=위치 저장키, dock=복귀 추가동작)
     stackW(v) { try { return kwStackW(v); } catch (e) {} }, // 스택 너비 공유 (216~600)
     emit(evt, data) { kwEmit('ext:' + evt, data); }, // 플러그인끼리 이벤트 전달 (구독은 on('ext:이름'))
   };

@@ -12,6 +12,8 @@ function setStackWidth(w) {
 }
 // 불린 대화 목록 높이: 위쪽 손잡이를 위로 끌면 커진다 (스택이 아래 고정이라). 한계 80px ~ 화면 높이의 85%
 const LS_HH = '__kw_hits_h';
+const LS_HISTPOS = '__kw_hist_pos'; // 불린대화 띄우기 위치 {x,y,w} (없으면 스택 자리)
+const LS_DROPSPOS = '__kw_drops_pos'; // 드롭스 띄우기 위치 {x,y,w} (없으면 스택 자리)
 const HH_MIN = 80, HH_DEF = 150;
 const hhMax = () => Math.max(HH_MIN, Math.floor(window.innerHeight * 0.85));
 let histH = HH_DEF;
@@ -180,11 +182,132 @@ function kwRsz(el, o) {
     document.addEventListener('mouseup', up);
   });
 }
+// ---------- 낱개 띄우기 (스택창을 + 배지로 끌어내 fixed로, 위치 저장+자석) ----------
+// load()->{x,y,w}|null, save(p), clear(), dock() (원래 자리 복구), apply(p) (위치 적용)
+function loadFloatPos(key) {
+  try {
+    const o = JSON.parse(localStorage.getItem(key));
+    if (o && isFinite(o.x) && isFinite(o.y)) {
+      return {
+        x: Math.round(o.x), y: Math.round(o.y),
+        w: isFinite(o.w) ? Math.max(216, Math.min(600, Math.round(o.w))) : curWidth,
+      };
+    }
+  } catch (e) {}
+  return null;
+}
+function applyFloatPos(el, p) {
+  if (!el || !p) return;
+  const w = p.w || Math.round(el.getBoundingClientRect().width) || curWidth;
+  el.style.position = 'fixed';
+  el.style.left = Math.max(0, Math.min(window.innerWidth - w, p.x)) + 'px';
+  el.style.top = Math.max(0, Math.min(window.innerHeight - (el.offsetHeight || 100), p.y)) + 'px';
+  el.style.bottom = 'auto';
+  el.style.width = w + 'px';
+}
+function clearFloatPos(el) {
+  if (!el) return;
+  el.style.position = ''; el.style.left = ''; el.style.top = ''; el.style.bottom = ''; el.style.width = ''; el.style.boxShadow = '';
+}
+// ---------- 낱개 띄우기 (통일 규격: 감시중=녹색창 제외 모든 창) ----------
+// 신규 창도 `KW.float(el, { color, key, dock })` 한 줄이면 같은 +버튼·자석·저장 규격을 따른다.
+// +버튼: 좌상 라운드 .__kw_mv (색테두리만 창 색). 드래그=fixed 띄우기, 더블클릭=원래 자리.
+// 자석: snapRect()가 화면 끝·다른 창에 14px 안이면 맞춤. 위치는 localStorage {x,y,w}.
+// innerHTML을 매번 다시 그리는 창(드롭스/보스/쿠폰)은 버튼이 지워지므로 매 렌더 후 KW.float을
+// 다시 호출해도 되게 멱등(idempotent)하게 만들었다: 이미 떠 있으면 저장 위치로 리셋하지 않음.
+function kwFloat(el, o) {
+  if (!el || !o) return;
+  const firstWire = !el.__kwFloatWired;
+  // innerHTML 재렌더로 버튼이 날아갔으면 다시 달고, 이미 달려 있으면 중복 생성 금지
+  try {
+    const has = el.querySelector(':scope > .__kw_mv');
+    if (!has) {
+      const b = document.createElement('div');
+      b.className = '__kw_mv';
+      b.textContent = '+';
+      b.title = '드래그로 창 띄우기 · 더블클릭: 원래 자리로';
+      if (o.color) { b.style.borderColor = o.color; b.style.color = o.color; }
+      el.appendChild(b);
+      b.onpointerdown = (e) => dragFloatBtn(e, el, o);
+      b.ondblclick = () => { try { o.clear(); } catch (e2) {} try { o.dock(); } catch (e3) {} };
+    } else if (o.color) { has.style.borderColor = o.color; has.style.color = o.color; }
+  } catch (e) {}
+  try { el.setAttribute('data-kw-float', '1'); } catch (e2) {}
+  el.__kwFloatWired = true;
+  el.__kwFloatSave = o.save || null;
+  el.__kwFloatClear = o.clear || null;
+  el.__kwFloatDock = o.dock || null;
+  // 첫 연결 때만 저장 위치 복구. 이미 fixed(떠 있음)면 렌더 중에도 건드리지 않는다.
+  if (firstWire && el.style.position !== 'fixed') {
+    try {
+      const p = o.load ? o.load() : null;
+      if (p && isFinite(p.x) && isFinite(p.y) && o.apply) o.apply(p);
+    } catch (e4) {}
+  }
+}
+function dragFloatBtn(e, el, o) {
+  if (!el || (e.button !== undefined && e.button !== 0)) return;
+  e.preventDefault();
+  if (e.stopPropagation) e.stopPropagation();
+  const r = el.getBoundingClientRect();
+  const w = Math.round(r.width), h = Math.round(r.height);
+  const ox = e.clientX - r.left, oy = e.clientY - r.top;
+  el.style.position = 'fixed'; // 제자리에서 그대로 들어올린다
+  el.style.left = r.left + 'px'; el.style.top = r.top + 'px'; el.style.bottom = 'auto';
+  el.style.width = w + 'px';
+  el.__kwDragging = true;
+  const prevCur = document.documentElement.style.cursor;
+  document.documentElement.style.cursor = 'grabbing';
+  let cur = { x: r.left, y: r.top, w };
+  const move = (ev) => {
+    const sn = snapRect(ev.clientX - ox, ev.clientY - oy, w, h, el);
+    const x = Math.max(0, Math.min(window.innerWidth - w, sn.x));
+    const y = Math.max(0, Math.min(window.innerHeight - h, sn.y));
+    cur = { x, y, w };
+    el.style.left = x + 'px'; el.style.top = y + 'px';
+    el.style.boxShadow = sn.hit ? '0 0 0 2px rgba(0,255,163,.7)' : '';
+    try { if (o.onMove) o.onMove(cur); } catch (err) {}
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+    document.documentElement.style.cursor = prevCur;
+    el.style.boxShadow = '';
+    el.__kwDragging = false;
+    try { if (o.save) o.save({ x: Math.round(cur.x), y: Math.round(cur.y), w }); } catch (err) {}
+    try { if (o.apply) o.apply({ x: Math.round(cur.x), y: Math.round(cur.y), w }); } catch (err2) {}
+    try { if (o.onDrop) o.onDrop(cur); } catch (err3) {}
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
+}
+// 키 문자열만 넘기면 저장/복구를 알아서 (플러그인용). dock 추가 동작만 따로 받는다.
+function kwFloatKey(el, o) {
+  if (!el || !o || !o.key) return;
+  kwFloat(el, {
+    color: o.color,
+    load: () => loadFloatPos(o.key),
+    save: (p) => { try { localStorage.setItem(o.key, JSON.stringify(p)); } catch (e) {} },
+    clear: () => { try { localStorage.removeItem(o.key); } catch (e) {} },
+    dock: () => { clearFloatPos(el); try { if (o.dock) o.dock(); } catch (e2) {} },
+    apply: (p) => applyFloatPos(el, p),
+  });
+}
+// 띄운 창의 가로 리사이즈 저장용: 현재 rect를 위치키에 통째 저장
+function saveFloatRect(key, el) {
+  try {
+    const r = el.getBoundingClientRect();
+    localStorage.setItem(key, JSON.stringify({ x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width) }));
+  } catch (e) {}
+}
 function attachHistHandlers() {
   if (!histPanel || histPanel.__kwWired) return;
   histPanel.__kwWired = true;
   wireHGrip();
   wireHRsz();
+  kwFloatKey(histPanel, { color: '#ffd400', key: LS_HISTPOS });
   const c = histPanel.querySelector('#__kw_hits_clear');
   if (c) c.onclick = () => {
     hitLog = []; saveHits(); renderHitsList(); dlog('hits-cleared');
@@ -582,7 +705,7 @@ function renderOptWin() {
     const ss = loadOptSize();
     if (ss) { w.style.width = Math.min(ss.w, window.innerWidth - 16) + 'px'; w.style.height = Math.min(ss.h, optHMax()) + 'px'; }
   } catch (e) {}
-  w.innerHTML = `<button id="__kw_optwin_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="position:absolute;left:-9px;top:-9px;width:24px;height:24px;padding:0 0 2px;box-sizing:border-box;border-radius:50%;background:rgb(20,20,24);border:1px solid #777;color:#ccc;cursor:grab;touch-action:none;z-index:3;box-shadow:0 2px 6px rgba(0,0,0,.5);font:bold 16px/1 sans-serif">+</button><div style="display:flex;align-items:center;min-height:26px;padding-right:26px;margin-bottom:8px"><b>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button>${extOptHtml(p)}`;
+  w.innerHTML = `<div id="__kw_optwin_mv" class="__kw_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</div><div style="display:flex;align-items:center;min-height:26px;padding-right:26px;margin-bottom:8px"><b>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button>${extOptHtml(p)}`;
   if (!old) document.body.appendChild(w);
   try { // 옵션 창 폭이 넓어서 설정 창 오른쪽에 다 들어가지 않으면 화면 가운데로 (저장 위치가 없을 때만)
     if (!loadOptPos()) {
@@ -707,7 +830,7 @@ function renderSettings() {
   if (!setPanel) return;
   setPanel.innerHTML = `
     <b id="__kw_set_title" title="끌어서 설정 창 이동" style="position:absolute;top:10px;left:26px;font-size:14px;color:#fff;cursor:grab;touch-action:none;user-select:none">설정</b>
-    <button class="__kw_ic" id="__kw_set_move" title="드래그로 설정 창 이동 (화면 가장자리·다른 창에 자석처럼 붙음) · 더블클릭: 원래 자리로" style="position:absolute;left:-9px;top:-9px;width:24px;height:24px;padding:0 0 2px;box-sizing:border-box;border-radius:50%;background:rgb(20,20,24);border:1px solid #777;color:#ccc;cursor:grab;touch-action:none;z-index:3;box-shadow:0 2px 6px rgba(0,0,0,.5);font:bold 16px/1 sans-serif">+</button>
+    <button id="__kw_set_move" class="__kw_mv" title="드래그로 설정 창 이동 (화면 가장자리·다른 창에 자석처럼 붙음) · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</button>
     <button class="__kw_ic __kw_xabs" id="__kw_set_close" title="설정 닫기" style="color:#aaaab9">${IC.close}</button>
     <div style="display:flex;gap:14px;height:calc(100% - 28px);margin-top:28px">
       <div class="__kw_tabs">
@@ -997,17 +1120,30 @@ function applySetPos() {
   setPanel.style.bottom = 'auto';
 }
 // 화면 가장자리·다른 창 가장자리에 자석처럼 맞춘다 (skipEl 자신은 제외)
+// 통일 규격: 감시중(#__kw_panel)은 자석 대상이지만 이동 대상은 아니다.
+// 신규 창은 id="__kw_*" 또는 data-kw-float="1"이면 자동으로 자석 대상에 포함된다.
 function snapRect(x, y, w, h, skipEl) {
   const vw = window.innerWidth, vh = window.innerHeight;
   const xs = [0, vw - w], ys = [0, vh - h];
-  ['__kw_panel', '__kw_dropsp', '__kw_histp', '__kw_bdop', '__kw_cpn', '__kw_bdo_party', '__kw_setp', '__kw_optwin'].forEach((id) => {
-    const el = document.getElementById(id);
-    if (!el || el === skipEl || (skipEl && skipEl.contains(el))) return;
-    const r = el.getBoundingClientRect();
-    if (r.width < 20 || r.height < 20 || el.style.display === 'none') return;
+  const seen = new Set();
+  const pushEl = (el) => {
+    if (!el || el === skipEl || (skipEl && skipEl.contains && skipEl.contains(el))) return;
+    if (seen.has(el)) return;
+    seen.add(el);
+    let r = null;
+    try { r = el.getBoundingClientRect(); } catch (e) { return; }
+    if (!r || r.width < 20 || r.height < 20) return;
+    try { if (el.style && el.style.display === 'none') return; } catch (e2) {}
+    try { if (!el.isConnected) return; } catch (e3) {}
     xs.push(r.left, r.right - w, r.right + SNAP_GAP, r.left - SNAP_GAP - w);
     ys.push(r.top, r.bottom - h, r.bottom + SNAP_GAP, r.top - SNAP_GAP - h);
+  };
+  ['__kw_panel', '__kw_dropsp', '__kw_histp', '__kw_bdop', '__kw_cpn', '__kw_bdo_party', '__kw_setp', '__kw_optwin'].forEach((id) => {
+    try { pushEl(document.getElementById(id)); } catch (e) {}
   });
+  try { // 신규 창 자동 포함 (KW.float으로 등록된 창)
+    document.querySelectorAll('[data-kw-float]').forEach(pushEl);
+  } catch (e) {}
   const best = (v, list) => {
     let bv = v, bd = SNAP_TH + 1;
     list.forEach((c) => { const d = Math.abs(c - v); if (d < bd) { bd = d; bv = c; } });
@@ -1277,7 +1413,17 @@ function renderDrops() {
     });
   };
   dropsPanel.querySelector('#__kw_dr_vault').onclick = () => { try { window.open(DROPS_VAULT_URL, '_blank', 'noopener'); } catch (e) {} };
-  kwRsz(dropsPanel, { dir: 'h', color: '#ff9f1a', log: 'width' });
+  kwFloatKey(dropsPanel, { color: '#ff9f1a', key: LS_DROPSPOS });
+  if (loadFloatPos(LS_DROPSPOS)) { // 띄운 상태: 가로는 자기 너비
+    kwRsz(dropsPanel, {
+      dir: 'h', color: '#ff9f1a', wMode: 'self',
+      getW: () => dropsPanel.getBoundingClientRect().width,
+      setW: (v) => { dropsPanel.style.width = Math.max(216, Math.min(600, Math.round(v))) + 'px'; },
+      save: () => saveFloatRect(LS_DROPSPOS, dropsPanel),
+    });
+  } else {
+    kwRsz(dropsPanel, { dir: 'h', color: '#ff9f1a', log: 'width' });
+  }
   applyDropsVisibility();
 }
 // 시간이 찬 보상을 알림 (토스트 + 브라우저 알림 + 소리, TTS는 확장이 'drops' 이벤트로 읽음)
