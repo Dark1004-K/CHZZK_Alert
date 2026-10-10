@@ -86,11 +86,132 @@
   }
   // [BETA-TEST-ONLY:end]
 
-  // 감시 화면(#__kw_stack)의 드롭스 창 바로 아래에 파란색 "다음 우두머리" 창을 둔다
+  // ---------- 창 묶음(그룹): 다음 우두머리 + 쿠폰 모아보기 ----------
+  // 평소에는 감시 화면(#__kw_stack)의 드롭스 창 아래에 붙어 있고, 맨 위의 손잡이를 끌면 화면 아무 곳으로 옮길 수 있다.
+  // 옮기는 동안 화면 가장자리와 다른 창(초록·드롭스·불린 대화·설정)의 가장자리에 자석처럼 붙는다. 손잡이를 더블클릭하면 원래 자리로 돌아온다.
+  const LS_GPOS = '__kw_bdo_gpos';
+  const SNAP_TH = 14; // 이 거리(px) 안이면 붙는다
+  const SNAP_GAP = 8; // 다른 창 옆에 붙을 때 간격
+  let grp = null, grpIn = null, grpDrag = false, grpSig = '';
+  function loadGpos() {
+    try { const o = JSON.parse(localStorage.getItem(LS_GPOS)); if (o && isFinite(o.x) && isFinite(o.y)) return o; } catch (e) {}
+    return null;
+  }
+  function saveGpos(p) {
+    try { if (p) localStorage.setItem(LS_GPOS, JSON.stringify(p)); else localStorage.removeItem(LS_GPOS); } catch (e) {}
+  }
+  const GRP_BASE = 'box-sizing:border-box;display:flex;flex-direction:column;gap:6px;';
+  const floatCss = (x, y, w) => GRP_BASE + 'position:fixed;left:' + Math.round(x) + 'px;top:' + Math.round(y) + 'px;width:' + Math.round(w) + 'px;margin:0;z-index:1;';
+  function ensureGroup(stack) {
+    if (grp && grp.isConnected) return grpIn;
+    grp = document.createElement('div');
+    grp.id = '__kw_bdo_grp';
+    grp.style.cssText = GRP_BASE + 'width:100%';
+    grpSig = '';
+    const grip = document.createElement('div');
+    grip.id = '__kw_bdo_grip';
+    grip.title = '드래그로 이동 (화면 가장자리·다른 창에 자석처럼 붙음) · 더블클릭: 원래 자리로';
+    grip.style.cssText = 'height:10px;margin:-2px 0 -2px;cursor:grab;position:relative;touch-action:none;flex:none';
+    grip.innerHTML = '<span style="position:absolute;left:50%;top:50%;width:32px;height:3px;margin:-1.5px 0 0 -16px;border-radius:2px;background:rgba(255,255,255,.45)"></span>';
+    grpIn = document.createElement('div');
+    grpIn.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+    grp.appendChild(grip);
+    grp.appendChild(grpIn);
+    grip.onpointerdown = (e) => startGroupDrag(e, grip);
+    grip.ondblclick = () => { saveGpos(null); grpSig = ''; placeGroup(); };
+    return grpIn;
+  }
+  function cleanupGroup() {
+    if (grp && grpIn && !grpIn.children.length) { try { grp.remove(); } catch (e) {} grp = null; grpIn = null; grpSig = ''; }
+  }
+  function placeGroup() {
+    const stack = document.getElementById('__kw_stack');
+    if (!grp || !stack || grpDrag) return;
+    const pos = loadGpos();
+    if (pos) {
+      if (grp.parentNode !== stack) stack.appendChild(grp);
+      const w = Math.round(stack.getBoundingClientRect().width) || 350;
+      const h = grp.offsetHeight || 0;
+      const x = Math.max(0, Math.min(window.innerWidth - w, pos.x));
+      const y = Math.max(0, Math.min(window.innerHeight - h, pos.y));
+      const sig = 'f' + Math.round(x) + ',' + Math.round(y) + ',' + w;
+      if (sig !== grpSig) { grp.style.cssText = floatCss(x, y, w); grpSig = sig; }
+      return;
+    }
+    if (grpSig !== 'd') { grp.style.cssText = GRP_BASE + 'width:100%'; grpSig = 'd'; }
+    // 제자리: 드롭스 창이 있으면 그 바로 아래, 없으면 불린 대화 창 바로 위
+    const drops = document.getElementById('__kw_dropsp');
+    const hist = document.getElementById('__kw_histp');
+    if (drops && drops.parentNode === stack) {
+      if (grp.previousSibling !== drops) stack.insertBefore(grp, drops.nextSibling);
+    } else if (hist && hist.parentNode === stack) {
+      if (grp.nextSibling !== hist) stack.insertBefore(grp, hist);
+    } else if (grp.parentNode !== stack) stack.appendChild(grp);
+  }
+  // 자석: 끌고 있는 묶음의 가장자리를 화면 가장자리·다른 창 가장자리에 맞춘다
+  function snapGroup(x, y, w, h) {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const xs = [[0, 0], [vw - w, 0]]; // [맞출 left 값, 0]
+    const ys = [[0, 0], [vh - h, 0]];
+    ['__kw_panel', '__kw_dropsp', '__kw_histp', '__kw_setp'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el || el.closest('#__kw_bdo_grp')) return;
+      const r = el.getBoundingClientRect();
+      if (r.width < 20 || r.height < 20) return;
+      xs.push([r.left, 0], [r.right - w, 0], [r.right + SNAP_GAP, 0], [r.left - SNAP_GAP - w, 0]);
+      ys.push([r.top, 0], [r.bottom - h, 0], [r.bottom + SNAP_GAP, 0], [r.top - SNAP_GAP - h, 0]);
+    });
+    const best = (v, list) => {
+      let bv = v, bd = SNAP_TH + 1;
+      list.forEach(([c]) => { const d = Math.abs(c - v); if (d < bd) { bd = d; bv = c; } });
+      return bd <= SNAP_TH ? { v: bv, hit: true } : { v, hit: false };
+    };
+    const bx = best(x, xs), by = best(y, ys);
+    return { x: bx.v, y: by.v, hit: bx.hit || by.hit };
+  }
+  function startGroupDrag(e, grip) {
+    if (e.button !== undefined && e.button !== 0) return;
+    const stack = document.getElementById('__kw_stack');
+    if (!grp || !stack) return;
+    e.preventDefault();
+    const r = grp.getBoundingClientRect();
+    const ox = e.clientX - r.left, oy = e.clientY - r.top;
+    const w = Math.round(stack.getBoundingClientRect().width) || Math.round(r.width);
+    grpDrag = true;
+    grip.style.cursor = 'grabbing';
+    let cur = { x: r.left, y: r.top };
+    if (grp.parentNode !== stack) stack.appendChild(grp);
+    grp.style.cssText = floatCss(cur.x, cur.y, w); // 제자리에서 그대로 들어올린다
+    const h = grp.offsetHeight || r.height;
+    const move = (ev) => {
+      let x = ev.clientX - ox, y = ev.clientY - oy;
+      const sn = snapGroup(x, y, w, h);
+      x = Math.max(0, Math.min(window.innerWidth - w, sn.x));
+      y = Math.max(0, Math.min(window.innerHeight - h, sn.y));
+      cur = { x, y };
+      grp.style.cssText = floatCss(x, y, w) + (sn.hit ? 'box-shadow:0 0 0 2px rgba(0,255,163,.7);border-radius:12px;' : '');
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      grpDrag = false;
+      grip.style.cursor = 'grab';
+      grp.style.boxShadow = '';
+      saveGpos({ x: cur.x, y: cur.y });
+      grpSig = '';
+      placeGroup();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  }
+  // 감시 화면(#__kw_stack)의 드롭스 창 바로 아래에 파란색 "다음 우두머리" 창을 둔다 (창 묶음 안)
   let nextEl = null;
   function removeNext() {
     if (nextEl) { try { nextEl.remove(); } catch (e) {} }
     nextEl = null;
+    cleanupGroup();
   }
   function fmtLong(ms) {
     const s = Math.max(0, Math.floor(ms / 1000));
@@ -118,15 +239,9 @@
         if (e.target && e.target.closest && e.target.closest('#__kw_bdop_x')) { turnOff('nextBoss'); removeNext(); }
       };
     }
-    // 위치: 드롭스 창이 있으면 그 바로 아래, 없으면 불린 대화 창 바로 위
-    const drops = document.getElementById('__kw_dropsp');
-    const hist = document.getElementById('__kw_histp');
-    if (drops && drops.parentNode === stack) {
-      if (nextEl.previousSibling !== drops) stack.insertBefore(nextEl, drops.nextSibling);
-    } else if (hist && hist.parentNode === stack) {
-      // 불린 대화 창 앞쪽에만 있으면 된다 (그 사이에 쿠폰 창이 끼어도 괜찮음)
-      if (!nextEl.parentNode || !(nextEl.compareDocumentPosition(hist) & 4)) stack.insertBefore(nextEl, hist);
-    } else if (!nextEl.parentNode) stack.appendChild(nextEl);
+    const gin = ensureGroup(stack); // 위치는 창 묶음이 정한다
+    if (nextEl.parentNode !== gin || gin.firstChild !== nextEl) gin.insertBefore(nextEl, gin.firstChild);
+    placeGroup();
     const when = new Date(next.t + KST);
     const days = Math.floor((next.t + KST) / DAY) - Math.floor((now + KST) / DAY);
     const dayTxt = days === 0 ? '' : days === 1 ? '내일 ' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + '요일 ';
@@ -225,6 +340,7 @@
     if (cpnEl) { try { cpnEl.remove(); } catch (e) {} }
     cpnEl = null;
     cpnSig = '';
+    cleanupGroup();
   }
   function loadCoupons(manual) {
     if (cpnState === 'loading') return;
@@ -318,14 +434,9 @@
       cpnEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #b784ff;position:relative';
       cpnSig = '';
     }
-    // 위치: 다음 우두머리 창 바로 아래 → 없으면 드롭스 창 바로 아래 → 없으면 불린 대화 창 바로 위
-    const anchor = document.getElementById('__kw_bdop') || document.getElementById('__kw_dropsp');
-    const hist = document.getElementById('__kw_histp');
-    if (anchor && anchor.parentNode === stack) {
-      if (cpnEl.previousSibling !== anchor) stack.insertBefore(cpnEl, anchor.nextSibling);
-    } else if (hist && hist.parentNode === stack) {
-      if (cpnEl.nextSibling !== hist) stack.insertBefore(cpnEl, hist);
-    } else if (!cpnEl.parentNode) stack.appendChild(cpnEl);
+    const gin = ensureGroup(stack);
+    if (cpnEl.parentNode !== gin || gin.lastChild !== cpnEl) gin.appendChild(cpnEl);
+    placeGroup();
     renderCoupons(now);
   }
 
