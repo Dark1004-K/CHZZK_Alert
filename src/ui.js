@@ -566,7 +566,7 @@ function renderPanel() {
   panel.className = 'show' + (running ? '' : ' off');
 
   panel.innerHTML = `
-    <div id="__kw_row"><div style="flex:1;min-width:0"><div id="__kw_ch"><span style="display:inline-flex;align-items:center;gap:5px;min-width:0"><span style="display:inline-flex;align-items:center;flex:none;color:#00ffa3">${IC.house}</span><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(chDisplayName())}</b></span><span id="__kw_links">${chLinksHtml()}<button class="__kw_ic" id="__kw_gear" title="설정" style="color:#00ffa3">${IC.sliders}</button></span></div><div id="__kw_titlerow"><div id="__kw_title" style="flex:1;min-width:0"><span id="__kw_dot"></span><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b> · 단어 ${keywords.length}개</div><span style="display:inline-flex;gap:0;flex:none"><button class="__kw_ic" id="__kw_mutebtn" title="${muted() ? '알람 꺼짐 (누르면 켜기)' : '알람 켜짐 (누르면 끄기)'}" style="color:${muted() ? '#ff9f1a' : '#00ffa3'}">${muted() ? IC.bellOff : IC.bell}</button><button class="__kw_ic" id="__kw_btn" title="${running ? '정지' : '시작'}" style="color:#00ffa3">${running ? IC.pause : IC.play}</button></span></div></div></div>
+    <div id="__kw_row"><div style="flex:1;min-width:0"><div id="__kw_ch"><span style="display:inline-flex;align-items:center;gap:5px;min-width:0"><span class="__kw_ti" style="color:#00ffa3">${IC.house}</span><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(chDisplayName())}</b></span><span id="__kw_links">${chLinksHtml()}<button class="__kw_ic" id="__kw_gear" title="설정" style="color:#00ffa3">${IC.sliders}</button></span></div><div id="__kw_titlerow"><div id="__kw_title" style="flex:1;min-width:0"><span id="__kw_dot"></span><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b> · 단어 ${keywords.length}개</div><span style="display:inline-flex;gap:0;flex:none"><button class="__kw_ic" id="__kw_mutebtn" title="${muted() ? '알람 꺼짐 (누르면 켜기)' : '알람 켜짐 (누르면 끄기)'}" style="color:${muted() ? '#ff9f1a' : '#00ffa3'}">${muted() ? IC.bellOff : IC.bell}</button><button class="__kw_ic" id="__kw_btn" title="${running ? '정지' : '시작'}" style="color:#00ffa3">${running ? IC.pause : IC.play}</button></span></div></div></div>
     <div id="__kw_expwarn" style="display:${allowExpiry ? 'block' : 'none'};font-size:11px;color:#ff9f1a;margin-top:4px">⚠ 만료 경고 · ${allowExpiry ? escapeHtml(allowExpiry.date) : ''} 만료, ${allowExpiry ? allowExpiry.stopDays : ''}일 뒤 동작 중지</div>
     <div id="__kw_warn" style="display:${limitedMode ? 'block' : 'none'};font-size:11px;color:#ffd400;margin-top:4px">⚠ 사용자 스크립트 허용 꺼짐: WS 감시 불가, DOM 감시만 동작. chrome://extensions → Tampermonkey 상세에서 허용 후 새로고침</div>`;
 
@@ -779,7 +779,7 @@ function renderOptWin() {
     const ss = loadOptSize();
     if (ss) { w.style.width = Math.min(ss.w, window.innerWidth - 16) + 'px'; w.style.height = Math.min(ss.h, optHMax()) + 'px'; }
   } catch (e) {}
-  w.innerHTML = `<div id="__kw_optwin_mv" class="__kw_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</div><div style="display:flex;align-items:center;min-height:26px;padding-left:8px;padding-right:26px;margin-bottom:8px"><b style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-flex;align-items:center;color:#ccc">${IC.sliders}</span>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button>${extOptHtml(p)}`;
+  w.innerHTML = `<div id="__kw_optwin_mv" class="__kw_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</div><div style="display:flex;align-items:center;min-height:26px;padding-right:26px;margin-bottom:8px"><b style="display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button>${extOptHtml(p)}`;
   if (!old) document.body.appendChild(w);
   try { // 옵션 창 폭이 넓어서 설정 창 오른쪽에 다 들어가지 않으면 화면 가운데로 (저장 위치가 없을 때만)
     if (!loadOptPos()) {
@@ -915,7 +915,7 @@ function showReloadPopup(openInstall) {
 function renderSettings() {
   if (!setPanel) return;
   setPanel.innerHTML = `
-    <b id="__kw_set_title" title="끌어서 설정 창 이동" style="position:absolute;top:10px;left:18px;font-size:14px;color:#fff;cursor:grab;touch-action:none;user-select:none;display:inline-flex;align-items:center;gap:5px"><span style="display:inline-flex;align-items:center;color:#ccc">${IC.sliders}</span>설정</b>
+    <b id="__kw_set_title" title="끌어서 설정 창 이동" style="position:absolute;top:10px;left:18px;font-size:14px;color:#fff;cursor:grab;touch-action:none;user-select:none;display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>설정</b>
     <button id="__kw_set_move" class="__kw_mv" title="드래그로 설정 창 이동 (화면 가장자리·다른 창에 자석처럼 붙음) · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</button>
     <button class="__kw_ic __kw_xabs" id="__kw_set_close" title="설정 닫기" style="color:#aaaab9">${IC.close}</button>
     <div style="display:flex;gap:14px;height:calc(100% - 28px);margin-top:28px">

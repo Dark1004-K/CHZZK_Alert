@@ -179,9 +179,9 @@
     const days = Math.floor((next.t + KST) / DAY) - Math.floor((now + KST) / DAY);
     const dayTxt = days === 0 ? '' : days === 1 ? '내일 ' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + '요일 ';
     // 쿠폰 모아보기 창과 같은 디자인: 굵은 12px 제목 줄(이모지 아이콘 + 제목) → 보스 이름 줄 → 시각 줄
-    nextEl.innerHTML = '<div style="display:flex;align-items:center;min-height:26px;padding-left:8px;padding-right:28px"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SWORDS, '#3b9eff') + '다음 우두머리</b></div>' +
-      // 한 줄: 보스 이름 · 출현 시각(11:00) ········· 남은 시간(34:08, 오른쪽 끝)
-      '<div style="display:flex;align-items:center;gap:8px;margin-top:2px">' +
+    nextEl.innerHTML = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SWORDS, '#3b9eff') + '다음 우두머리</b></div>' +
+      // 한 줄: 보스 이름 · 출현 시각(11:00) ········· 남은 시간(34:08, 오른쪽 끝). 본문은 타이틀 글자 시작점에 맞춤
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:2px;padding-left:19px">' +
       '<div style="font-size:13px;font-weight:bold;display:flex;flex-wrap:wrap;gap:2px 10px;word-break:keep-all;min-width:0">' + next.bosses.map((n) => '<span>' + esc(n) + '</span>').join('') + '</div>' +
       '<span style="flex:none;font-size:12px;color:#3b9eff;white-space:nowrap">' + dayTxt + next.hhmm + '</span>' +
       '<span style="flex:none;margin-left:auto;font-size:12px;font-weight:bold;color:#3b9eff;white-space:nowrap">' + fmtLong(next.t - now) + '</span></div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:2px;right:3px');
@@ -320,12 +320,12 @@
     const sig = [cpnState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, cpnData ? cpnData.updatedAt : 0, cpnFetchedAt, list.map((c) => c.code).join(',')].join('|');
     if (sig === cpnSig && cpnEl && cpnEl.isConnected) return;
     cpnSig = sig;
-    let h = '<div id="__kw_cpn_hd" style="display:flex;align-items:center;justify-content:flex-start;gap:4px;cursor:pointer;min-height:26px;padding-left:8px;padding-right:58px">' +
+    let h = '<div id="__kw_cpn_hd" style="display:flex;align-items:center;justify-content:flex-start;gap:4px;cursor:pointer;min-height:26px;padding-right:58px">' +
       '<b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_TICKET, '#b784ff') + '쿠폰 모아보기&nbsp;<span style="color:#b784ff">(' + list.length + ')</span></b>' +
       '<span style="display:inline-flex;align-items:center"><button id="__kw_cpn_rf" class="' + (busy ? '__kw_ic __kw_spin' : '') + '" title="' + (cpnFetchedAt ? '새로고침 (마지막 갱신 ' + pad2(new Date(cpnFetchedAt).getHours()) + ':' + pad2(new Date(cpnFetchedAt).getMinutes()) + ':' + pad2(new Date(cpnFetchedAt).getSeconds()) + ')' : '새로고침') + '" style="border:0;background:transparent;color:#b784ff;cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;position:relative;top:1.5px">' + (busy ? ICON_REFRESH : flash ? (cpnFlashErr ? ICON_FAIL : ICON_DONE) : ICON_REFRESH) + '</button>' +
       '<span title="' + (fold ? '펼치기' : '접기') + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:#b784ff;position:absolute;top:2px;right:29px;z-index:2"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (fold ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></span></div>' + xBtn('__kw_cpn_x', '#b784ff', 'position:absolute;top:2px;right:3px;z-index:2');
     if (!fold) {
-      h += '<div class="__kw_sb_cpn" style="max-height:' + Math.min(cpnH, cpnHMax()) + 'px;overflow-y:auto;margin-top:2px">';
+      h += '<div class="__kw_sb_cpn" style="max-height:' + Math.min(cpnH, cpnHMax()) + 'px;overflow-y:auto;margin-top:2px;padding-left:19px">';
       if (cpnState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">쿠폰 목록을 받지 못했습니다. 새로고침(↻)을 눌러 보세요.</div>';
       else if (cpnState === 'idle' || (cpnState === 'loading' && !cpnData)) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
       else if (!list.length) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">사용할 수 있는 쿠폰이 없습니다.</div>';
@@ -565,9 +565,9 @@
     const sig = list.map((x) => x.id).join(',');
     if (sig !== partySig) {
       partySig = sig;
-      let h = '<div style="display:flex;align-items:center;min-height:26px;padding-left:8px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_USERS, '#ff7a59') + '파티 모집&nbsp;<span style="color:#ff7a59">(' + list.length + ')</span></b></div>' +
+      let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_USERS, '#ff7a59') + '파티 모집&nbsp;<span style="color:#ff7a59">(' + list.length + ')</span></b></div>' +
         xBtn('__kw_bdo_party_x', '#ff7a59', 'position:absolute;top:2px;right:3px;z-index:2') +
-        '<div class="__kw_sb_pty" style="flex:1;min-height:0;overflow-y:auto">';
+        '<div class="__kw_sb_pty" style="flex:1;min-height:0;overflow-y:auto;padding-left:19px">';
       if (!list.length) h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">모집 중인 파티가 없습니다.<br>채팅에 <b>#파티 검은사당 10분 내용</b> 처럼 쓰면 등록됩니다.</div>';
       list.forEach((x) => {
         h += '<div data-pjump="' + esc(x.id) + '" title="클릭하면 해당 채팅으로 이동" style="margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12);cursor:pointer">' +

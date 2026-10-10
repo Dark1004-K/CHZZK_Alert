@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.4.0-beta014';
+const SCRIPT_VERSION = '3.4.0-beta015';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -328,7 +328,7 @@ function ensureStyle() {
 #__kw_panel.off{border-color:#777}
 #__kw_row{display:flex;align-items:center;gap:8px}
 #__kw_dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:#00ffa3;animation:__kwpulse 1.4s infinite;margin-right:8px;vertical-align:middle}
-#__kw_ch{display:flex;align-items:center;justify-content:space-between;gap:6px;font-weight:bold;font-size:13px;margin-bottom:1px;padding-left:8px}
+#__kw_ch{display:flex;align-items:center;justify-content:space-between;gap:6px;font-weight:bold;font-size:13px;margin-bottom:1px}
 #__kw_links{display:inline-flex;gap:2px;align-items:center}
 #__kw_links .__kw_ic{color:#00ffa3}
 #__kw_titlerow{display:flex;align-items:center;gap:8px}
@@ -379,13 +379,17 @@ function ensureStyle() {
 .__kw_ic:hover{background:rgba(255,255,255,.12)}
 .__kw_ic:disabled{opacity:.3;cursor:default;background:transparent}
 .__kw_ic svg{width:16px;height:16px;display:block}
+.__kw_ti{display:inline-flex;align-items:center;flex:none}
+.__kw_ti svg{width:14px;height:14px;display:block}
 #__kw_snd_test{padding:4px}
 #__kw_snd_test svg{width:26px;height:26px}
 .__kw_xabs{position:absolute;top:2px;right:3px;z-index:2}
 #__kw_redup{-moz-appearance:textfield;appearance:textfield}
 #__kw_redup::-webkit-inner-spin-button,#__kw_redup::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 #__kw_dropsp,#__kw_histp{position:relative}
-#__kw_dropsp .__kw_dr{padding-left:8px;padding-right:26px;min-height:26px}
+#__kw_dropsp .__kw_dr{padding-right:26px;min-height:26px}
+#__kw_dropsp .__kw_dr_s{padding-left:19px} /* 본문(시청 시간)은 타이틀 글자 시작점에 맞춤 */
+#__kw_titlerow{padding-left:19px} /* 상태줄은 채널명 글자 시작점에 맞춤 */
 /* 통일 핸들: 우하 리사이즈 원형(.__kw_rsz h=좌우/v=위아래/d=대각, 라운드와 겹침) + 좌상 이동 원형(.__kw_mv +) */
 .__kw_rsz{position:absolute;right:-6px;bottom:-6px;width:20px;height:20px;box-sizing:border-box;border-radius:50%;background:rgb(20,20,24);border:1.5px solid;display:flex;align-items:center;justify-content:center;font:11px/1 sans-serif;cursor:nwse-resize;z-index:3;user-select:none;touch-action:none;box-shadow:0 2px 6px rgba(0,0,0,.5);padding:0 0 1px}
 .__kw_rsz:hover{filter:brightness(1.4)}
@@ -411,8 +415,8 @@ function ensureStyle() {
 #__kw_stack #__kw_midrow #__kw_box .__kw_toast{white-space:normal;word-break:break-all;overflow:visible;text-overflow:clip;line-height:1.35;max-width:none}
 #__kw_stack #__kw_box{position:static;transform:none;width:100%;max-width:none;margin:0;display:none;align-items:stretch}
 #__kw_box.fs{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:min(520px,90%);z-index:2147483647}
-#__kw_hist_head{flex:none;display:flex;align-items:center;justify-content:space-between;min-height:26px;padding-left:8px;padding-right:26px;margin-bottom:2px;font-weight:bold}
-#__kw_hits{flex:0 1 auto;min-height:0;max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;user-select:text}
+#__kw_hist_head{flex:none;display:flex;align-items:center;justify-content:space-between;min-height:26px;padding-right:26px;margin-bottom:2px;font-weight:bold}
+#__kw_hits{flex:0 1 auto;min-height:0;max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;user-select:text;padding-left:13px} /* 목록은 종 아이콘 뒤 글자 시작점에 맞춤 */
 #__kw_hits_clear{padding:5px}
 /* 스크롤바: 창 색에 맞춤 */
 #__kw_hits::-webkit-scrollbar{width:8px;height:8px}
