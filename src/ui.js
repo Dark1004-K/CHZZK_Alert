@@ -139,16 +139,16 @@ function snapLenList(axis, origin, skipEl, startV) {
     if (axis === 'w') {
       // 화면 끝 자석 제외: 우리 창끼리만
       snapRects(skipEl).forEach((rc) => {
-        push(rc.l - origin); push(rc.r - origin); // 다른 창 모서리에 맞춤
+        push(rc.l - origin); push(rc.r - origin); // 다른 창 모서리(동그라미 끝)에 맞춤
         push(rc.l - SNAP_GAP - origin); push(rc.r + SNAP_GAP - origin); // 간격 두고 맞춤
-        push(rc.r - rc.l); // 다른 창과 같은 너비
+        push(rc.w); // 다른 창과 같은 너비
       });
     } else {
       // 화면 끝 자석 제외: 우리 창끼리만
       snapRects(skipEl).forEach((rc) => {
         push(rc.t - origin); push(rc.b - origin);
         push(rc.t - SNAP_GAP - origin); push(rc.b + SNAP_GAP - origin);
-        push(rc.b - rc.t); // 다른 창과 같은 높이
+        push(rc.h); // 다른 창과 같은 높이
       });
     }
   } catch (e) {}
@@ -1173,6 +1173,8 @@ function applySetPos() {
 }
 // 자석 대상 창들의 rect 목록 (skipEl 자신은 제외). 이동(snapRect)·늘리기(snapLen) 공용.
 // 우리 창만: id가 __kw_ 로 시작 + 지금 화면에 보이는 것(computed display/visibility)만. 뒷배경(치지직 페이지)은 절대 포함 안 됨.
+// 기준은 창 테두리가 아니라 +원·리사이즈원 끝: 사방 6px(동그라미 돌출분) 확장해서 자석 후보로 삼는다.
+const HANDLE_OVERHANG = 6;
 function snapRects(skipEl) {
   const out = [];
   const seen = new Set();
@@ -1188,7 +1190,7 @@ function snapRects(skipEl) {
     let r = null;
     try { r = el.getBoundingClientRect(); } catch (e) { return; }
     if (!r || r.width < 20 || r.height < 20) return;
-    out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom });
+    out.push({ l: r.left - HANDLE_OVERHANG, t: r.top - HANDLE_OVERHANG, r: r.right + HANDLE_OVERHANG, b: r.bottom + HANDLE_OVERHANG, w: r.width, h: r.height });
   };
   ['__kw_panel', '__kw_dropsp', '__kw_histp', '__kw_bdop', '__kw_cpn', '__kw_bdo_party', '__kw_setp', '__kw_optwin'].forEach((id) => {
     try { pushEl(document.getElementById(id)); } catch (e) {}
