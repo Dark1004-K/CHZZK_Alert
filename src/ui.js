@@ -481,7 +481,7 @@ function showReloadPopup(openInstall) {
     const later = box.querySelector('#__kw_upd_x');
     if (later) later.style.display = 'none';
     const go = box.querySelector('#__kw_upd_go');
-    if (go) go.textContent = '지금 새로고침';
+    if (go) { go.textContent = '지금 새로고침'; go.style.flex = '1'; go.style.width = '100%'; go.style.padding = '10px 0'; } // 닫기가 없으니 버튼을 꽉 채워 크게
     const msg = box.querySelector('#__kw_upd_msg');
     let n = 17;
     box.classList.add('blink'); // 카운트다운 동안 깜빡임
