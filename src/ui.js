@@ -1046,14 +1046,31 @@ function dropsSimMin(n) {
   return '드롭스 시청 ' + min + '분으로 시뮬레이션 (1분 안에 서버 값으로 복귀)';
 }
 // [BETA-TEST-ONLY] 테스트 버튼용: 누를 때마다 다음 보상 시간이 찬 것으로 가정, 모두 찼으면 처음으로 되돌림
+let dropsFake = false; // 가짜 드롭스 창을 띄워 둔 상태 (실제 드롭스가 없는 방송에서 시험용)
 function dropsSimNext() {
-  if (!dropsInfo) return '드롭스 정보 없음 (드롭스가 있는 방송에서 창이 보일 때 사용)';
+  if (!dropsInfo) { // 실제 드롭스가 없으면 가짜 드롭스 창을 먼저 띄운다
+    dropsFake = true;
+    dropsInfo = { campaignNo: -1, title: '테스트 드롭스', rewardList: [
+      { rewardNo: -1, title: '테스트 보상 A', imageUrl: '', conditionForMinutes: 1 },
+      { rewardNo: -2, title: '테스트 보상 B', imageUrl: '', conditionForMinutes: 2 } ] };
+    dropsSrv = { min: 0, claimed: new Set() };
+    dropsSrvSynced = true;
+    dropsDone = new Set();
+    renderDrops();
+    return '가짜 드롭스 창을 띄웠습니다 (누를 때마다 다음 보상 시간 충족 알림)';
+  }
   const cur = dropsNextReward(dropsElapsed());
+  if (!cur && dropsFake) { // 가짜 드롭스는 끝까지 보면 정리
+    dropsFake = false; dropsInfo = null; dropsSrv = null; dropsSrvSynced = false; dropsCurNo = null; dropsCid = '';
+    removeDropsPanel();
+    return '가짜 드롭스 종료 (다시 누르면 처음부터)';
+  }
   if (!cur) { dropsSimMin(0); return '모두 달성 상태였음 → 처음으로 되돌림 (다시 누르면 첫 보상부터 시험)'; }
   return dropsSimMin(cur.conditionForMinutes) + ' [' + cur.conditionForMinutes + '분 보상]';
 }
 // [BETA-TEST-ONLY:end]
 function pollDrops() { // 끝나면 resolve되는 Promise를 돌려준다 (새로고침 버튼이 완료를 알리기 위해)
+  if (typeof dropsFake !== 'undefined' && dropsFake) return Promise.resolve(); // [BETA-ONLY-LINE] 가짜 드롭스(테스트) 동안은 실제 조회로 덮어쓰지 않음
   if (!dropsOn() || !isLivePage()) { dropsInfo = null; removeDropsPanel(); return Promise.resolve(); }
   const cid = pageChannelId();
   if (!cid) return Promise.resolve();
