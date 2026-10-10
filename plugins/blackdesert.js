@@ -256,8 +256,10 @@
     const dayTxt = days === 0 ? '' : days === 1 ? '내일 ' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + '요일 ';
     // 쿠폰 모아보기 창과 같은 디자인: 굵은 12px 제목 줄(이모지 아이콘 + 제목) → 보스 이름 줄 → 시각 줄
     nextEl.innerHTML = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px"><b style="font-size:12px;white-space:nowrap">⚔ 다음 우두머리</b></div>' +
-      '<div style="font-size:13px;font-weight:bold;margin-top:2px;display:flex;flex-wrap:wrap;gap:2px 10px;word-break:keep-all">' + next.bosses.map((n) => '<span>' + esc(n) + '</span>').join('') + '</div>' +
-      '<div style="font-size:11px;color:#3b9eff;margin-top:3px">' + dayTxt + next.hhmm + ' · ' + fmtLong(next.t - now) + ' 후</div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:2px;right:3px') + gripBtn('#3b9eff');
+      // 보스 이름은 왼쪽, 출현 시각(위)과 남은 시간(아래)은 오른쪽에 맞춰 한 줄에 둔다
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px">' +
+      '<div style="font-size:13px;font-weight:bold;display:flex;flex-wrap:wrap;gap:2px 10px;word-break:keep-all;min-width:0">' + next.bosses.map((n) => '<span>' + esc(n) + '</span>').join('') + '</div>' +
+      '<div style="flex:none;text-align:right;font-size:11px;line-height:1.35;color:#3b9eff;white-space:nowrap"><div>' + dayTxt + next.hhmm + '</div><div>' + fmtLong(next.t - now) + ' 후</div></div></div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:2px;right:3px') + gripBtn('#3b9eff');
   }
 
   let box = null;
