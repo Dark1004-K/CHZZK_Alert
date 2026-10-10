@@ -661,9 +661,8 @@
     const sig = [famState, f ? f.family : '', f ? (f.characters || []).length : 0, famFetchedAt].join('|');
     if (sig === famSig) return;
     famSig = sig;
-    let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + '가문검색</b></div>' +
-      xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
-      '<div style="display:flex;gap:6px;margin-top:4px;flex:none"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(q) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;border-radius:6px;background:#ff7ab8;color:#000;font:bold 12px sans-serif;padding:4px 10px;cursor:pointer;flex:none">검색</button></div>' +
+    let h = xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
+      '<div style="display:flex;gap:6px;flex:none;padding-right:26px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(q) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;border-radius:6px;background:#ff7ab8;color:#000;font:bold 12px sans-serif;padding:4px 10px;cursor:pointer;flex:none">검색</button></div>' +
       '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px;max-height:min(420px,60vh)">';
     if (famState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">가문 목록을 받지 못했습니다. 잠시 뒤 다시 시도하세요.</div>';
     else if (famState === 'loading' || !famData) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
