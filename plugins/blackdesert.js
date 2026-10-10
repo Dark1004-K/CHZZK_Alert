@@ -326,7 +326,7 @@
       '<span title="' + (fold ? '펼치기' : '접기') + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:#b784ff;position:absolute;top:2px;right:29px;z-index:2"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (fold ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></span></div>' + xBtn('__kw_cpn_x', '#b784ff', 'position:absolute;top:2px;right:3px;z-index:2');
     if (!fold) {
       h += '<div style="height:1px;background:rgba(255,255,255,.14);margin:4px -10px"></div>';
-      h += '<div class="__kw_sb_cpn" style="max-height:' + Math.min(cpnH, cpnHMax()) + 'px;overflow-y:auto;margin-top:4px">';
+      h += '<div class="__kw_sb_cpn" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
       if (cpnState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">쿠폰 목록을 받지 못했습니다. 새로고침(↻)을 눌러 보세요.</div>';
       else if (cpnState === 'idle' || (cpnState === 'loading' && !cpnData)) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
       else if (!list.length) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">사용할 수 있는 쿠폰이 없습니다.</div>';
@@ -345,6 +345,12 @@
       h += '</div>';
     }
     cpnEl.innerHTML = h;
+    // 높이는 패널 통째로 명시 (내용 길이에 관계없이 조절이 바로 보이게). 접힘 상태는 자동 높이.
+    try {
+      cpnEl.style.display = 'flex';
+      cpnEl.style.flexDirection = 'column';
+      cpnEl.style.height = fold ? '' : Math.min(cpnH, cpnHMax()) + 'px';
+    } catch (e5) {}
     const hd = cpnEl.querySelector('#__kw_cpn_hd');
     if (hd) hd.onclick = (e) => {
       if (e.target && e.target.id === '__kw_cpn_rf') return;
@@ -368,11 +374,9 @@
         KW.window(cpnEl, {
           color: '#b784ff', posKey: LS_CPNNPOS, rsz: 'd', dock: () => bdoOrder(),
           getH: () => cpnH,
-          getBoxH: () => { try { const l = cpnEl.querySelector('.__kw_sb_cpn'); return l ? l.getBoundingClientRect().height : 0; } catch (e) { return 0; } },
           setH: (v) => {
             cpnH = Math.max(CPN_H_MIN, Math.min(cpnHMax(), v));
-            const lst = cpnEl.querySelector('.__kw_sb_cpn');
-            if (lst) lst.style.maxHeight = Math.min(cpnH, cpnHMax()) + 'px';
+            cpnEl.style.height = Math.min(cpnH, cpnHMax()) + 'px';
           },
           saveH: () => { try { localStorage.setItem(LS_CPNH, String(cpnH)); } catch (er) {} },
         });

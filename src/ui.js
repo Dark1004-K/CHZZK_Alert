@@ -118,11 +118,15 @@ function kwRsz(el, o) {
         else kwStackW(sn.v);
       }
       if ((dir === 'v' || dir === 'd') && o.setH) {
-        const hgt = Math.round(startH + (ev.clientY - startY));
+        // 브라우저 밖으로 못 나가게: 도크(아래 고정)는 snapBottom, 고정창(위 고정)은 vh - originT
+        let viewMax = Infinity;
+        try { viewMax = Math.max(0, Math.round(o.snapTop ? snapBottom : window.innerHeight - originT)); } catch (e6) {}
+        let hgt = Math.min(Math.round(startH + (ev.clientY - startY)), viewMax);
         const sn = snapLenNear(hgt, listH);
         hit = hit || sn.hit;
-        if (sn.hit) guides.push({ axis: 'h', pos: o.snapTop ? snapBottom - sn.v - snapOff : originT + sn.v }); // 움직이는 모서리선
-        o.setH(sn.v);
+        const hv = Math.min(sn.v, viewMax);
+        if (sn.hit && hv === sn.v) guides.push({ axis: 'h', pos: o.snapTop ? snapBottom - hv - snapOff : originT + hv }); // 움직이는 모서리선
+        o.setH(hv);
       }
       el.style.boxShadow = hit ? '0 0 0 2px rgba(0,255,163,.7)' : '';
       snapGuideShow(guides);
