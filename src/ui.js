@@ -37,17 +37,32 @@ function wireHGrip() {
     if (e.stopPropagation) e.stopPropagation();
     const startY = e.clientY;
     const startH = histBox ? histBox.getBoundingClientRect().height : histH;
+    let bot = 0;
+    try { bot = Math.round(histPanel.getBoundingClientRect().bottom); } catch (e0) {}
     const move = (ev) => {
       histCustom = true;
-      histH = Math.max(HH_MIN, Math.min(hhMax(), Math.round(startH + (startY - ev.clientY) * HH_GAIN)));
+      let nh = Math.round(startH + (startY - ev.clientY) * HH_GAIN);
+      // 위쪽 모서리를 화면 끝·다른 창에 맞춤 (아래 모서리 고정)
+      let hit = false;
+      try {
+        const top = bot - nh;
+        const cands = [0];
+        snapRects(histPanel).forEach((rc) => { cands.push(rc.t, rc.b, rc.t - SNAP_GAP, rc.b + SNAP_GAP); });
+        let bt = top, bd = RSZ_SNAP + 1;
+        cands.forEach((c) => { const d = Math.abs(c - top); if (d < bd) { bd = d; bt = c; } });
+        if (bd <= RSZ_SNAP) { nh = bot - bt; hit = true; }
+      } catch (e1) {}
+      histH = Math.max(HH_MIN, Math.min(hhMax(), nh));
       applyHistHeight();
       // 위에 있는 창들이 화면을 넘지 않도록 CSS가 실제 높이를 줄이므로, 저장 높이도 실제로 보이는 높이를 넘지 않게 맞춘다
       const real = histBox ? histBox.getBoundingClientRect().height : histH;
       if (real > 0 && real + 1 < histH) histH = Math.max(HH_MIN, Math.round(real));
+      histPanel.style.boxShadow = hit ? '0 0 0 2px rgba(0,255,163,.7)' : '';
     };
     const up = () => {
       document.removeEventListener('mousemove', move);
       document.removeEventListener('mouseup', up);
+      histPanel.style.boxShadow = '';
       try { localStorage.setItem(LS_HH, String(histH)); } catch (err) {}
       dlog('hits-height', histH);
     };
@@ -149,23 +164,51 @@ function kwRsz(el, o) {
     const startX = e.clientX, startY = e.clientY;
     const startW = o.wMode === 'self' && o.getW ? o.getW() : curWidth;
     const startH = o.getH ? o.getH() : 0;
+    let originL = 0, originT = 0;
+    try { const r0 = el.getBoundingClientRect(); originL = Math.round(r0.left); originT = Math.round(r0.top); } catch (e0) {}
     const move = (ev) => {
+      let hit = false;
       if (dir === 'h' || dir === 'd') {
         const w = startW + (ev.clientX - startX);
-        if (o.wMode === 'self' && o.setW) o.setW(w);
-        else kwStackW(w);
+        const sn = snapLen(w, 'w', originL, el);
+        hit = hit || sn.hit;
+        if (o.wMode === 'self' && o.setW) o.setW(sn.v);
+        else kwStackW(sn.v);
       }
-      if ((dir === 'v' || dir === 'd') && o.setH) o.setH(Math.round(startH + (ev.clientY - startY)));
+      if ((dir === 'v' || dir === 'd') && o.setH) {
+        const hgt = Math.round(startH + (ev.clientY - startY));
+        const sn = snapLen(hgt, 'h', originT, el);
+        hit = hit || sn.hit;
+        o.setH(sn.v);
+      }
+      el.style.boxShadow = hit ? '0 0 0 2px rgba(0,255,163,.7)' : '';
     };
     const up = () => {
       document.removeEventListener('mousemove', move);
       document.removeEventListener('mouseup', up);
+      el.style.boxShadow = '';
       try { if (o.save) o.save(); } catch (err) {}
       if (o.log) dlog(o.log, dir === 'v' || dir === 'd' ? (o.getH ? o.getH() : '') : curWidth);
     };
     document.addEventListener('mousemove', move);
     document.addEventListener('mouseup', up);
   });
+}
+// ---------- 늘리기 자석: 늘리는 모서리(origin+길이)를 다른 창 모서리·화면 끝에 맞춤 ----------
+// axis 'w'=오른쪽 모서리(origin=왼쪽), 'h'=아래 모서리(origin=위쪽). 8px 안이면 맞춤.
+const RSZ_SNAP = 8;
+function snapLen(v, axis, origin, skipEl) {
+  const edge = origin + v;
+  const cands = axis === 'w' ? [window.innerWidth] : [window.innerHeight];
+  try {
+    snapRects(skipEl).forEach((rc) => {
+      if (axis === 'w') cands.push(rc.l, rc.r, rc.l - SNAP_GAP, rc.r + SNAP_GAP);
+      else cands.push(rc.t, rc.b, rc.t - SNAP_GAP, rc.b + SNAP_GAP);
+    });
+  } catch (e) {}
+  let bv = v, bd = RSZ_SNAP + 1;
+  cands.forEach((c) => { const d = Math.abs(c - edge); if (d < bd) { bd = d; bv = c - origin; } });
+  return { v: Math.round(bv), hit: bd <= RSZ_SNAP };
 }
 // ---------- 낱개 띄우기 (스택창을 + 배지로 끌어내 fixed로, 위치 저장+자석) ----------
 // load()->{x,y,w}|null, save(p), clear(), dock() (원래 자리 복구), apply(p) (위치 적용)
@@ -203,19 +246,21 @@ function clearFloatPos(el) {
 function kwFloat(el, o) {
   if (!el || !o) return;
   const firstWire = !el.__kwFloatWired;
-  // innerHTML 재렌더로 버튼이 날아갔으면 다시 달고, 이미 달려 있으면 중복 생성 금지
+  // innerHTML 재렌더로 버튼이 날아갔으면 다시 달고, 이미 달려 있으면 핸들러만 최신으로 갱신.
+  // (설정 #__kw_set_move·옵션 #__kw_optwin_mv는 innerHTML에 딸려 오므로 첫 호출에서 바로 걸어야 함)
   try {
-    const has = el.querySelector(':scope > .__kw_mv');
-    if (!has) {
-      const b = document.createElement('div');
+    let b = null;
+    try { b = el.querySelector(':scope > .__kw_mv'); } catch (e0) {}
+    if (!b) {
+      b = document.createElement('div');
       b.className = '__kw_mv';
       b.textContent = '+';
       b.title = '드래그로 창 띄우기 · 더블클릭: 원래 자리로';
-      if (o.color) { b.style.borderColor = o.color; b.style.color = o.color; }
       el.appendChild(b);
-      b.onpointerdown = (e) => dragFloatBtn(e, el, o);
-      b.ondblclick = () => { try { o.clear(); } catch (e2) {} try { o.dock(); } catch (e3) {} };
-    } else if (o.color) { has.style.borderColor = o.color; has.style.color = o.color; }
+    }
+    if (o.color) { b.style.borderColor = o.color; b.style.color = o.color; }
+    b.onpointerdown = (e) => dragFloatBtn(e, el, o);
+    b.ondblclick = () => { try { o.clear(); } catch (e2) {} try { o.dock(); } catch (e3) {} };
   } catch (e) {}
   try { el.setAttribute('data-kw-float', '1'); } catch (e2) {}
   el.__kwFloatWired = true;
@@ -1179,12 +1224,9 @@ function applySetPos() {
   setPanel.style.top = Math.max(0, Math.min(window.innerHeight - h, p.y)) + 'px';
   setPanel.style.bottom = 'auto';
 }
-// 화면 가장자리·다른 창 가장자리에 자석처럼 맞춘다 (skipEl 자신은 제외)
-// 통일 규격: 감시중(#__kw_panel)은 자석 대상이지만 이동 대상은 아니다.
-// 신규 창은 id="__kw_*" 또는 data-kw-float="1"이면 자동으로 자석 대상에 포함된다.
-function snapRect(x, y, w, h, skipEl) {
-  const vw = window.innerWidth, vh = window.innerHeight;
-  const xs = [0, vw - w], ys = [0, vh - h];
+// 자석 대상 창들의 rect 목록 (skipEl 자신은 제외). 이동(snapRect)·늘리기(snapLen) 공용.
+function snapRects(skipEl) {
+  const out = [];
   const seen = new Set();
   const pushEl = (el) => {
     if (!el || el === skipEl || (skipEl && skipEl.contains && skipEl.contains(el))) return;
@@ -1195,15 +1237,26 @@ function snapRect(x, y, w, h, skipEl) {
     if (!r || r.width < 20 || r.height < 20) return;
     try { if (el.style && el.style.display === 'none') return; } catch (e2) {}
     try { if (!el.isConnected) return; } catch (e3) {}
-    xs.push(r.left, r.right - w, r.right + SNAP_GAP, r.left - SNAP_GAP - w);
-    ys.push(r.top, r.bottom - h, r.bottom + SNAP_GAP, r.top - SNAP_GAP - h);
+    out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom });
   };
   ['__kw_panel', '__kw_dropsp', '__kw_histp', '__kw_bdop', '__kw_cpn', '__kw_bdo_party', '__kw_setp', '__kw_optwin'].forEach((id) => {
     try { pushEl(document.getElementById(id)); } catch (e) {}
   });
-  try { // 신규 창 자동 포함 (KW.float으로 등록된 창)
+  try { // 신규 창 자동 포함 (KW.float/window으로 등록된 창)
     document.querySelectorAll('[data-kw-float]').forEach(pushEl);
   } catch (e) {}
+  return out;
+}
+// 화면 가장자리·다른 창 가장자리에 자석처럼 맞춘다 (skipEl 자신은 제외)
+// 통일 규격: 감시중(#__kw_panel)은 자석 대상이지만 이동 대상은 아니다.
+// 신규 창은 id="__kw_*" 또는 data-kw-float="1"이면 자동으로 자석 대상에 포함된다.
+function snapRect(x, y, w, h, skipEl) {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const xs = [0, vw - w], ys = [0, vh - h];
+  snapRects(skipEl).forEach((rc) => {
+    xs.push(rc.l, rc.r - w, rc.r + SNAP_GAP, rc.l - SNAP_GAP - w);
+    ys.push(rc.t, rc.b - h, rc.b + SNAP_GAP, rc.t - SNAP_GAP - h);
+  });
   const best = (v, list) => {
     let bv = v, bd = SNAP_TH + 1;
     list.forEach((c) => { const d = Math.abs(c - v); if (d < bd) { bd = d; bv = c; } });

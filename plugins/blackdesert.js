@@ -559,7 +559,8 @@
     }
     // 스택 직속 1칸: 옆붙임 absolute 제거, 높이는 대각 핸들로 조절. 바깥은 overflow:visible이어야 좌상 +원과 우하 원이 잘리지 않음(목록 스크롤은 안쪽 .__kw_sb_pty가 담당)
     const css = 'position:relative;width:100%;height:' + Math.min(partyH, partyHMax()) + 'px;' + 'box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7a59;display:flex;flex-direction:column;overflow:visible';
-    if (partyEl.style.cssText !== css && partyEl.getAttribute('data-css') !== css) { partyEl.style.cssText = css; partyEl.setAttribute('data-css', css); }
+    // 떠 있는 상태(fixed)에서는 손대지 않는다: cssText를 덮으면 left/top/width가 날아가 위치가 튐
+    if (partyEl.style.position !== 'fixed' && partyEl.style.cssText !== css && partyEl.getAttribute('data-css') !== css) { partyEl.style.cssText = css; partyEl.setAttribute('data-css', css); }
     bdoOrder();
     const sig = list.map((x) => x.id).join(',');
     if (sig !== partySig) {
