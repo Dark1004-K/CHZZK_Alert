@@ -417,7 +417,11 @@ function extOptHtml(p) {
     const at = `data-pid="${escapeHtml(p.id)}" data-key="${escapeHtml(o.key)}"`;
     const lb = escapeHtml(o.label || o.key);
     if (o.type === 'bool') return `<div style="display:flex;align-items:center;gap:6px"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px"><input type="checkbox" class="__kw_popt" ${at} ${v ? 'checked' : ''} style="${OPT_CB}"> ${lb}</label>${o.help ? `<button class="__kw_help" data-help="1" ${at} title="사용 방법" style="width:16px;height:16px;padding:0;border-radius:50%;border:1px solid #8a8a99;background:transparent;color:#ccc;font:bold 11px/14px sans-serif;cursor:pointer;flex:none">?</button>` : ''}</div>`;
-    if (o.type === 'number') return `<div style="display:flex;align-items:center;gap:6px">${lb} <input class="__kw_in __kw_popt" type="number" ${at} min="${Number(o.min) || 0}" max="${Number(o.max) || 999}" step="1" style="width:46px;text-align:center;padding:4px 2px;margin:0" value="${escapeHtml(String(v))}">${o.unit ? '<span>' + escapeHtml(o.unit) + '</span>' : ''}</div>`;
+    if (o.type === 'number') {
+      // parent: 같은 확장의 다른 체크 옵션이 켜져 있어야 입력할 수 있다. after: 입력칸 뒤에 붙는 글자(예: "[3] 분 전에 알림")
+      const par = o.parent ? !!pluginOptGet(p.id, o.parent) : true;
+      return `<div style="display:flex;align-items:center;gap:6px;${o.parent ? 'margin-left:22px;' : ''}opacity:${par ? 1 : 0.45}">${o.label ? lb : ''}<input class="__kw_in __kw_popt" type="number" ${at} min="${Number(o.min) || 0}" max="${Number(o.max) || 999}" step="1" style="width:46px;text-align:center;padding:4px 2px;margin:0" value="${escapeHtml(String(v))}" ${par ? '' : 'disabled'}>${o.after ? '<span>' + escapeHtml(o.after) + '</span>' : ''}${o.unit ? '<span>' + escapeHtml(o.unit) + '</span>' : ''}</div>`;
+    }
     if (o.type === 'multi') {
       const sel = Array.isArray(v) ? v : [];
       // parent: 같은 확장의 다른 체크 옵션이 켜져 있어야 아래 항목을 고를 수 있다 (꺼져 있으면 흐리게 + 비활성)
