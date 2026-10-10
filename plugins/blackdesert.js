@@ -95,12 +95,12 @@
   try { localStorage.removeItem('__kw_bdo_gpos'); } catch (e) {} // 묶음 위치값 잔재 정리
   const LS_CPNH = '__kw_cpn_h';
   const CPN_H_DEF = 190, CPN_H_MIN = 80;
-  const cpnHMax = () => Math.max(CPN_H_MIN, Math.floor(window.innerHeight * 0.85));
+  const cpnHMax = () => Math.max(CPN_H_MIN, window.innerHeight);
   let cpnH = CPN_H_DEF;
   try { const chv = parseInt(localStorage.getItem(LS_CPNH), 10); if (chv >= CPN_H_MIN && chv <= 4000) cpnH = chv; } catch (e) {}
   const LS_PARTYH = '__kw_party_h';
   const PARTY_H_DEF = 170, PARTY_H_MIN = 100;
-  const partyHMax = () => Math.max(PARTY_H_MIN, Math.floor(window.innerHeight * 0.85));
+  const partyHMax = () => Math.max(PARTY_H_MIN, window.innerHeight);
   let partyH = PARTY_H_DEF;
   try { const phv = parseInt(localStorage.getItem(LS_PARTYH), 10); if (phv >= PARTY_H_MIN && phv <= 4000) partyH = phv; } catch (e) {}
   function bdoOrder() { // 스택 안에서 다음→쿠폰→파티 순서로, 불린대화 창 바로 위에 둔다 (띄운 창은 제외)

@@ -15,7 +15,7 @@ const LS_HH = '__kw_hits_h';
 const LS_HISTPOS = '__kw_hist_pos'; // 불린대화 띄우기 위치 {x,y,w} (없으면 스택 자리)
 const LS_DROPSPOS = '__kw_drops_pos'; // 드롭스 띄우기 위치 {x,y,w} (없으면 스택 자리)
 const HH_MIN = 80, HH_DEF = 150;
-const hhMax = () => Math.max(HH_MIN, Math.floor(window.innerHeight * 0.85));
+const hhMax = () => Math.max(HH_MIN, window.innerHeight); // 세로 최대 = 브라우저 창 (위치 클램프는 CSS가 담당)
 let histH = HH_DEF;
 try { const hv = parseInt(localStorage.getItem(LS_HH), 10); if (hv >= HH_MIN && hv <= 4000) histH = hv; } catch (e) {}
 let histCustom = false; // 사용자가 한 번이라도 끌어서 정한 높이면 항목 수와 상관없이 그 높이를 유지한다
@@ -731,7 +731,7 @@ function closeOptWin() { optWinId = null; const w = document.getElementById('__k
 const LS_OPTSIZE = '__kw_opt_size';
 const LS_OPTPOS = '__kw_opt_pos';
 const OPT_H_MIN = 200;
-const optHMax = () => Math.max(OPT_H_MIN, window.innerHeight - 16);
+const optHMax = () => Math.max(OPT_H_MIN, window.innerHeight);
 function loadOptSize() {
   try {
     const o = JSON.parse(localStorage.getItem(LS_OPTSIZE));
@@ -1295,7 +1295,7 @@ function applySetVisibility() {
 // ---------- 설정 창 크기 (대각 핸들, 가로는 225~600으로 감시중 창을 따름) ----------
 const LS_SETSIZE = '__kw_set_size';
 const SET_W_DEF = 440, SET_H_DEF = 320, SET_H_MIN = 200;
-const setHMax = () => Math.max(SET_H_MIN, window.innerHeight - 16);
+const setHMax = () => Math.max(SET_H_MIN, window.innerHeight);
 function loadSetSize() {
   try {
     const o = JSON.parse(localStorage.getItem(LS_SETSIZE));
