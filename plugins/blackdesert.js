@@ -373,7 +373,7 @@
     try { // 창 기본형 상속: 쿠폰=가로+세로
       if (KW && typeof KW.window === 'function') {
         KW.window(cpnEl, {
-          color: '#b784ff', posKey: LS_CPNNPOS, rsz: 'd', dock: () => bdoOrder(),
+          color: '#b784ff', posKey: LS_CPNNPOS, rsz: fold ? 'h' : 'd', dock: () => bdoOrder(), // 접힘=가로만, 펼침=가로+세로
           getH: () => cpnH,
           setH: (v) => {
             cpnH = Math.max(CPN_H_MIN, Math.min(cpnHMax(), v));
