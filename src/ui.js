@@ -55,21 +55,6 @@ function wireHGrip() {
     document.addEventListener('mouseup', up);
   });
 }
-function wireHRsz() { // 우하단 위아래 핸들: 상단 손잡이와 같은 histH를 구동
-  if (!histPanel) return;
-  kwRsz(histPanel, {
-    dir: 'v', color: '#ffd400', log: 'hits-height',
-    getH: () => histH,
-    setH: (v) => {
-      histCustom = true;
-      histH = Math.max(HH_MIN, Math.min(hhMax(), v));
-      applyHistHeight();
-      const real = histBox ? histBox.getBoundingClientRect().height : histH;
-      if (real > 0 && real + 1 < histH) histH = Math.max(HH_MIN, Math.round(real));
-    },
-    save: () => { try { localStorage.setItem(LS_HH, String(histH)); } catch (err) {} },
-  });
-}
 let setPanel = null;
 let setOpen = false;
 try { setOpen = localStorage.getItem(LS_SET) === '1'; } catch (e) {}
@@ -291,8 +276,73 @@ function kwFloatKey(el, o) {
     load: () => loadFloatPos(o.key),
     save: (p) => { try { localStorage.setItem(o.key, JSON.stringify(p)); } catch (e) {} },
     clear: () => { try { localStorage.removeItem(o.key); } catch (e) {} },
-    dock: () => { clearFloatPos(el); try { if (o.dock) o.dock(); } catch (e2) {} },
+    dock: () => { clearFloatPos(el); try { if (o.dock) o.dock(); } catch (e2) {} try { if (o.afterDock) o.afterDock(); } catch (e3) {} },
     apply: (p) => applyFloatPos(el, p),
+    onMove: o.onMove,
+    onDrop: o.onDrop,
+  });
+}
+// ---------- 창 기본형 kwWindow (abstract): 모든 창은 여기서 파생 ----------
+// 감시중(녹색창)은 posKey 없이 rsz만 (이동 불가). 나머지 창은 posKey 필수.
+// cfg: { color(창색, +원·리사이즈원 테두리), posKey(위치 저장키, 없으면 이동 불가),
+//   rsz: null|'h'(가로)|'v'(세로)|'d'(가로+세로),
+//   getH/setH (v/d용 세로값), saveH (세로 저장),
+//   getW/setW (floating 자기너비 직접 지정 시, 생략하면 기본 216~600),
+//   dock (더블클릭 복귀 추가동작), onMove/onDrop (드래그 중/후 추가동작) }
+// 가로축: dock 상태면 스택너비 공유(감시중 창을 따름), float 상태면 자기너비.
+// innerHTML 재렌더 대응 멱등: 매 렌더 후 다시 호출해도 위치를 리셋하지 않음.
+function kwWindow(el, cfg) {
+  if (!el || !cfg) return;
+  const color = cfg.color, posKey = cfg.posKey || null;
+  const wireRsz = () => {
+    if (!cfg.rsz) return;
+    const dir = cfg.rsz === 'v' ? 'v' : cfg.rsz === 'd' ? 'd' : 'h';
+    const floating = posKey ? !!loadFloatPos(posKey) : !!cfg.selfW;
+    const o = { dir, color, log: cfg.log };
+    if (dir === 'h' || dir === 'd') {
+      if (floating) {
+        o.wMode = 'self';
+        o.getW = cfg.getW || (() => { try { return el.getBoundingClientRect().width; } catch (e) { return curWidth; } });
+        o.setW = cfg.setW || ((v) => { el.style.width = Math.max(216, Math.min(600, Math.round(v))) + 'px'; });
+      }
+    }
+    if (dir === 'v' || dir === 'd') { o.getH = cfg.getH; o.setH = cfg.setH; }
+    o.save = () => {
+      try { if (cfg.saveH) cfg.saveH(); } catch (e) {}
+      if (floating && posKey) saveFloatRect(posKey, el);
+      else { try { if (cfg.saveW) cfg.saveW(); } catch (e2) {} }
+    };
+    kwRsz(el, o);
+  };
+  if (posKey) {
+    kwFloatKey(el, {
+      color, key: posKey, dock: cfg.dock, onMove: cfg.onMove,
+      onDrop: () => { try { if (cfg.onDrop) cfg.onDrop(); } catch (e) {} wireRsz(); },
+      afterDock: () => wireRsz(),
+    });
+  } else {
+    try { el.setAttribute('data-kw-float', '1'); } catch (e) {} // 자석 대상으로 등록 (이동은 불가)
+  }
+  wireRsz();
+}
+// ---------- 창 기본형 XY형 (설정·확장옵션용): 위치 {x,y} + 크기 {w,h} 분리 저장 ----------
+// posKey형(kwWindow)과 달리 구형 키(LS_SETPOS/LS_OPTPOS + LS_SETSIZE/LS_OPTSIZE)를 그대로 쓴다.
+// cfg: { color, loadPos/savePos/clearPos/applyPos, getW/setW/getH/setH/saveSize/applySize,
+//   onMove/onDrop/onDock, log }
+function kwWindowXY(el, cfg) {
+  if (!el || !cfg) return;
+  try { el.setAttribute('data-kw-float', '1'); } catch (e) {} // 자석 대상으로 등록
+  kwFloat(el, {
+    color: cfg.color,
+    load: cfg.loadPos, save: cfg.savePos, clear: cfg.clearPos,
+    apply: () => { try { if (cfg.applyPos) cfg.applyPos(); } catch (e2) {} },
+    dock: () => { try { if (cfg.onDock) cfg.onDock(); } catch (e3) {} },
+    onMove: cfg.onMove, onDrop: cfg.onDrop,
+  });
+  try { if (cfg.applySize) cfg.applySize(); } catch (e4) {}
+  kwRsz(el, {
+    dir: 'd', color: cfg.color, wMode: 'self', log: cfg.log,
+    getW: cfg.getW, setW: cfg.setW, getH: cfg.getH, setH: cfg.setH, save: cfg.saveSize,
   });
 }
 // 띄운 창의 가로 리사이즈 저장용: 현재 rect를 위치키에 통째 저장
@@ -306,8 +356,18 @@ function attachHistHandlers() {
   if (!histPanel || histPanel.__kwWired) return;
   histPanel.__kwWired = true;
   wireHGrip();
-  wireHRsz();
-  kwFloatKey(histPanel, { color: '#ffd400', key: LS_HISTPOS });
+  kwWindow(histPanel, { // 불린대화: 가로+세로 (가로 dock=스택공유, float=자기너비 / 세로=목록 높이)
+    color: '#ffd400', posKey: LS_HISTPOS, rsz: 'd',
+    getH: () => histH,
+    setH: (v) => {
+      histCustom = true;
+      histH = Math.max(HH_MIN, Math.min(hhMax(), v));
+      applyHistHeight();
+      const real = histBox ? histBox.getBoundingClientRect().height : histH;
+      if (real > 0 && real + 1 < histH) histH = Math.max(HH_MIN, Math.round(real));
+    },
+    saveH: () => { try { localStorage.setItem(LS_HH, String(histH)); } catch (err) {} },
+  });
   const c = histPanel.querySelector('#__kw_hits_clear');
   if (c) c.onclick = () => {
     hitLog = []; saveHits(); renderHitsList(); dlog('hits-cleared');
@@ -483,6 +543,7 @@ function renderPanel() {
     }
   };
   updateWarn();
+  kwWindow(panel, { color: '#00ffa3', rsz: 'h' }); // 감시중: 가로만 (이동 불가, 스택너비 공유)
 }
 
 // ---------- 설정 별도 화면 (#__kw_setp, 감시 패널 아래) ----------
@@ -648,38 +709,6 @@ function loadOptPos() {
   try { const o = JSON.parse(localStorage.getItem(LS_OPTPOS)); if (o && isFinite(o.x) && isFinite(o.y)) return o; } catch (e) {}
   return null;
 }
-function startOptDrag(e) {
-  const w = document.getElementById('__kw_optwin');
-  if (!w || (e.button !== undefined && e.button !== 0)) return;
-  e.preventDefault();
-  const r = w.getBoundingClientRect();
-  const ox = e.clientX - r.left, oy = e.clientY - r.top;
-  const ww = r.width, hh = r.height;
-  const prevCur = document.documentElement.style.cursor;
-  document.documentElement.style.cursor = 'grabbing';
-  let cur = { x: r.left, y: r.top };
-  w.style.position = 'fixed';
-  w.style.left = r.left + 'px'; w.style.top = r.top + 'px'; w.style.bottom = 'auto'; w.style.transform = 'none';
-  const move = (ev) => {
-    const sn = snapRect(ev.clientX - ox, ev.clientY - oy, ww, hh, w);
-    const x = Math.max(0, Math.min(window.innerWidth - ww, sn.x));
-    const y = Math.max(0, Math.min(window.innerHeight - hh, sn.y));
-    cur = { x, y };
-    w.style.left = x + 'px'; w.style.top = y + 'px';
-    w.style.boxShadow = sn.hit ? '0 0 0 2px rgba(0,255,163,.7)' : '';
-  };
-  const up = () => {
-    window.removeEventListener('pointermove', move);
-    window.removeEventListener('pointerup', up);
-    window.removeEventListener('pointercancel', up);
-    document.documentElement.style.cursor = prevCur;
-    w.style.boxShadow = '';
-    try { localStorage.setItem(LS_OPTPOS, JSON.stringify(cur)); } catch (err) {}
-  };
-  window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', up);
-  window.addEventListener('pointercancel', up);
-}
 function renderOptWin() {
   const old = document.getElementById('__kw_optwin');
   const p = optWinId && (pluginList || []).find((x) => x.id === optWinId);
@@ -714,16 +743,28 @@ function renderOptWin() {
     }
   } catch (e) {}
   w.querySelector('#__kw_optwin_x').onclick = closeOptWin;
-  w.querySelector('#__kw_optwin_mv').onpointerdown = startOptDrag;
-  w.querySelector('#__kw_optwin_mv').ondblclick = () => { try { localStorage.removeItem(LS_OPTPOS); } catch (e) {} renderOptWin(); };
   bindPluginOpts(w);
-  kwRsz(w, {
-    dir: 'd', color: '#aaaab9', wMode: 'self', log: 'opt-size',
+  kwWindowXY(w, { // 확장 옵션: 가로+세로
+    color: '#aaaab9', log: 'opt-size',
+    loadPos: loadOptPos,
+    savePos: (p) => { try { localStorage.setItem(LS_OPTPOS, JSON.stringify({ x: Math.round(p.x), y: Math.round(p.y) })); } catch (err) {} },
+    clearPos: () => { try { localStorage.removeItem(LS_OPTPOS); } catch (e) {} },
+    applyPos: () => {
+      const sp = loadOptPos();
+      if (!sp) return;
+      const rr0 = w.getBoundingClientRect();
+      const ww0 = rr0.width || 340, hh0 = rr0.height || 470;
+      w.style.position = 'fixed';
+      w.style.left = Math.max(0, Math.min(window.innerWidth - ww0, sp.x)) + 'px';
+      w.style.top = Math.max(0, Math.min(window.innerHeight - hh0, sp.y)) + 'px';
+      w.style.bottom = 'auto'; w.style.transform = 'none';
+    },
+    onDock: () => renderOptWin(),
     getW: () => w.getBoundingClientRect().width || 340,
     setW: (v) => { w.style.width = Math.max(216, Math.min(600, Math.round(v))) + 'px'; },
     getH: () => w.getBoundingClientRect().height || 470,
     setH: (v) => { w.style.height = Math.max(OPT_H_MIN, Math.min(optHMax(), v)) + 'px'; },
-    save: () => {
+    saveSize: () => {
       try {
         const r = w.getBoundingClientRect();
         localStorage.setItem(LS_OPTSIZE, JSON.stringify({ w: Math.round(r.width), h: Math.round(r.height) }));
@@ -903,10 +944,29 @@ function renderSettings() {
       </div>
     </div>`;
 
-  setPanel.querySelector('#__kw_set_move').onpointerdown = startSetDrag;
-  setPanel.querySelector('#__kw_set_title').onpointerdown = startSetDrag;
-  setPanel.querySelector('#__kw_set_move').ondblclick = () => { try { localStorage.removeItem(LS_SETPOS); } catch (e) {} applySetPos(); try { if (document.getElementById('__kw_optwin')) renderOptWin(); } catch (e) {} };
-  wireSetRsz();
+  kwWindowXY(setPanel, { // 설정: 가로+세로 (기본창 XY형 상속)
+    color: '#aaaab9', log: 'set-size',
+    loadPos: loadSetPos,
+    savePos: (p) => { try { localStorage.setItem(LS_SETPOS, JSON.stringify({ x: Math.round(p.x), y: Math.round(p.y) })); } catch (err) {} },
+    clearPos: () => { try { localStorage.removeItem(LS_SETPOS); } catch (e) {} },
+    applyPos: () => applySetPos(),
+    onDock: () => { try { if (document.getElementById('__kw_optwin')) renderOptWin(); } catch (e) {} },
+    onMove: () => { try { const ow = document.getElementById('__kw_optwin'); if (ow) renderOptWin(); } catch (err) {} }, // 옵션 창은 설정 창 옆을 따라감
+    onDrop: () => { try { const tb = document.getElementById('__kw_box'); if (tb) placeToastBox(tb); } catch (err) {} }, // 열려 있는 알람 토스트가 옮긴 창과 겹치면 위로
+    getW: () => setPanel.getBoundingClientRect().width || SET_W_DEF,
+    setW: (v) => { setPanel.style.width = Math.max(216, Math.min(600, Math.round(v))) + 'px'; },
+    getH: () => setPanel.getBoundingClientRect().height || SET_H_DEF,
+    setH: (v) => { setPanel.style.height = Math.max(SET_H_MIN, Math.min(setHMax(), v)) + 'px'; },
+    saveSize: () => {
+      try {
+        const r = setPanel.getBoundingClientRect();
+        localStorage.setItem(LS_SETSIZE, JSON.stringify({ w: Math.round(r.width), h: Math.round(r.height) }));
+      } catch (err) {}
+    },
+    applySize: () => applySetSize(),
+  });
+  const __kwSetMv = setPanel.querySelector('#__kw_set_move');
+  setPanel.querySelector('#__kw_set_title').onpointerdown = (e) => { try { if (__kwSetMv && __kwSetMv.onpointerdown) __kwSetMv.onpointerdown(e); } catch (err) {} };
   setPanel.querySelector('#__kw_set_close').onclick = () => { // X = 설정 창 닫기 (⚙ 버튼과 같음)
     setOpen = false;
     try { localStorage.setItem(LS_SET, '0'); } catch (e) {}
@@ -1152,39 +1212,6 @@ function snapRect(x, y, w, h, skipEl) {
   const bx = best(x, xs), by = best(y, ys);
   return { x: bx.v, y: by.v, hit: bx.hit || by.hit };
 }
-function startSetDrag(e) {
-  if (!setPanel || (e.button !== undefined && e.button !== 0)) return;
-  e.preventDefault();
-  const r = setPanel.getBoundingClientRect();
-  const ox = e.clientX - r.left, oy = e.clientY - r.top;
-  const w = r.width, h = r.height;
-  const prevCur = document.documentElement.style.cursor;
-  document.documentElement.style.cursor = 'grabbing';
-  let cur = { x: r.left, y: r.top };
-  setPanel.style.position = 'fixed'; // 제자리에서 그대로 들어올린다
-  setPanel.style.left = r.left + 'px'; setPanel.style.top = r.top + 'px'; setPanel.style.bottom = 'auto';
-  const move = (ev) => {
-    const sn = snapRect(ev.clientX - ox, ev.clientY - oy, w, h, setPanel);
-    const x = Math.max(0, Math.min(window.innerWidth - w, sn.x));
-    const y = Math.max(0, Math.min(window.innerHeight - h, sn.y));
-    cur = { x, y };
-    setPanel.style.left = x + 'px'; setPanel.style.top = y + 'px';
-    setPanel.style.boxShadow = sn.hit ? '0 0 0 2px rgba(0,255,163,.7)' : '';
-    try { const ow = document.getElementById('__kw_optwin'); if (ow) renderOptWin(); } catch (err) {} // 옵션 창은 설정 창 옆을 따라감
-  };
-  const up = () => {
-    window.removeEventListener('pointermove', move);
-    window.removeEventListener('pointerup', up);
-    window.removeEventListener('pointercancel', up);
-    document.documentElement.style.cursor = prevCur;
-    setPanel.style.boxShadow = '';
-    try { localStorage.setItem(LS_SETPOS, JSON.stringify(cur)); } catch (err) {}
-    try { const tb = document.getElementById('__kw_box'); if (tb) placeToastBox(tb); } catch (err) {} // 열려 있는 알람 토스트가 옮긴 창과 겹치면 위로
-  };
-  window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', up);
-  window.addEventListener('pointercancel', up);
-}
 function applySetVisibility() {
   if (!setPanel) return;
   setPanel.style.display = (setOpen && panel && panel.classList.contains('show')) ? 'block' : 'none';
@@ -1215,23 +1242,6 @@ function applySetSize() {
   setPanel.style.width = Math.min(s.w, window.innerWidth - 16) + 'px';
   setPanel.style.height = Math.min(s.h, setHMax()) + 'px';
 }
-function wireSetRsz() {
-  if (!setPanel) return;
-  kwRsz(setPanel, {
-    dir: 'd', color: '#aaaab9', wMode: 'self', log: 'set-size',
-    getW: () => setPanel.getBoundingClientRect().width || SET_W_DEF,
-    setW: (v) => { setPanel.style.width = Math.max(216, Math.min(600, Math.round(v))) + 'px'; },
-    getH: () => setPanel.getBoundingClientRect().height || SET_H_DEF,
-    setH: (v) => { setPanel.style.height = Math.max(SET_H_MIN, Math.min(setHMax(), v)) + 'px'; },
-    save: () => {
-      try {
-        const r = setPanel.getBoundingClientRect();
-        localStorage.setItem(LS_SETSIZE, JSON.stringify({ w: Math.round(r.width), h: Math.round(r.height) }));
-      } catch (err) {}
-    },
-  });
-}
-
 // start()/stop()이나 단어 추가/삭제처럼 구조가 바뀌는 경우만 renderPanel()을 쓰고,
 // 채팅을 한 줄씩 훔을 때는 updateStatsText()만 쓰므로 이제 무한루프 위험이 없음.
 
@@ -1413,17 +1423,7 @@ function renderDrops() {
     });
   };
   dropsPanel.querySelector('#__kw_dr_vault').onclick = () => { try { window.open(DROPS_VAULT_URL, '_blank', 'noopener'); } catch (e) {} };
-  kwFloatKey(dropsPanel, { color: '#ff9f1a', key: LS_DROPSPOS });
-  if (loadFloatPos(LS_DROPSPOS)) { // 띄운 상태: 가로는 자기 너비
-    kwRsz(dropsPanel, {
-      dir: 'h', color: '#ff9f1a', wMode: 'self',
-      getW: () => dropsPanel.getBoundingClientRect().width,
-      setW: (v) => { dropsPanel.style.width = Math.max(216, Math.min(600, Math.round(v))) + 'px'; },
-      save: () => saveFloatRect(LS_DROPSPOS, dropsPanel),
-    });
-  } else {
-    kwRsz(dropsPanel, { dir: 'h', color: '#ff9f1a', log: 'width' });
-  }
+  kwWindow(dropsPanel, { color: '#ff9f1a', posKey: LS_DROPSPOS, rsz: 'h' }); // 드롭스: 가로 (dock=스택공유, float=자기너비)
   applyDropsVisibility();
 }
 // 시간이 찬 보상을 알림 (토스트 + 브라우저 알림 + 소리, TTS는 확장이 'drops' 이벤트로 읽음)

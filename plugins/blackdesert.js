@@ -185,12 +185,10 @@
       '<div style="font-size:13px;font-weight:bold;display:flex;flex-wrap:wrap;gap:2px 10px;word-break:keep-all;min-width:0">' + next.bosses.map((n) => '<span>' + esc(n) + '</span>').join('') + '</div>' +
       '<span style="flex:none;font-size:12px;color:#3b9eff;white-space:nowrap">' + dayTxt + next.hhmm + '</span>' +
       '<span style="flex:none;margin-left:auto;font-size:12px;font-weight:bold;color:#3b9eff;white-space:nowrap">' + fmtLong(next.t - now) + '</span></div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:2px;right:3px');
-    try { if (KW && typeof KW.float === 'function') KW.float(nextEl, { color: '#3b9eff', key: LS_BDOPPOS, dock: () => bdoOrder() }); } catch (e) {}
-    if (bdoPosGet(LS_BDOPPOS)) { // 띄운 상태: 가로는 자기 너비
-      try { if (KW && typeof KW.rsz === 'function') KW.rsz(nextEl, { dir: 'h', color: '#3b9eff', wMode: 'self', getW: () => nextEl.getBoundingClientRect().width, setW: (v) => { nextEl.style.width = Math.max(216, Math.min(600, Math.round(v))) + 'px'; }, save: () => bdoPosSaveEl(LS_BDOPPOS, nextEl) }); } catch (e) {}
-    } else {
-      try { if (KW && typeof KW.rsz === 'function') KW.rsz(nextEl, { dir: 'h', color: '#3b9eff' }); } catch (e) {}
-    }
+    try { // 창 기본형 상속: 우두머리=가로 (dock=스택공유, float=자기너비)
+      if (KW && typeof KW.window === 'function') KW.window(nextEl, { color: '#3b9eff', posKey: LS_BDOPPOS, rsz: 'h', dock: () => bdoOrder() });
+      else if (KW && typeof KW.float === 'function') KW.float(nextEl, { color: '#3b9eff', key: LS_BDOPPOS, dock: () => bdoOrder() });
+    } catch (e) {}
   }
 
   let box = null;
@@ -364,31 +362,44 @@
         });
       };
     });
-    try { // 우하단 대각 핸들: 가로는 스택너비 공유(띄운 상태면 자기 너비), 세로는 목록 높이
-      if (KW && typeof KW.rsz === 'function') {
-        const cpos = bdoPosGet(LS_CPNNPOS);
-        const base = {
-          dir: 'd', color: '#b784ff',
+    try { // 창 기본형 상속: 쿠폰=가로+세로
+      if (KW && typeof KW.window === 'function') {
+        KW.window(cpnEl, {
+          color: '#b784ff', posKey: LS_CPNNPOS, rsz: 'd', dock: () => bdoOrder(),
           getH: () => cpnH,
           setH: (v) => {
             cpnH = Math.max(CPN_H_MIN, Math.min(cpnHMax(), v));
             const lst = cpnEl.querySelector('.__kw_sb_cpn');
             if (lst) lst.style.maxHeight = Math.min(cpnH, cpnHMax()) + 'px';
           },
-          save: () => {
-            try { localStorage.setItem(LS_CPNH, String(cpnH)); } catch (er) {}
-            if (cpos) bdoPosSaveEl(LS_CPNNPOS, cpnEl);
-          },
-        };
-        if (cpos) {
-          base.wMode = 'self';
-          base.getW = () => cpnEl.getBoundingClientRect().width;
-          base.setW = (v) => { cpnEl.style.width = Math.max(216, Math.min(600, Math.round(v))) + 'px'; };
+          saveH: () => { try { localStorage.setItem(LS_CPNH, String(cpnH)); } catch (er) {} },
+        });
+      } else {
+        if (KW && typeof KW.rsz === 'function') {
+          const cpos = bdoPosGet(LS_CPNNPOS);
+          const base = {
+            dir: 'd', color: '#b784ff',
+            getH: () => cpnH,
+            setH: (v) => {
+              cpnH = Math.max(CPN_H_MIN, Math.min(cpnHMax(), v));
+              const lst = cpnEl.querySelector('.__kw_sb_cpn');
+              if (lst) lst.style.maxHeight = Math.min(cpnH, cpnHMax()) + 'px';
+            },
+            save: () => {
+              try { localStorage.setItem(LS_CPNH, String(cpnH)); } catch (er) {}
+              if (cpos) bdoPosSaveEl(LS_CPNNPOS, cpnEl);
+            },
+          };
+          if (cpos) {
+            base.wMode = 'self';
+            base.getW = () => cpnEl.getBoundingClientRect().width;
+            base.setW = (v) => { cpnEl.style.width = Math.max(216, Math.min(600, Math.round(v))) + 'px'; };
+          }
+          KW.rsz(cpnEl, base);
         }
-        KW.rsz(cpnEl, base);
+        if (KW && typeof KW.float === 'function') KW.float(cpnEl, { color: '#b784ff', key: LS_CPNNPOS, dock: () => bdoOrder() });
       }
     } catch (e) {}
-    try { if (KW && typeof KW.float === 'function') KW.float(cpnEl, { color: '#b784ff', key: LS_CPNNPOS, dock: () => bdoOrder() }); } catch (e) {}
   }
   function updateCoupons(now) {
     const stack = document.getElementById('__kw_stack');
@@ -546,8 +557,8 @@
       });
       // [BETA-TEST-ONLY:end]
     }
-    // 스택 직속 1칸: 옆붙임 absolute 제거, 높이는 위아래 핸들로 조절
-    const css = 'position:relative;width:100%;height:' + Math.min(partyH, partyHMax()) + 'px;' + 'box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7a59;display:flex;flex-direction:column;overflow:hidden';
+    // 스택 직속 1칸: 옆붙임 absolute 제거, 높이는 대각 핸들로 조절. 바깥은 overflow:visible이어야 좌상 +원과 우하 원이 잘리지 않음(목록 스크롤은 안쪽 .__kw_sb_pty가 담당)
+    const css = 'position:relative;width:100%;height:' + Math.min(partyH, partyHMax()) + 'px;' + 'box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7a59;display:flex;flex-direction:column;overflow:visible';
     if (partyEl.style.cssText !== css && partyEl.getAttribute('data-css') !== css) { partyEl.style.cssText = css; partyEl.setAttribute('data-css', css); }
     bdoOrder();
     const sig = list.map((x) => x.id).join(',');
@@ -572,19 +583,32 @@
       if (sc2) sc2.scrollTop = top;
     }
     partyEl.querySelectorAll('[data-pexp]').forEach((el) => { el.textContent = fmt(Number(el.getAttribute('data-pexp')) - now) + ' 남음'; });
-    try { // 우하단 위아래 핸들
-      if (KW && typeof KW.rsz === 'function') KW.rsz(partyEl, {
-        dir: 'v', color: '#ff7a59',
-        getH: () => partyH,
-        setH: (v) => {
-          partyH = Math.max(PARTY_H_MIN, Math.min(partyHMax(), v));
-          partyEl.style.height = Math.min(partyH, partyHMax()) + 'px';
-          partyEl.setAttribute('data-css', partyEl.style.cssText);
-        },
-        save: () => { try { localStorage.setItem(LS_PARTYH, String(partyH)); } catch (er) {} },
-      });
+    try { // 창 기본형 상속: 파티=가로+세로
+      if (KW && typeof KW.window === 'function') {
+        KW.window(partyEl, {
+          color: '#ff7a59', posKey: LS_PARTYPOS, rsz: 'd', dock: () => bdoOrder(),
+          getH: () => partyH,
+          setH: (v) => {
+            partyH = Math.max(PARTY_H_MIN, Math.min(partyHMax(), v));
+            partyEl.style.height = Math.min(partyH, partyHMax()) + 'px';
+            partyEl.setAttribute('data-css', partyEl.style.cssText);
+          },
+          saveH: () => { try { localStorage.setItem(LS_PARTYH, String(partyH)); } catch (er) {} },
+        });
+      } else {
+        if (KW && typeof KW.rsz === 'function') KW.rsz(partyEl, {
+          dir: 'v', color: '#ff7a59',
+          getH: () => partyH,
+          setH: (v) => {
+            partyH = Math.max(PARTY_H_MIN, Math.min(partyHMax(), v));
+            partyEl.style.height = Math.min(partyH, partyHMax()) + 'px';
+            partyEl.setAttribute('data-css', partyEl.style.cssText);
+          },
+          save: () => { try { localStorage.setItem(LS_PARTYH, String(partyH)); } catch (er) {} },
+        });
+        if (KW && typeof KW.float === 'function') KW.float(partyEl, { color: '#ff7a59', key: LS_PARTYPOS, dock: () => bdoOrder() });
+      }
     } catch (e) {}
-    try { if (KW && typeof KW.float === 'function') KW.float(partyEl, { color: '#ff7a59', key: LS_PARTYPOS, dock: () => bdoOrder() }); } catch (e) {}
   }
 
   function tick() {
