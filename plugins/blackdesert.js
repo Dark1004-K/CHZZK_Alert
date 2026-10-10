@@ -326,7 +326,7 @@
       '<span title="' + (fold ? '펼치기' : '접기') + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:#b784ff;position:absolute;top:2px;right:29px;z-index:2"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (fold ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></span></div>' + xBtn('__kw_cpn_x', '#b784ff', 'position:absolute;top:2px;right:3px;z-index:2');
     if (!fold) {
       h += '<div style="height:1px;background:rgba(255,255,255,.14);margin:4px -10px"></div>';
-      h += '<div class="__kw_sb_cpn" style="max-height:' + Math.min(cpnH, cpnHMax()) + 'px;overflow-y:auto;margin-top:4px;padding-left:19px;padding-right:19px">';
+      h += '<div class="__kw_sb_cpn" style="max-height:' + Math.min(cpnH, cpnHMax()) + 'px;overflow-y:auto;margin:4px -10px 0">';
       if (cpnState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">쿠폰 목록을 받지 못했습니다. 새로고침(↻)을 눌러 보세요.</div>';
       else if (cpnState === 'idle' || (cpnState === 'loading' && !cpnData)) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
       else if (!list.length) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">사용할 수 있는 쿠폰이 없습니다.</div>';
@@ -569,7 +569,7 @@
       let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_USERS, '#ff7a59') + '파티 모집&nbsp;<span style="color:#ff7a59">(' + list.length + ')</span></b></div>' +
         xBtn('__kw_bdo_party_x', '#ff7a59', 'position:absolute;top:2px;right:3px;z-index:2') +
         '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' +
-        '<div class="__kw_sb_pty" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px;padding-left:19px;padding-right:19px">';
+        '<div class="__kw_sb_pty" style="flex:1;min-height:0;overflow-y:auto;margin:4px -10px 0">';
       if (!list.length) h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">모집 중인 파티가 없습니다.<br>채팅에 <b>#파티 검은사당 10분 내용</b> 처럼 쓰면 등록됩니다.</div>';
       list.forEach((x, xi) => {
         h += '<div data-pjump="' + esc(x.id) + '" title="클릭하면 해당 채팅으로 이동" style="' + (xi ? 'margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12);' : 'margin-top:2px;') + 'cursor:pointer">' +
