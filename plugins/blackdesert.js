@@ -495,8 +495,7 @@
     rest = mm[2];
     return { kind, mins, clamped, content: rest.replace(/\s+/g, ' ').trim().slice(0, 60) };
   }
-  // 등록이 안 될 때(쓰는 법 오류·이미 모집 중) 이유를 안내한다: 토스트 + 파티 창 아래 줄(60초). 같은 사람이 같은 이유로 도배하면 15초에 한 번만.
-  let partyNote = null; // { t, text }
+  // 등록이 안 될 때(쓰는 법 오류·이미 모집 중) 이유를 토스트로 안내한다(파티 창에는 표시하지 않음). 같은 사람이 같은 이유로 도배하면 15초에 한 번만.
   const partyNoteGuard = new Map();
   function partyNotice(nick, reason) {
     const now = Date.now();
@@ -504,8 +503,6 @@
     if (now - (partyNoteGuard.get(key) || 0) < 15000) return;
     partyNoteGuard.set(key, now);
     if (partyNoteGuard.size > 100) { for (const [k, t] of partyNoteGuard) { if (now - t > 60000) partyNoteGuard.delete(k); } }
-    partyNote = { t: now, text: nick + ': ' + reason };
-    partySig = null;
     try { KW.toast('👥 파티 모집 안내', nick + ' · ' + reason); } catch (e) {}
   }
   function onChat(d) {
@@ -606,8 +603,7 @@
     const css = lay + 'box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7a59;display:flex;flex-direction:column;overflow:hidden';
     if (partyEl.style.cssText !== css && partyEl.getAttribute('data-css') !== css) { partyEl.style.cssText = css; partyEl.setAttribute('data-css', css); }
     placeGroup();
-    if (partyNote && now - partyNote.t > 60000) { partyNote = null; partySig = null; } // 안내는 60초 뒤 사라짐
-    const sig = list.map((x) => x.id).join(',') + '|' + (partyNote ? partyNote.t : 0);
+    const sig = list.map((x) => x.id).join(',');
     if (sig !== partySig) {
       partySig = sig;
       let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap">👥 파티 모집 <span style="color:#ff7a59">(' + list.length + ')</span></b></div>' +
@@ -622,7 +618,6 @@
           (x.content ? '<div style="font-size:12px;color:#ddd;margin-top:3px;word-break:break-all">' + esc(x.content) + '</div>' : '') + '</div>';
       });
       h += '</div>';
-      if (partyNote) h += '<div style="flex:none;margin-top:6px;padding:5px 7px;border-radius:8px;background:rgba(255,212,0,.12);color:#ffd400;font-size:11px;line-height:1.4;word-break:break-all">⚠ ' + esc(partyNote.text) + '</div>';
       const sc = partyEl.querySelector('.__kw_sb_pty');
       const top = sc ? sc.scrollTop : 0;
       partyEl.innerHTML = h;
