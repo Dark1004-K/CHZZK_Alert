@@ -1189,6 +1189,7 @@ const HANDLE_OVERHANG = 6;
 function snapRects(skipEl) {
   const out = [];
   const seen = new Set();
+  const partyDrag = !!(skipEl && skipEl.id === '__kw_bdo_party'); // 파티는 기본 설정(테두리 기준): 끌 때도 상대도 확장 없음
   const pushEl = (el) => {
     if (!el || el === skipEl || (skipEl && skipEl.contains && skipEl.contains(el))) return;
     if (seen.has(el)) return;
@@ -1201,7 +1202,8 @@ function snapRects(skipEl) {
     let r = null;
     try { r = el.getBoundingClientRect(); } catch (e) { return; }
     if (!r || r.width < 20 || r.height < 20) return;
-    out.push({ l: r.left - HANDLE_OVERHANG, t: r.top - HANDLE_OVERHANG, r: r.right + HANDLE_OVERHANG, b: r.bottom + HANDLE_OVERHANG, w: r.width, h: r.height });
+    const ex = (partyDrag || el.id === '__kw_bdo_party') ? 0 : HANDLE_OVERHANG;
+    out.push({ l: r.left - ex, t: r.top - ex, r: r.right + ex, b: r.bottom + ex, w: r.width, h: r.height });
   };
   ['__kw_panel', '__kw_dropsp', '__kw_histp', '__kw_bdop', '__kw_cpn', '__kw_bdo_party', '__kw_setp', '__kw_optwin'].forEach((id) => {
     try { pushEl(document.getElementById(id)); } catch (e) {}
