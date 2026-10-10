@@ -499,6 +499,13 @@
     } catch (e) {}
   }
   try { KW.on('chat', onChat); } catch (e) {}
+  let partyDelBtn = () => ''; // 항목별 삭제 버튼 HTML (정식에서는 없음)
+  // [BETA-TEST-ONLY:start]
+  // 베타에서만: 진행 중인 파티 모집을 임의로 지울 수 있는 ✕ 버튼 (한 사람 1회 제한도 같이 풀림)
+  if (KW.beta) {
+    partyDelBtn = (id) => '<button data-pdel="' + esc(id) + '" title="이 모집 삭제 (베타 전용)" style="border:0;background:transparent;color:#ff7a59;cursor:pointer;padding:0 2px;font-size:13px;line-height:1;flex:none">✕</button>';
+  }
+  // [BETA-TEST-ONLY:end]
   function removeParty() {
     if (partyEl) { try { partyEl.remove(); } catch (e) {} }
     partyEl = null;
@@ -520,6 +527,16 @@
       partyEl.onclick = (e) => { if (e.target && e.target.closest && e.target.closest('#__kw_bdo_party_x')) { turnOff('party'); removeParty(); } };
       grp.appendChild(partyEl);
       partySig = '';
+      // [BETA-TEST-ONLY:start]
+      partyEl.addEventListener('click', (e) => { // 베타 전용: ✕로 모집 삭제
+        const b = e.target && e.target.closest ? e.target.closest('[data-pdel]') : null;
+        if (!b) return;
+        const id = b.getAttribute('data-pdel');
+        parties = parties.filter((x) => x.id !== id);
+        partySig = '';
+        updateParty(Date.now());
+      });
+      // [BETA-TEST-ONLY:end]
     }
     // 위치: 다른 창이 있으면 그 오른쪽(높이는 그룹과 같음), 파티 창만 있으면 그냥 한 칸
     const solo = !grpIn.children.length;
@@ -538,7 +555,7 @@
         h += '<div style="margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)">' +
           '<div style="display:flex;align-items:center;gap:6px"><span style="background:#3a2a24;color:#ff9a7a;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:bold;white-space:nowrap">' + esc(x.kind) + '</span>' +
           '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">' + esc(x.nick) + '</b>' +
-          '<span data-pexp="' + x.exp + '" style="margin-left:auto;font-size:11px;color:#ff9a7a;white-space:nowrap"></span></div>' +
+          '<span data-pexp="' + x.exp + '" style="margin-left:auto;font-size:11px;color:#ff9a7a;white-space:nowrap"></span>' + partyDelBtn(x.id) + '</div>' +
           (x.content ? '<div style="font-size:12px;color:#ddd;margin-top:3px;word-break:break-all">' + esc(x.content) + '</div>' : '') + '</div>';
       });
       h += '</div>';
