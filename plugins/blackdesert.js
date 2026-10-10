@@ -547,7 +547,7 @@
     const sig = list.map((x) => x.id).join(',');
     if (sig !== partySig) {
       partySig = sig;
-      let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap">👥 파티모집 <span style="color:#ff7a59">(' + list.length + ')</span></b></div>' +
+      let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap">👥 파티 모집 <span style="color:#ff7a59">(' + list.length + ')</span></b></div>' +
         xBtn('__kw_bdo_party_x', '#ff7a59', 'position:absolute;top:2px;right:3px;z-index:2') +
         '<div class="__kw_sb_pty" style="flex:1;min-height:0;overflow-y:auto">';
       if (!list.length) h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">모집 중인 파티가 없습니다.<br>채팅에 <b>#파티 검은사당 10분 내용</b> 처럼 쓰면 등록됩니다.</div>';
