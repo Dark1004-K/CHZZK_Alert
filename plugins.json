@@ -91,7 +91,8 @@
             ]
           ],
           "parent": "bossAlert",
-          "columns": 4
+          "columns": 9,
+          "colw": 72
         },
         {
           "key": "lead",
@@ -136,7 +137,8 @@
             "아토락시온",
             "솔라레",
             "기타"
-          ]
+          ],
+          "colw": 100
         }
       ]
     }

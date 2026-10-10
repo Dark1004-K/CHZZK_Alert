@@ -429,8 +429,9 @@ function extOptHtml(p) {
       const box = (c) => `<label style="cursor:${par ? 'pointer' : 'default'};white-space:nowrap;display:inline-flex;align-items:center;gap:5px"><input type="checkbox" class="__kw_popt_m" ${at} data-val="${escapeHtml(c)}" ${sel.includes(c) ? 'checked' : ''} ${par ? '' : 'disabled'} style="${OPT_CB}"> ${escapeHtml(c)}</label>`;
       // groups가 있으면 묶음마다 따로 그리되, 모든 줄이 같은 칸(columns, 기본 4)에 맞춰 정렬된다
       const groups = Array.isArray(o.groups) && o.groups.length ? o.groups : [o.choices || []];
-      const cols = Math.max(1, Math.min(6, Number(o.columns) || 4));
-      const rowsHtml = groups.map((g) => `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:4px 6px;margin-top:3px">${g.map(box).join('')}</div>`).join('');
+      const cols = Math.max(1, Math.min(12, Number(o.columns) || 4));
+      const cw = Number(o.colw) > 0 ? Math.min(200, Number(o.colw)) + 'px' : '1fr'; // colw: 한 칸 폭(px). 줄마다 같은 폭이라 이름이 세로로 맞는다
+      const rowsHtml = groups.map((g) => `<div style="display:grid;grid-template-columns:repeat(${cols},${cw});gap:4px 6px;margin-top:3px">${g.map(box).join('')}</div>`).join('');
       return `<div style="${o.parent ? 'margin-left:22px;' : ''}opacity:${par ? 1 : 0.45}">${o.label ? lb : ''}${rowsHtml}</div>`;
     }
     return '';
@@ -452,9 +453,13 @@ function renderOptWin() {
     const r = setPanel && setPanel.isConnected && setPanel.style.display !== 'none' ? setPanel.getBoundingClientRect() : null;
     if (r && r.width > 0 && r.right + 330 < window.innerWidth) pos = 'bottom:' + Math.max(8, Math.round(window.innerHeight - r.bottom)) + 'px;left:' + Math.round(r.right + 8) + 'px';
   } catch (e) {}
-  w.style.cssText = 'position:fixed;' + pos + ';z-index:2147483647;width:min(340px,92vw);min-height:min(470px,86vh);max-height:86vh;overflow-y:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777;scrollbar-width:thin;opacity:' + ((100 - getTransparency()) / 100);
+  w.style.cssText = 'position:fixed;' + pos + ';z-index:2147483647;width:fit-content;min-width:min(340px,92vw);max-width:96vw;min-height:min(470px,86vh);max-height:86vh;overflow-y:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777;scrollbar-width:thin;opacity:' + ((100 - getTransparency()) / 100);
   w.innerHTML = `<div style="display:flex;align-items:center;min-height:26px;padding-right:26px;margin-bottom:8px"><b>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button>${extOptHtml(p)}`;
   if (!old) document.body.appendChild(w);
+  try { // 옵션 창 폭이 넓어서 설정 창 오른쪽에 다 들어가지 않으면 화면 가운데로
+    const rr = w.getBoundingClientRect();
+    if (rr.right > window.innerWidth - 4 && pos.indexOf('translate') < 0) w.style.cssText = w.style.cssText.replace(/(bottom|top):[^;]+;left:[^;]+;/, 'top:50%;left:50%;transform:translate(-50%,-50%);');
+  } catch (e) {}
   w.querySelector('#__kw_optwin_x').onclick = closeOptWin;
   bindPluginOpts(w);
 }
