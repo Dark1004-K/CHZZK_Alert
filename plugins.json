@@ -2,7 +2,7 @@
   "plugins": [
     {
       "id": "tts",
-      "name": "TTS 활성",
+      "name": "TTS 확장 활성",
       "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/plugins/tts.js",
       "on": true,
       "noOwner": true
