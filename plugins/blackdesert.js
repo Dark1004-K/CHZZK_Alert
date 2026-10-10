@@ -239,7 +239,7 @@
     if (!nextEl || !nextEl.isConnected) {
       nextEl = document.createElement('div');
       nextEl.id = '__kw_bdop';
-      nextEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #3b9eff;position:relative;padding-right:30px';
+      nextEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #3b9eff;position:relative';
       bindGrip(nextEl);
       nextEl.onclick = (e) => { // X 버튼 (내용을 매초 다시 그리므로 창에 한 번만 달아 둔다)
         if (e.target && e.target.closest && e.target.closest('#__kw_bdop_x')) { turnOff('nextBoss'); removeNext(); }
@@ -251,8 +251,10 @@
     const when = new Date(next.t + KST);
     const days = Math.floor((next.t + KST) / DAY) - Math.floor((now + KST) / DAY);
     const dayTxt = days === 0 ? '' : days === 1 ? '내일 ' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + '요일 ';
-    nextEl.innerHTML = '<div style="font-size:12px;line-height:1.35;word-break:keep-all">⚔ 다음 우두머리 · <b>' + next.bosses.join(' / ') + '</b></div>' +
-      '<div style="font-size:11px;color:#3b9eff;margin-top:2px">' + dayTxt + next.hhmm + ' · ' + fmtLong(next.t - now) + ' 후</div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:2px;right:3px') + gripBtn('#3b9eff');
+    // 쿠폰 모아보기 창과 같은 디자인: 굵은 12px 제목 줄(이모지 아이콘 + 제목) → 보스 이름 줄 → 시각 줄
+    nextEl.innerHTML = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px"><b style="font-size:12px;white-space:nowrap">⚔ 다음 우두머리</b></div>' +
+      '<div style="font-size:13px;font-weight:bold;margin-top:2px;display:flex;flex-wrap:wrap;gap:2px 10px;word-break:keep-all">' + next.bosses.map((n) => '<span>' + esc(n) + '</span>').join('') + '</div>' +
+      '<div style="font-size:11px;color:#3b9eff;margin-top:3px">' + dayTxt + next.hhmm + ' · ' + fmtLong(next.t - now) + ' 후</div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:2px;right:3px') + gripBtn('#3b9eff');
   }
 
   let box = null;
