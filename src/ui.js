@@ -430,7 +430,7 @@ function extListHtml() {
 }
 // 업데이트 설치(Tampermonkey 설치 창) 후 새로고침 안내 팝업.
 // 설치 완료 여부는 직접 알 수 없어서, 설치 창이 닫히면 자동으로, 아니면 버튼으로 새로고침한다.
-function showReloadPopup(installWin) {
+function showReloadPopup(openInstall) {
   if (document.getElementById('__kw_upd')) return;
   const box = document.createElement('div');
   box.id = '__kw_upd';
@@ -442,13 +442,26 @@ function showReloadPopup(installWin) {
   box.style.cssText = hr && hr.width > 120 && hr.height > 80
     ? base + 'position:fixed;left:' + hr.left + 'px;top:' + hr.top + 'px;width:' + hr.width + 'px;height:' + hr.height + 'px;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;overflow:auto'
     : base + 'position:fixed;top:28%;left:50%;transform:translateX(-50%);padding:16px 18px;max-width:340px';
-  box.innerHTML = '<div style="font-size:14px"><b>🔄 업데이트 설치 후 새로고침</b></div>' +
+  const phase1Html = '<div style="font-size:14px"><b>🔄 업데이트 설치 후 새로고침</b></div>' +
     '<div style="font-size:12px;color:#bbb;margin:8px 0 10px;line-height:1.5">새로 열린 Tampermonkey 창에서 <b>재설치/업데이트</b>를 누르세요<br>이 탭으로 돌아오면 카운트 후 <b>자동으로 새로고침</b>됩니다 (알람 초기화가 일어날 수 있습니다)</div>' +
     '<div style="display:flex;gap:14px;align-items:center">' + // 두 버튼 사이 간격
     '<button class="__kw_b" id="__kw_upd_go" style="background:#1f6feb;color:#fff;margin:0">설치 끝남 · 새로고침</button>' +
     '<button class="__kw_b" id="__kw_upd_x" style="background:#444;color:#fff;margin:0">나중에</button></div>' +
     '<div id="__kw_upd_msg" style="font-size:12px;color:#ffd400;margin-top:8px"></div>';
+  // 1) 먼저 확인 팝업: 확인을 누르면 Tampermonkey 설치 창으로 넘어간다
+  box.innerHTML = '<div style="font-size:14px"><b>🔄 업데이트</b></div>' +
+    '<div style="font-size:12px;color:#bbb;margin:8px 0 10px;line-height:1.5">새 버전을 설치합니다.<br><b>확인</b>을 누르면 Tampermonkey 설치 창이 열립니다.</div>' +
+    '<div style="display:flex;gap:14px;align-items:center"><button class="__kw_b" id="__kw_upd_ok" style="background:#1f6feb;color:#fff;margin:0">확인</button>' +
+    '<button class="__kw_b" id="__kw_upd_cancel" style="background:#444;color:#fff;margin:0">취소</button></div>';
   document.body.appendChild(box);
+  box.querySelector('#__kw_upd_cancel').onclick = () => { try { box.remove(); } catch (e) {} };
+  box.querySelector('#__kw_upd_ok').onclick = () => {
+    let w = null;
+    try { w = openInstall(); } catch (e) {}
+    box.innerHTML = phase1Html;
+    watchInstall(w);
+  };
+  function watchInstall(installWin) {
   let timer = null;
   const reload = () => { // 새로고침 전에 불린 대화 목록을 비운다
     try { hitLog = []; hitTimes.clear(); saveHits(); } catch (e) {}
@@ -496,10 +509,12 @@ function showReloadPopup(installWin) {
     try { closed = !!installWin.closed; } catch (e) {}
     if (closed) startCount();
   }, 1000);
+  }
 }
 function renderSettings() {
   if (!setPanel) return;
   setPanel.innerHTML = `
+    <b style="position:absolute;top:10px;left:12px;font-size:14px;color:#fff">설정</b>
     <button class="__kw_ic __kw_xabs" id="__kw_set_close" title="설정 닫기" style="color:#aaaab9">${IC.close}</button>
     <div style="display:flex;gap:14px;height:calc(100% - 28px);margin-top:28px">
       <div class="__kw_tabs">
@@ -763,11 +778,7 @@ function renderSettings() {
   const updateCheckBtn = setPanel.querySelector('#__kw_update_check');
   if (updateCheckBtn) updateCheckBtn.onclick = () => checkUpdate();
   const updateGoBtn = setPanel.querySelector('#__kw_update_go');
-  if (updateGoBtn) updateGoBtn.onclick = () => {
-    let w = null;
-    try { w = window.open(UPDATE_URL, '_blank'); } catch (e) {}
-    showReloadPopup(w);
-  };
+  if (updateGoBtn) updateGoBtn.onclick = () => showReloadPopup(() => window.open(UPDATE_URL, '_blank')); // 확인 팝업 → 확인하면 설치 창
   applySetVisibility();
 }
 function applySetVisibility() {
