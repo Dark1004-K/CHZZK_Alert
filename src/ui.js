@@ -443,14 +443,15 @@ function showReloadPopup(openInstall) {
     ? base + 'position:fixed;left:' + hr.left + 'px;top:' + hr.top + 'px;width:' + hr.width + 'px;height:' + hr.height + 'px;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;overflow:auto'
     : base + 'position:fixed;top:28%;left:50%;transform:translateX(-50%);padding:16px 18px;max-width:340px';
   const phase1Html = '<div style="font-size:14px"><b>🔄 업데이트 설치 후 새로고침</b></div>' +
-    '<div style="font-size:12px;color:#bbb;margin:8px 0 10px;line-height:1.5">새로 열린 Tampermonkey 창에서 <b>재설치/업데이트</b>를 누르세요<br>이 탭으로 돌아오면 카운트 후 <b>자동으로 새로고침</b>됩니다 (알람 초기화가 일어날 수 있습니다)</div>' +
+    '<div style="font-size:12px;color:#bbb;margin:8px 0 10px;line-height:1.5">이 탭으로 돌아오면 카운트 후 <b>자동으로 새로고침</b>됩니다 (알람 초기화가 일어날 수 있습니다)</div>' +
     '<div style="display:flex;gap:14px;align-items:center">' + // 두 버튼 사이 간격
     '<button class="__kw_b" id="__kw_upd_go" style="background:#1f6feb;color:#fff;margin:0">설치 끝남 · 새로고침</button>' +
     '<button class="__kw_b" id="__kw_upd_x" style="background:#444;color:#fff;margin:0">나중에</button></div>' +
     '<div id="__kw_upd_msg" style="font-size:12px;color:#ffd400;margin-top:8px"></div>';
   // 1) 먼저 확인 팝업: 확인을 누르면 Tampermonkey 설치 창으로 넘어간다
   box.innerHTML = '<div style="font-size:14px"><b>🔄 업데이트</b></div>' +
-    '<div style="font-size:12px;color:#bbb;margin:8px 0 10px;line-height:1.5">새 버전을 설치합니다.<br><b>확인</b>을 누르면 Tampermonkey 설치 창이 열립니다.</div>' +
+    '<div style="font-size:12px;color:#bbb;margin:8px 0 8px;line-height:1.5">새 버전을 설치합니다. <b>확인</b>을 누르면 Tampermonkey 설치 창이 열립니다.</div>' +
+    '<div style="font-size:14px;font-weight:bold;color:#ffd400;background:rgba(255,212,0,.12);border:1px solid #ffd400;border-radius:8px;padding:8px 10px;margin:0 0 12px;line-height:1.5">새로 열린 Tampermonkey 창에서<br><span style="font-size:15px">재설치/업데이트</span>를 누르세요</div>' +
     '<div style="display:flex;gap:14px;align-items:center"><button class="__kw_b" id="__kw_upd_ok" style="background:#1f6feb;color:#fff;margin:0">확인</button>' +
     '<button class="__kw_b" id="__kw_upd_cancel" style="background:#444;color:#fff;margin:0">취소</button></div>';
   document.body.appendChild(box);
