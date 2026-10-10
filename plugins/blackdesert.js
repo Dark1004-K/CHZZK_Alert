@@ -660,7 +660,8 @@
     if (sig === famSig) return;
     famSig = sig;
     famEl.innerHTML = xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
-      '<div style="display:flex;gap:6px;flex:none;padding-right:26px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;border-radius:6px;background:#ff7ab8;color:#000;font:bold 12px sans-serif;padding:4px 10px;cursor:pointer;flex:none">검색</button></div>';
+      '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + '검은사막 검색</b></div>' +
+      '<div style="display:flex;gap:6px;flex:none;margin-top:4px;padding-left:19px;padding-right:19px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;border-radius:6px;background:#ff7ab8;color:#000;font:bold 12px sans-serif;padding:4px 10px;cursor:pointer;flex:none">검색</button></div>';
     const qi = famEl.querySelector('#__kw_fam_q');
     const go = () => {
       famQuery = qi ? qi.value : '';
