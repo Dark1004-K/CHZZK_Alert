@@ -73,6 +73,7 @@
   }
 
   const tests = [];
+  const warned30 = new Set(); // 30초 전 TTS를 이미 알린 출현 시각
   // [BETA-TEST-ONLY:start]
   // 테스트: 콘솔에서 __kwBdoTest(초) 를 호출하면 그 시간 뒤에 출현하는 가짜 우두머리 알림을 바로 띄운다 (옵션/필터 무시)
   if (KW.beta) { // 정식 앱에서는 테스트 후크를 만들지 않는다
@@ -648,9 +649,14 @@
       for (const o of occurrences(now).concat(tests)) {
         if (!bossAlertOn && !o.test) continue;
         if (now >= o.t || (!o.test && now < o.t - lead)) continue; // 알림 구간: 출현 N분 전 ~ 출현 시각
-        if (dismissed.has(o.t)) continue;
         const bosses = Array.isArray(sel) && !o.test ? o.bosses.filter((b) => sel.includes(b)) : o.bosses;
         if (!bosses.length) continue;
+        // 출현 30초 전: 알림을 닫았어도, 몇 분 전 알림 설정과 상관없이 무조건 한 번 더 TTS로 알린다 (구독: on('ext:boss30'))
+        if (o.t - now <= 30000 && !warned30.has(o.t)) {
+          warned30.add(o.t);
+          try { if (typeof KW.emit === 'function') KW.emit('boss30', { bosses }); } catch (e) {}
+        }
+        if (dismissed.has(o.t)) continue;
         active.add(o.t);
         if (!items.has(o.t)) {
           addItem(o);
@@ -667,6 +673,7 @@
       }
       for (const t of [...items.keys()]) if (!active.has(t)) removeItem(t);
       for (const t of [...dismissed]) if (t < now - DAY) dismissed.delete(t);
+      for (const t of [...warned30]) if (t < now - DAY) warned30.delete(t);
     } catch (e) {}
   }
   setInterval(tick, 1000);
