@@ -90,142 +90,43 @@
   // ---------- 창 묶음(그룹): 다음 우두머리 + 쿠폰 모아보기 ----------
   // 평소에는 감시 화면(#__kw_stack)의 드롭스 창 아래에 붙어 있고, 맨 위의 손잡이를 끌면 화면 아무 곳으로 옮길 수 있다.
   // 옮기는 동안 화면 가장자리와 다른 창(초록·드롭스·불린 대화·설정)의 가장자리에 자석처럼 붙는다. 손잡이를 더블클릭하면 원래 자리로 돌아온다.
-  const LS_GPOS = '__kw_bdo_gpos';
-  const SNAP_TH = 14; // 이 거리(px) 안이면 붙는다
-  const SNAP_GAP = 8; // 다른 창 옆에 붙을 때 간격
-  let grp = null, grpIn = null, grpDrag = false, grpSig = '';
-  function loadGpos() {
-    try { const o = JSON.parse(localStorage.getItem(LS_GPOS)); if (o && isFinite(o.x) && isFinite(o.y)) return o; } catch (e) {}
-    return null;
+  // 스택 직속 배치: 그룹 컨테이너 없이 각 창을 감시 화면(#__kw_stack)에 직접 둔다 (순서: 드롭스 → 다음 → 쿠폰 → 파티 → 불린대화).
+  // 가로(↔·대각의 가로축)는 스택 너비를 공유하고, 세로는 창마다 따로 저장한다.
+  try { localStorage.removeItem('__kw_bdo_gpos'); } catch (e) {} // 묶음 위치값 잔재 정리
+  const LS_CPNH = '__kw_cpn_h';
+  const CPN_H_DEF = 190, CPN_H_MIN = 80;
+  const cpnHMax = () => Math.max(CPN_H_MIN, Math.floor(window.innerHeight * 0.85));
+  let cpnH = CPN_H_DEF;
+  try { const chv = parseInt(localStorage.getItem(LS_CPNH), 10); if (chv >= CPN_H_MIN && chv <= 4000) cpnH = chv; } catch (e) {}
+  const LS_PARTYH = '__kw_party_h';
+  const PARTY_H_DEF = 170, PARTY_H_MIN = 100;
+  const partyHMax = () => Math.max(PARTY_H_MIN, Math.floor(window.innerHeight * 0.85));
+  let partyH = PARTY_H_DEF;
+  try { const phv = parseInt(localStorage.getItem(LS_PARTYH), 10); if (phv >= PARTY_H_MIN && phv <= 4000) partyH = phv; } catch (e) {}
+  function bdoOrder() { // 스택 안에서 다음→쿠폰→파티 순서로, 불린대화 창 바로 위에 둔다
+    try {
+      const stack = document.getElementById('__kw_stack');
+      if (!stack) return;
+      const hist = document.getElementById('__kw_histp');
+      const ref = (hist && hist.parentNode === stack) ? hist : null;
+      [nextEl, cpnEl, partyEl].forEach((el) => {
+        if (el && el.isConnected && el.parentNode === stack && ref && el !== ref) {
+          try { stack.insertBefore(el, ref); } catch (er) {}
+        }
+      });
+    } catch (e) {}
   }
-  function saveGpos(p) {
-    try { if (p) localStorage.setItem(LS_GPOS, JSON.stringify(p)); else localStorage.removeItem(LS_GPOS); } catch (e) {}
-  }
-  const GRP_BASE = 'box-sizing:border-box;display:flex;flex-direction:column;gap:6px;';
-  const floatCss = (x, y, w) => GRP_BASE + 'position:fixed;left:' + Math.round(x) + 'px;top:' + Math.round(y) + 'px;width:' + Math.round(w) + 'px;margin:0;z-index:1;';
-  function ensureGroup(stack) {
-    if (grp && grp.isConnected) return grpIn;
-    grp = document.createElement('div');
-    grp.id = '__kw_bdo_grp';
-    grp.style.cssText = GRP_BASE + 'position:relative;width:100%';
-    grpSig = '';
-    grpIn = document.createElement('div');
-    grpIn.style.cssText = 'display:flex;flex-direction:column;gap:8px';
-    grp.appendChild(grpIn);
-    return grpIn;
-  }
-  // 이동 손잡이: 창 오른쪽 위 X 옆의 "사방 화살표" 아이콘 (크기 조절 막대와는 다른 모양). 다음 우두머리 창에 있고, 그 창이 없으면 쿠폰 창에 둔다.
   // 창 제목 아이콘 (이모지는 색을 못 바꿔서 SVG로): 다음 우두머리=파랑, 쿠폰=보라, 파티=주황
   const TI = (path, color) => '<span style="display:inline-flex;align-items:center;color:' + color + ';margin-right:5px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + path + '</svg></span>';
   const TI_SWORDS = '<path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M14.5 6.5L18 3h3v3l-3.5 3.5M5 14l4 4M7 17l-3 3M3 19l2 2"/>';
   const TI_TICKET = '<path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2M13 17v2M13 11v2"/>';
   const TI_USERS = '<circle cx="9" cy="8" r="3.2"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.2a4.2 4.2 0 0 1 4.5 4.3V20"/>';
-  const ICON_MOVE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>';
-  const gripBtn = (color) => '<button data-kwgrip="1" title="드래그로 창 묶음 이동 (화면 가장자리·다른 창에 자석처럼 붙음) · 더블클릭: 원래 자리로" style="border:1px solid ' + color + ';background:rgb(20,20,24);color:' + color + ';cursor:grab;padding:3px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;position:absolute;left:-9px;top:-9px;width:24px;height:24px;box-sizing:border-box;z-index:3;touch-action:none;box-shadow:0 2px 6px rgba(0,0,0,.5)">' + ICON_MOVE.replace('width="16" height="16"', 'width="14" height="14"') + '</button>';
-  function bindGrip(el) { // 창 내용을 다시 그려도 유지되도록 창 자체에 한 번만 단다
-    el.onpointerdown = (e) => {
-      const g = e.target && e.target.closest ? e.target.closest('[data-kwgrip]') : null;
-      if (g) startGroupDrag(e, g);
-    };
-    el.ondblclick = (e) => {
-      if (e.target && e.target.closest && e.target.closest('[data-kwgrip]')) { saveGpos(null); grpSig = ''; placeGroup(); }
-    };
-  }
-  function cleanupGroup() {
-    if (grp && grpIn && !grpIn.children.length && !partyEl) { try { grp.remove(); } catch (e) {} grp = null; grpIn = null; grpSig = ''; }
-  }
-  // 파티 창이 그룹 오른쪽에 붙어 있으면 그만큼 더 넓게 본다 (화면 밖으로 나가지 않게 / 자석 계산)
-  const partyExtra = () => (partyEl && partyEl.isConnected && grpIn && grpIn.children.length && grp ? (grpIn.offsetWidth || grp.offsetWidth || 0) + SNAP_GAP : 0); // 파티 창 폭 = 다음 우두머리 창 폭
-  function placeGroup() {
-    const stack = document.getElementById('__kw_stack');
-    if (!grp || !stack || grpDrag) return;
-    const pos = loadGpos();
-    if (pos) {
-      if (grp.parentNode !== stack) stack.appendChild(grp);
-      const w = Math.round(stack.getBoundingClientRect().width) || 350;
-      const h = grp.offsetHeight || 0;
-      const x = Math.max(0, Math.min(window.innerWidth - w - partyExtra(), pos.x));
-      const y = Math.max(0, Math.min(window.innerHeight - h, pos.y));
-      const sig = 'f' + Math.round(x) + ',' + Math.round(y) + ',' + w;
-      if (sig !== grpSig) { grp.style.cssText = floatCss(x, y, w); grpSig = sig; }
-      return;
-    }
-    if (grpSig !== 'd') { grp.style.cssText = GRP_BASE + 'position:relative;width:100%'; grpSig = 'd'; }
-    // 제자리: 드롭스 창이 있으면 그 바로 아래, 없으면 불린 대화 창 바로 위
-    const drops = document.getElementById('__kw_dropsp');
-    const hist = document.getElementById('__kw_histp');
-    if (drops && drops.parentNode === stack) {
-      if (grp.previousSibling !== drops) stack.insertBefore(grp, drops.nextSibling);
-    } else if (hist && hist.parentNode === stack) {
-      if (grp.nextSibling !== hist) stack.insertBefore(grp, hist);
-    } else if (grp.parentNode !== stack) stack.appendChild(grp);
-  }
-  // 자석: 끌고 있는 묶음의 가장자리를 화면 가장자리·다른 창 가장자리에 맞춘다
-  function snapGroup(x, y, w, h) {
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const xs = [[0, 0], [vw - w, 0]]; // [맞출 left 값, 0]
-    const ys = [[0, 0], [vh - h, 0]];
-    ['__kw_panel', '__kw_dropsp', '__kw_histp', '__kw_setp'].forEach((id) => {
-      const el = document.getElementById(id);
-      if (!el || el.closest('#__kw_bdo_grp')) return;
-      const r = el.getBoundingClientRect();
-      if (r.width < 20 || r.height < 20) return;
-      xs.push([r.left, 0], [r.right - w, 0], [r.right + SNAP_GAP, 0], [r.left - SNAP_GAP - w, 0]);
-      ys.push([r.top, 0], [r.bottom - h, 0], [r.bottom + SNAP_GAP, 0], [r.top - SNAP_GAP - h, 0]);
-    });
-    const best = (v, list) => {
-      let bv = v, bd = SNAP_TH + 1;
-      list.forEach(([c]) => { const d = Math.abs(c - v); if (d < bd) { bd = d; bv = c; } });
-      return bd <= SNAP_TH ? { v: bv, hit: true } : { v, hit: false };
-    };
-    const bx = best(x, xs), by = best(y, ys);
-    return { x: bx.v, y: by.v, hit: bx.hit || by.hit };
-  }
-  function startGroupDrag(e, grip) {
-    if (e.button !== undefined && e.button !== 0) return;
-    const stack = document.getElementById('__kw_stack');
-    if (!grp || !stack) return;
-    e.preventDefault();
-    const r = grp.getBoundingClientRect();
-    const ox = e.clientX - r.left, oy = e.clientY - r.top;
-    const w = Math.round(stack.getBoundingClientRect().width) || Math.round(r.width);
-    grpDrag = true;
-    const prevCur = document.documentElement.style.cursor;
-    document.documentElement.style.cursor = 'grabbing';
-    let cur = { x: r.left, y: r.top };
-    if (grp.parentNode !== stack) stack.appendChild(grp);
-    grp.style.cssText = floatCss(cur.x, cur.y, w); // 제자리에서 그대로 들어올린다
-    const h = grp.offsetHeight || r.height;
-    const ex = partyExtra();
-    const move = (ev) => {
-      let x = ev.clientX - ox, y = ev.clientY - oy;
-      const sn = snapGroup(x, y, w + ex, h);
-      x = Math.max(0, Math.min(window.innerWidth - w - ex, sn.x));
-      y = Math.max(0, Math.min(window.innerHeight - h, sn.y));
-      cur = { x, y };
-      grp.style.cssText = floatCss(x, y, w) + (sn.hit ? 'box-shadow:0 0 0 2px rgba(0,255,163,.7);border-radius:12px;' : '');
-    };
-    const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', up);
-      grpDrag = false;
-      document.documentElement.style.cursor = prevCur;
-      grp.style.boxShadow = '';
-      saveGpos({ x: cur.x, y: cur.y });
-      grpSig = '';
-      placeGroup();
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', up);
-  }
-  // 감시 화면(#__kw_stack)의 드롭스 창 바로 아래에 파란색 "다음 우두머리" 창을 둔다 (창 묶음 안)
+  function placeGroup() { bdoOrder(); }
+  // 감시 화면(#__kw_stack)의 드롭스 창 바로 아래에 파란색 "다음 우두머리" 창을 둔다 (스택 직속)
   let nextEl = null;
   function removeNext() {
     if (nextEl) { try { nextEl.remove(); } catch (e) {} }
     nextEl = null;
-    cleanupGroup();
   }
   function fmtLong(ms) {
     const s = Math.max(0, Math.floor(ms / 1000));
@@ -249,14 +150,12 @@
       nextEl = document.createElement('div');
       nextEl.id = '__kw_bdop';
       nextEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #3b9eff;position:relative';
-      bindGrip(nextEl);
       nextEl.onclick = (e) => { // X 버튼 (내용을 매초 다시 그리므로 창에 한 번만 달아 둔다)
         if (e.target && e.target.closest && e.target.closest('#__kw_bdop_x')) { turnOff('nextBoss'); removeNext(); }
       };
+      stack.appendChild(nextEl);
     }
-    const gin = ensureGroup(stack); // 위치는 창 묶음이 정한다
-    if (nextEl.parentNode !== gin || gin.firstChild !== nextEl) gin.insertBefore(nextEl, gin.firstChild);
-    placeGroup();
+    bdoOrder();
     const when = new Date(next.t + KST);
     const days = Math.floor((next.t + KST) / DAY) - Math.floor((now + KST) / DAY);
     const dayTxt = days === 0 ? '' : days === 1 ? '내일 ' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + '요일 ';
@@ -266,7 +165,8 @@
       '<div style="display:flex;align-items:center;gap:8px;margin-top:2px">' +
       '<div style="font-size:13px;font-weight:bold;display:flex;flex-wrap:wrap;gap:2px 10px;word-break:keep-all;min-width:0">' + next.bosses.map((n) => '<span>' + esc(n) + '</span>').join('') + '</div>' +
       '<span style="flex:none;font-size:12px;color:#3b9eff;white-space:nowrap">' + dayTxt + next.hhmm + '</span>' +
-      '<span style="flex:none;margin-left:auto;font-size:12px;font-weight:bold;color:#3b9eff;white-space:nowrap">' + fmtLong(next.t - now) + '</span></div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:2px;right:3px') + gripBtn('#3b9eff');
+      '<span style="flex:none;margin-left:auto;font-size:12px;font-weight:bold;color:#3b9eff;white-space:nowrap">' + fmtLong(next.t - now) + '</span></div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:2px;right:3px');
+    try { if (KW && typeof KW.rsz === 'function') KW.rsz(nextEl, { dir: 'h', color: '#3b9eff' }); } catch (e) {}
   }
 
   let box = null;
@@ -360,7 +260,6 @@
     if (cpnEl) { try { cpnEl.remove(); } catch (e) {} }
     cpnEl = null;
     cpnSig = '';
-    cleanupGroup();
   }
   function loadCoupons(manual) {
     if (cpnState === 'loading') return;
@@ -396,16 +295,15 @@
     const fold = cpnFolded();
     const busy = cpnState === 'loading' || now < cpnBusyUntil;
     const flash = now < cpnFlashUntil;
-    const hasNext = !!(nextEl && nextEl.isConnected);
-    const sig = [hasNext ? 1 : 0, cpnState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, cpnData ? cpnData.updatedAt : 0, cpnFetchedAt, list.map((c) => c.code).join(',')].join('|');
+    const sig = [cpnState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, cpnData ? cpnData.updatedAt : 0, cpnFetchedAt, list.map((c) => c.code).join(',')].join('|');
     if (sig === cpnSig && cpnEl && cpnEl.isConnected) return;
     cpnSig = sig;
     let h = '<div id="__kw_cpn_hd" style="display:flex;align-items:center;justify-content:flex-start;gap:4px;cursor:pointer;min-height:26px;padding-right:58px">' +
       '<b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_TICKET, '#b784ff') + '쿠폰 모아보기&nbsp;<span style="color:#b784ff">(' + list.length + ')</span></b>' +
       '<span style="display:inline-flex;align-items:center"><button id="__kw_cpn_rf" class="' + (busy ? '__kw_ic __kw_spin' : '') + '" title="' + (cpnFetchedAt ? '새로고침 (마지막 갱신 ' + pad2(new Date(cpnFetchedAt).getHours()) + ':' + pad2(new Date(cpnFetchedAt).getMinutes()) + ':' + pad2(new Date(cpnFetchedAt).getSeconds()) + ')' : '새로고침') + '" style="border:0;background:transparent;color:#b784ff;cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;position:relative;top:1.5px">' + (busy ? ICON_REFRESH : flash ? (cpnFlashErr ? ICON_FAIL : ICON_DONE) : ICON_REFRESH) + '</button>' +
-      '<span title="' + (fold ? '펼치기' : '접기') + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:#b784ff;position:absolute;top:2px;right:29px;z-index:2"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (fold ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></span></div>' + xBtn('__kw_cpn_x', '#b784ff', 'position:absolute;top:2px;right:3px;z-index:2') + (hasNext ? '' : gripBtn('#b784ff'));
+      '<span title="' + (fold ? '펼치기' : '접기') + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:#b784ff;position:absolute;top:2px;right:29px;z-index:2"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (fold ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></span></div>' + xBtn('__kw_cpn_x', '#b784ff', 'position:absolute;top:2px;right:3px;z-index:2');
     if (!fold) {
-      h += '<div class="__kw_sb_cpn" style="max-height:190px;overflow-y:auto;margin-top:2px">';
+      h += '<div class="__kw_sb_cpn" style="max-height:' + Math.min(cpnH, cpnHMax()) + 'px;overflow-y:auto;margin-top:2px">';
       if (cpnState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">쿠폰 목록을 받지 못했습니다. 새로고침(↻)을 눌러 보세요.</div>';
       else if (cpnState === 'idle' || (cpnState === 'loading' && !cpnData)) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
       else if (!list.length) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">사용할 수 있는 쿠폰이 없습니다.</div>';
@@ -442,6 +340,18 @@
         });
       };
     });
+    try { // 우하단 대각 핸들: 가로는 스택너비 공유, 세로는 목록 높이
+      if (KW && typeof KW.rsz === 'function') KW.rsz(cpnEl, {
+        dir: 'd', color: '#b784ff',
+        getH: () => cpnH,
+        setH: (v) => {
+          cpnH = Math.max(CPN_H_MIN, Math.min(cpnHMax(), v));
+          const lst = cpnEl.querySelector('.__kw_sb_cpn');
+          if (lst) lst.style.maxHeight = Math.min(cpnH, cpnHMax()) + 'px';
+        },
+        save: () => { try { localStorage.setItem(LS_CPNH, String(cpnH)); } catch (er) {} },
+      });
+    } catch (e) {}
   }
   function updateCoupons(now) {
     const stack = document.getElementById('__kw_stack');
@@ -453,12 +363,10 @@
       cpnEl = document.createElement('div');
       cpnEl.id = '__kw_cpn';
       cpnEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #b784ff;position:relative';
-      bindGrip(cpnEl);
       cpnSig = '';
+      stack.appendChild(cpnEl);
     }
-    const gin = ensureGroup(stack);
-    if (cpnEl.parentNode !== gin || gin.lastChild !== cpnEl) gin.appendChild(cpnEl);
-    placeGroup();
+    bdoOrder();
     renderCoupons(now);
   }
 
@@ -570,7 +478,6 @@
     if (partyEl) { try { partyEl.remove(); } catch (e) {} }
     partyEl = null;
     partySig = null;
-    cleanupGroup();
   }
   function updateParty(now) {
     const stack = document.getElementById('__kw_stack');
@@ -580,7 +487,6 @@
     parties = parties.filter((x) => x.exp > now);
     const sel = partyKindsSel();
     const list = parties.filter((x) => sel.includes(x.kind));
-    ensureGroup(stack);
     if (!partyEl || !partyEl.isConnected) {
       partyEl = document.createElement('div');
       partyEl.id = '__kw_bdo_party';
@@ -590,7 +496,7 @@
         const row = e.target && e.target.closest ? e.target.closest('[data-pjump]') : null;
         if (row) jumpToParty(row.getAttribute('data-pjump'));
       };
-      grp.appendChild(partyEl);
+      stack.appendChild(partyEl);
       partySig = null;
       // [BETA-TEST-ONLY:start]
       partyEl.addEventListener('click', (e) => { // 베타 전용: ✕로 모집 삭제
@@ -603,12 +509,10 @@
       });
       // [BETA-TEST-ONLY:end]
     }
-    // 위치: 다른 창이 있으면 그 오른쪽(높이는 그룹과 같음), 파티 창만 있으면 그냥 한 칸
-    const solo = !grpIn.children.length;
-    const lay = solo ? 'position:static;width:100%;min-height:160px;' : 'position:absolute;left:calc(100% + ' + SNAP_GAP + 'px);top:0;bottom:0;width:' + (grpIn.offsetWidth ? grpIn.offsetWidth + 'px' : '100%') + ';' // 폭 = 다음 우두머리(그룹 안) 창 폭;
-    const css = lay + 'box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7a59;display:flex;flex-direction:column;overflow:hidden';
+    // 스택 직속 1칸: 옆붙임 absolute 제거, 높이는 위아래 핸들로 조절
+    const css = 'position:relative;width:100%;height:' + Math.min(partyH, partyHMax()) + 'px;' + 'box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7a59;display:flex;flex-direction:column;overflow:hidden';
     if (partyEl.style.cssText !== css && partyEl.getAttribute('data-css') !== css) { partyEl.style.cssText = css; partyEl.setAttribute('data-css', css); }
-    placeGroup();
+    bdoOrder();
     const sig = list.map((x) => x.id).join(',');
     if (sig !== partySig) {
       partySig = sig;
@@ -631,6 +535,18 @@
       if (sc2) sc2.scrollTop = top;
     }
     partyEl.querySelectorAll('[data-pexp]').forEach((el) => { el.textContent = fmt(Number(el.getAttribute('data-pexp')) - now) + ' 남음'; });
+    try { // 우하단 위아래 핸들
+      if (KW && typeof KW.rsz === 'function') KW.rsz(partyEl, {
+        dir: 'v', color: '#ff7a59',
+        getH: () => partyH,
+        setH: (v) => {
+          partyH = Math.max(PARTY_H_MIN, Math.min(partyHMax(), v));
+          partyEl.style.height = Math.min(partyH, partyHMax()) + 'px';
+          partyEl.setAttribute('data-css', partyEl.style.cssText);
+        },
+        save: () => { try { localStorage.setItem(LS_PARTYH, String(partyH)); } catch (er) {} },
+      });
+    } catch (e) {}
   }
 
   function tick() {

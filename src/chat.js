@@ -135,7 +135,7 @@ function placeToastBox(box) {
       const r = target.getBoundingClientRect();
       box.style.maxWidth = Math.max(220, window.innerWidth - r.right - 8 - 14) + 'px';
       box.style.bottom = '0';
-      const obs = ['__kw_setp', '__kw_bdo_grp', '__kw_bdo_party', '__kw_optwin'].map((id) => document.getElementById(id)).filter((el) => {
+      const obs = ['__kw_setp', '__kw_bdop', '__kw_cpn', '__kw_bdo_party', '__kw_optwin'].map((id) => document.getElementById(id)).filter((el) => {
         if (!el || el.style.display === 'none') return false;
         const q = el.getBoundingClientRect();
         return q.width > 20 && q.height > 20;
@@ -341,8 +341,12 @@ const sameName = (a, b) => {
 };
 
 // 우리 자체 UI(패널/프롬프트/토스트/선택버튼)에서 발생한 변화는 절대 관리하지 않아야 무한루프를 막을 수 있음
-const isOwnUi = (node) =>
-  node.id && ['__kw_panel', '__kw_ask', '__kw_box', '__kw_sel', '__kw_stack', '__kw_histp', '__kw_setp', '__kw_midrow', '__kw_grip'].includes(node.id);
+const isOwnUi = (node) => {
+  if (!node || node.nodeType !== 1) return false;
+  if (node.id && ['__kw_panel', '__kw_ask', '__kw_box', '__kw_sel', '__kw_stack', '__kw_histp', '__kw_setp', '__kw_midrow', '__kw_grip', '__kw_optwin'].includes(node.id)) return true;
+  try { if (node.classList && (node.classList.contains('__kw_rsz') || node.classList.contains('__kw_mv'))) return true; } catch (e) {}
+  return false;
+};
 
 let statsRaf = null;
 function scheduleStatsUpdate() {
@@ -430,7 +434,7 @@ function scanSingle(el) {
 
 function scanNode(node) {
   if (!(node instanceof HTMLElement)) return;
-  if (isOwnUi(node) || node.closest?.('#__kw_panel,#__kw_ask,#__kw_box,#__kw_sel,#__kw_stack,#__kw_histp,#__kw_setp,#__kw_midrow,#__kw_grip')) return;
+  if (isOwnUi(node) || node.closest?.('#__kw_panel,#__kw_ask,#__kw_box,#__kw_sel,#__kw_stack,#__kw_histp,#__kw_setp,#__kw_midrow,#__kw_grip,#__kw_optwin,.__kw_rsz,.__kw_mv')) return;
   // 가장 흔한 경로: 추가된 노드 자체가 메시지 1개
   if (node.matches?.('[class*="chatting_message"]')) {
     if (scanSingle(node)) scheduleStatsUpdate();
@@ -485,7 +489,7 @@ function attachObserverTo(container) {
     mutBatches++;
     for (const m of muts) {
       // 패널/프롬프트 자체의 변화는 무시 (무한루프 방지)
-      if (m.target && (isOwnUi(m.target) || m.target.closest?.('#__kw_panel,#__kw_ask,#__kw_box,#__kw_sel,#__kw_stack,#__kw_histp,#__kw_setp,#__kw_midrow,#__kw_grip'))) continue;
+      if (m.target && (isOwnUi(m.target) || m.target.closest?.('#__kw_panel,#__kw_ask,#__kw_box,#__kw_sel,#__kw_stack,#__kw_histp,#__kw_setp,#__kw_midrow,#__kw_grip,#__kw_optwin,.__kw_rsz,.__kw_mv'))) continue;
       for (const n of m.addedNodes) {
         if (!(n instanceof HTMLElement)) continue; // 텍스트노드 스킵
         mutNodes++;
