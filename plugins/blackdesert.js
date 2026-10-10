@@ -134,7 +134,7 @@
     if (grp && grpIn && !grpIn.children.length && !partyEl) { try { grp.remove(); } catch (e) {} grp = null; grpIn = null; grpSig = ''; }
   }
   // 파티 창이 그룹 오른쪽에 붙어 있으면 그만큼 더 넓게 본다 (화면 밖으로 나가지 않게 / 자석 계산)
-  const partyExtra = () => (partyEl && partyEl.isConnected && grpIn && grpIn.children.length ? PARTY_W + SNAP_GAP : 0);
+  const partyExtra = () => (partyEl && partyEl.isConnected && grpIn && grpIn.children.length && grp ? (grpIn.offsetWidth || grp.offsetWidth || 0) + SNAP_GAP : 0); // 파티 창 폭 = 다음 우두머리 창 폭
   function placeGroup() {
     const stack = document.getElementById('__kw_stack');
     if (!grp || !stack || grpDrag) return;
@@ -465,7 +465,6 @@
   // 치지직 채팅에 "#파티 검은사당 10분 내용..." 이라고 쓰면 등록된다. 종류는 아래 7가지(그 밖의 말은 "기타").
   // 한 사람(닉네임)당 진행 중인 모집은 1개만, 모집 시간(최대 10분, 안 쓰면 10분)이 지나면 저절로 사라진다.
   // 선택한 종류가 등록되면 알림(토스트·알림음·TTS)이 울린다. 목록은 이 페이지에서만 기억한다(새로고침하면 비움).
-  const PARTY_W = 260; // 파티 창 폭(px)
   const PARTY_KINDS = ['항해일퀘', '검은사당', '피의제단', '파티사냥', '아토락시온', '솔라레', '기타'];
   const PARTY_MAX_MIN = 10;
   let parties = []; // { id, nick, kind, content, exp }
@@ -605,7 +604,7 @@
     }
     // 위치: 다른 창이 있으면 그 오른쪽(높이는 그룹과 같음), 파티 창만 있으면 그냥 한 칸
     const solo = !grpIn.children.length;
-    const lay = solo ? 'position:static;width:100%;min-height:160px;' : 'position:absolute;left:calc(100% + ' + SNAP_GAP + 'px);top:0;bottom:0;width:' + PARTY_W + 'px;';
+    const lay = solo ? 'position:static;width:100%;min-height:160px;' : 'position:absolute;left:calc(100% + ' + SNAP_GAP + 'px);top:0;bottom:0;width:' + (grpIn.offsetWidth ? grpIn.offsetWidth + 'px' : '100%') + ';' // 폭 = 다음 우두머리(그룹 안) 창 폭;
     const css = lay + 'box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7a59;display:flex;flex-direction:column;overflow:hidden';
     if (partyEl.style.cssText !== css && partyEl.getAttribute('data-css') !== css) { partyEl.style.cssText = css; partyEl.setAttribute('data-css', css); }
     placeGroup();
