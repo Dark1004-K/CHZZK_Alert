@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.3.0-beta053';
+const SCRIPT_VERSION = '3.3.0-beta054';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -205,8 +205,9 @@ function handleWsPayload(data) {
       if (typeof m.profile === 'string' && m.profile) nick = JSON.parse(m.profile).nickname || '';
       else if (m.profile && typeof m.profile === 'object') nick = m.profile.nickname || '';
     } catch (e) {}
-    if (normMyNick && nick && norm(nick) === normMyNick) continue;
     const mt = Number(m.msgTime || m.messageTime || 0); // 메시지 시각이 90초보다 오래됐으면 밀려 들어온 옛 메시지로 본다
+    if (!(mt > 0 && Date.now() - mt > 90000)) kwEmit('chat', { nick, text: msg, t: mt || Date.now() }); // 플러그인용: 실시간 채팅 한 줄 (내 채팅 포함)
+    if (normMyNick && nick && norm(nick) === normMyNick) continue;
     wsMatch(nick, msg, mt > 0 && Date.now() - mt > 90000);
   }
 }
@@ -417,6 +418,10 @@ function ensureStyle() {
 #__kw_set_body::-webkit-scrollbar-thumb{background:rgba(170,170,185,.60);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
 #__kw_set_body::-webkit-scrollbar-thumb:hover{background:rgb(170,170,185);background-clip:padding-box}
 #__kw_set_body::-webkit-scrollbar-corner{background:transparent}
+.__kw_sb_pty::-webkit-scrollbar{width:8px;height:8px}
+.__kw_sb_pty::-webkit-scrollbar-track{background:rgba(255,122,89,.10);border-radius:8px}
+.__kw_sb_pty::-webkit-scrollbar-thumb{background:rgba(255,122,89,.60);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+.__kw_sb_pty{scrollbar-width:thin;scrollbar-color:rgba(255,122,89,.7) rgba(255,122,89,.12)}
 .__kw_sb_cpn::-webkit-scrollbar{width:8px;height:8px}
 .__kw_sb_cpn::-webkit-scrollbar-track{background:rgba(183,132,255,.10);border-radius:8px}
 .__kw_sb_cpn::-webkit-scrollbar-thumb{background:rgba(183,132,255,.60);border-radius:8px;border:2px solid transparent;background-clip:padding-box}

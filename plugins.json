@@ -41,8 +41,14 @@
           "default": true
         },
         {
+          "key": "bossAlert",
+          "label": "우두머리 알림",
+          "type": "bool",
+          "default": true
+        },
+        {
           "key": "bosses",
-          "label": "알림받을 우두머리",
+          "label": "",
           "type": "multi",
           "choices": [
             "크자카",
@@ -92,13 +98,40 @@
               "우투리",
               "불가살"
             ]
-          ]
+          ],
+          "parent": "bossAlert",
+          "columns": 4
         },
         {
           "key": "party",
           "label": "파티모집 창 표시",
           "type": "bool",
           "default": true
+        },
+        {
+          "key": "partyKinds",
+          "label": "",
+          "type": "multi",
+          "parent": "party",
+          "columns": 3,
+          "choices": [
+            "항해일퀘",
+            "검은사당",
+            "피의제단",
+            "파티사냥",
+            "아토락시온",
+            "솔라레",
+            "기타"
+          ],
+          "default": [
+            "항해일퀘",
+            "검은사당",
+            "피의제단",
+            "파티사냥",
+            "아토락시온",
+            "솔라레",
+            "기타"
+          ]
         }
       ]
     }

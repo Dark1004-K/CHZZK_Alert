@@ -106,7 +106,7 @@
     if (grp && grp.isConnected) return grpIn;
     grp = document.createElement('div');
     grp.id = '__kw_bdo_grp';
-    grp.style.cssText = GRP_BASE + 'width:100%';
+    grp.style.cssText = GRP_BASE + 'position:relative;width:100%';
     grpSig = '';
     grpIn = document.createElement('div');
     grpIn.style.cssText = 'display:flex;flex-direction:column;gap:8px';
@@ -126,8 +126,10 @@
     };
   }
   function cleanupGroup() {
-    if (grp && grpIn && !grpIn.children.length) { try { grp.remove(); } catch (e) {} grp = null; grpIn = null; grpSig = ''; }
+    if (grp && grpIn && !grpIn.children.length && !partyEl) { try { grp.remove(); } catch (e) {} grp = null; grpIn = null; grpSig = ''; }
   }
+  // 파티 창이 그룹 오른쪽에 붙어 있으면 그만큼 더 넓게 본다 (화면 밖으로 나가지 않게 / 자석 계산)
+  const partyExtra = () => (partyEl && partyEl.isConnected && grpIn && grpIn.children.length ? PARTY_W + SNAP_GAP : 0);
   function placeGroup() {
     const stack = document.getElementById('__kw_stack');
     if (!grp || !stack || grpDrag) return;
@@ -136,13 +138,13 @@
       if (grp.parentNode !== stack) stack.appendChild(grp);
       const w = Math.round(stack.getBoundingClientRect().width) || 350;
       const h = grp.offsetHeight || 0;
-      const x = Math.max(0, Math.min(window.innerWidth - w, pos.x));
+      const x = Math.max(0, Math.min(window.innerWidth - w - partyExtra(), pos.x));
       const y = Math.max(0, Math.min(window.innerHeight - h, pos.y));
       const sig = 'f' + Math.round(x) + ',' + Math.round(y) + ',' + w;
       if (sig !== grpSig) { grp.style.cssText = floatCss(x, y, w); grpSig = sig; }
       return;
     }
-    if (grpSig !== 'd') { grp.style.cssText = GRP_BASE + 'width:100%'; grpSig = 'd'; }
+    if (grpSig !== 'd') { grp.style.cssText = GRP_BASE + 'position:relative;width:100%'; grpSig = 'd'; }
     // 제자리: 드롭스 창이 있으면 그 바로 아래, 없으면 불린 대화 창 바로 위
     const drops = document.getElementById('__kw_dropsp');
     const hist = document.getElementById('__kw_histp');
@@ -188,10 +190,11 @@
     if (grp.parentNode !== stack) stack.appendChild(grp);
     grp.style.cssText = floatCss(cur.x, cur.y, w); // 제자리에서 그대로 들어올린다
     const h = grp.offsetHeight || r.height;
+    const ex = partyExtra();
     const move = (ev) => {
       let x = ev.clientX - ox, y = ev.clientY - oy;
-      const sn = snapGroup(x, y, w, h);
-      x = Math.max(0, Math.min(window.innerWidth - w, sn.x));
+      const sn = snapGroup(x, y, w + ex, h);
+      x = Math.max(0, Math.min(window.innerWidth - w - ex, sn.x));
       y = Math.max(0, Math.min(window.innerHeight - h, sn.y));
       cur = { x, y };
       grp.style.cssText = floatCss(x, y, w) + (sn.hit ? 'box-shadow:0 0 0 2px rgba(0,255,163,.7);border-radius:12px;' : '');
@@ -450,18 +453,117 @@
     renderCoupons(now);
   }
 
+  // ---------- 파티모집 ----------
+  // 치지직 채팅에 "#파티 검은사당 10분 내용..." 이라고 쓰면 등록된다. 종류는 아래 7가지(그 밖의 말은 "기타").
+  // 한 사람(닉네임)당 진행 중인 모집은 1개만, 모집 시간(최대 10분, 안 쓰면 10분)이 지나면 저절로 사라진다.
+  // 선택한 종류가 등록되면 알림(토스트·알림음·TTS)이 울린다. 목록은 이 페이지에서만 기억한다(새로고침하면 비움).
+  const PARTY_W = 260; // 파티 창 폭(px)
+  const PARTY_KINDS = ['항해일퀘', '검은사당', '피의제단', '파티사냥', '아토락시온', '솔라레', '기타'];
+  const PARTY_MAX_MIN = 10;
+  let parties = []; // { id, nick, kind, content, exp }
+  let partyEl = null, partySig = '';
+  function partyKindsSel() {
+    const v = opt('partyKinds', null);
+    return Array.isArray(v) ? v : PARTY_KINDS.slice();
+  }
+  function parseParty(text) {
+    const m = /^\s*#\s*파티\s+(\S+)([\s\S]*)$/.exec(String(text || ''));
+    if (!m) return null;
+    let kind = m[1];
+    let rest = m[2];
+    if (!PARTY_KINDS.includes(kind)) { kind = '기타'; rest = ' ' + m[1] + rest; } // 모르는 말은 기타 + 내용으로
+    let mins = PARTY_MAX_MIN;
+    const mm = /^\s*(\d{1,3})\s*분\s*([\s\S]*)$/.exec(rest);
+    if (mm) { mins = Math.max(1, Math.min(PARTY_MAX_MIN, parseInt(mm[1], 10) || PARTY_MAX_MIN)); rest = mm[2]; }
+    return { kind, mins, content: rest.replace(/\s+/g, ' ').trim().slice(0, 60) };
+  }
+  function onChat(d) {
+    try {
+      if (!d || !KW.enabled(ID) || !opt('party', true)) return;
+      const p = parseParty(d.text);
+      if (!p) return;
+      const nick = String(d.nick || '익명');
+      const now = Date.now();
+      parties = parties.filter((x) => x.exp > now);
+      if (parties.some((x) => x.nick === nick)) return; // 한 사람당 1회 (진행 중인 모집이 있으면 무시)
+      const e = { id: now + '-' + Math.random().toString(36).slice(2, 6), nick, kind: p.kind, content: p.content, exp: now + p.mins * 60000 };
+      parties.push(e);
+      partySig = '';
+      if (partyKindsSel().includes(e.kind)) { // 선택한 종류만 알림
+        try { KW.toast('👥 ' + e.kind + ' 파티 모집', nick + (e.content ? ': ' + e.content : '')); } catch (er) {}
+        if (opt('sound', true)) { if (typeof KW.sound === 'function') KW.sound(); else beep(); }
+        try { if (typeof KW.emit === 'function') KW.emit('party', { nick, kind: e.kind, content: e.content }); } catch (er) {}
+      }
+    } catch (e) {}
+  }
+  try { KW.on('chat', onChat); } catch (e) {}
+  function removeParty() {
+    if (partyEl) { try { partyEl.remove(); } catch (e) {} }
+    partyEl = null;
+    partySig = '';
+    cleanupGroup();
+  }
+  function updateParty(now) {
+    const stack = document.getElementById('__kw_stack');
+    const panel = document.getElementById('__kw_panel');
+    if (!opt('party', true)) { parties = []; removeParty(); return; }
+    if (!stack || !panel || !panel.classList.contains('show')) { removeParty(); return; }
+    parties = parties.filter((x) => x.exp > now);
+    const sel = partyKindsSel();
+    const list = parties.filter((x) => sel.includes(x.kind));
+    ensureGroup(stack);
+    if (!partyEl || !partyEl.isConnected) {
+      partyEl = document.createElement('div');
+      partyEl.id = '__kw_bdo_party';
+      partyEl.onclick = (e) => { if (e.target && e.target.closest && e.target.closest('#__kw_bdo_party_x')) { turnOff('party'); removeParty(); } };
+      grp.appendChild(partyEl);
+      partySig = '';
+    }
+    // 위치: 다른 창이 있으면 그 오른쪽(높이는 그룹과 같음), 파티 창만 있으면 그냥 한 칸
+    const solo = !grpIn.children.length;
+    const lay = solo ? 'position:static;width:100%;min-height:160px;' : 'position:absolute;left:calc(100% + ' + SNAP_GAP + 'px);top:0;bottom:0;width:' + PARTY_W + 'px;';
+    const css = lay + 'box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7a59;display:flex;flex-direction:column;overflow:hidden';
+    if (partyEl.style.cssText !== css && partyEl.getAttribute('data-css') !== css) { partyEl.style.cssText = css; partyEl.setAttribute('data-css', css); }
+    placeGroup();
+    const sig = list.map((x) => x.id).join(',');
+    if (sig !== partySig) {
+      partySig = sig;
+      let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap">👥 파티모집 <span style="color:#ff7a59">(' + list.length + ')</span></b></div>' +
+        xBtn('__kw_bdo_party_x', '#ff7a59', 'position:absolute;top:2px;right:3px;z-index:2') +
+        '<div class="__kw_sb_pty" style="flex:1;min-height:0;overflow-y:auto">';
+      if (!list.length) h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">모집 중인 파티가 없습니다.<br>채팅에 <b>#파티 검은사당 10분 내용</b> 처럼 쓰면 등록됩니다.</div>';
+      list.forEach((x) => {
+        h += '<div style="margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)">' +
+          '<div style="display:flex;align-items:center;gap:6px"><span style="background:#3a2a24;color:#ff9a7a;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:bold;white-space:nowrap">' + esc(x.kind) + '</span>' +
+          '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">' + esc(x.nick) + '</b>' +
+          '<span data-pexp="' + x.exp + '" style="margin-left:auto;font-size:11px;color:#ff9a7a;white-space:nowrap"></span></div>' +
+          (x.content ? '<div style="font-size:12px;color:#ddd;margin-top:3px;word-break:break-all">' + esc(x.content) + '</div>' : '') + '</div>';
+      });
+      h += '</div>';
+      const sc = partyEl.querySelector('.__kw_sb_pty');
+      const top = sc ? sc.scrollTop : 0;
+      partyEl.innerHTML = h;
+      const sc2 = partyEl.querySelector('.__kw_sb_pty');
+      if (sc2) sc2.scrollTop = top;
+    }
+    partyEl.querySelectorAll('[data-pexp]').forEach((el) => { el.textContent = fmt(Number(el.getAttribute('data-pexp')) - now) + ' 남음'; });
+  }
+
   function tick() {
     try {
-      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); return; }
+      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); return; }
       const now = Date.now();
       if (now - bossFetchedAt >= BOSS_REFRESH_MS) loadSchedule(); // 처음 켜질 때 한 번, 이후 6시간마다
       updateNext(now);
       updateCoupons(now);
+      updateParty(now);
       const lead = Math.max(1, Math.min(30, Number(opt('lead', 3)) || 3)) * 60000;
       const sel = opt('bosses', null);
       const active = new Set();
       for (let i = tests.length - 1; i >= 0; i--) if (tests[i].t < now - 60000) tests.splice(i, 1);
+      const bossAlertOn = opt('bossAlert', true); // 설정 > 우두머리 알림 체크
       for (const o of occurrences(now).concat(tests)) {
+        if (!bossAlertOn && !o.test) continue;
         if (now >= o.t || (!o.test && now < o.t - lead)) continue; // 알림 구간: 출현 N분 전 ~ 출현 시각
         if (dismissed.has(o.t)) continue;
         const bosses = Array.isArray(sel) && !o.test ? o.bosses.filter((b) => sel.includes(b)) : o.bosses;

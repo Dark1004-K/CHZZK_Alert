@@ -367,6 +367,10 @@ function bindPluginOpts(root) {
         c.value = v;
       }
       pluginOptSet(c.dataset.pid, c.dataset.key, v);
+      try { // 이 옵션이 다른 옵션의 부모(체크)이면 아래 항목의 활성/비활성을 다시 그린다
+        const pl = (pluginList || []).find((x) => x.id === c.dataset.pid);
+        if (pl && (pl.options || []).some((x) => x.parent === c.dataset.key)) renderOptWin();
+      } catch (e) {}
     };
   });
   root.querySelectorAll('.__kw_popt_m').forEach((c) => {
@@ -387,11 +391,14 @@ function extOptHtml(p) {
     if (o.type === 'number') return `<div>${lb} <input class="__kw_in __kw_popt" type="number" ${at} min="${Number(o.min) || 0}" max="${Number(o.max) || 999}" step="1" style="width:46px;text-align:center;padding:4px 2px" value="${escapeHtml(String(v))}">${o.unit ? ' ' + escapeHtml(o.unit) : ''}</div>`;
     if (o.type === 'multi') {
       const sel = Array.isArray(v) ? v : [];
-      const box = (c) => `<label style="cursor:pointer;white-space:nowrap"><input type="checkbox" class="__kw_popt_m" ${at} data-val="${escapeHtml(c)}" ${sel.includes(c) ? 'checked' : ''}> ${escapeHtml(c)}</label>`;
-      // groups가 있으면 묶음마다 한 줄로 그린다 (예: 아침의 나라 우두머리 4종은 같은 줄)
+      // parent: 같은 확장의 다른 체크 옵션이 켜져 있어야 아래 항목을 고를 수 있다 (꺼져 있으면 흐리게 + 비활성)
+      const par = o.parent ? !!pluginOptGet(p.id, o.parent) : true;
+      const box = (c) => `<label style="cursor:${par ? 'pointer' : 'default'};white-space:nowrap"><input type="checkbox" class="__kw_popt_m" ${at} data-val="${escapeHtml(c)}" ${sel.includes(c) ? 'checked' : ''} ${par ? '' : 'disabled'}> ${escapeHtml(c)}</label>`;
+      // groups가 있으면 묶음마다 따로 그리되, 모든 줄이 같은 칸(columns, 기본 4)에 맞춰 정렬된다
       const groups = Array.isArray(o.groups) && o.groups.length ? o.groups : [o.choices || []];
-      const rowsHtml = groups.map((g) => `<div style="display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:2px">${g.map(box).join('')}</div>`).join('');
-      return `<div>${lb}${rowsHtml}</div>`;
+      const cols = Math.max(1, Math.min(6, Number(o.columns) || 4));
+      const rowsHtml = groups.map((g) => `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:4px 6px;margin-top:3px">${g.map(box).join('')}</div>`).join('');
+      return `<div style="${o.parent ? 'margin-left:22px;' : ''}opacity:${par ? 1 : 0.45}">${o.label ? lb : ''}${rowsHtml}</div>`;
     }
     return '';
   }).join('');
@@ -412,7 +419,7 @@ function renderOptWin() {
     const r = setPanel && setPanel.isConnected && setPanel.style.display !== 'none' ? setPanel.getBoundingClientRect() : null;
     if (r && r.width > 0 && r.right + 330 < window.innerWidth) pos = 'bottom:' + Math.max(8, Math.round(window.innerHeight - r.bottom)) + 'px;left:' + Math.round(r.right + 8) + 'px';
   } catch (e) {}
-  w.style.cssText = 'position:fixed;' + pos + ';z-index:2147483647;width:min(320px,92vw);min-height:min(470px,86vh);max-height:86vh;overflow-y:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777;scrollbar-width:thin;opacity:' + ((100 - getTransparency()) / 100);
+  w.style.cssText = 'position:fixed;' + pos + ';z-index:2147483647;width:min(340px,92vw);min-height:min(470px,86vh);max-height:86vh;overflow-y:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777;scrollbar-width:thin;opacity:' + ((100 - getTransparency()) / 100);
   w.innerHTML = `<div style="display:flex;align-items:center;min-height:26px;padding-right:26px;margin-bottom:8px"><b>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button>${extOptHtml(p)}`;
   if (!old) document.body.appendChild(w);
   w.querySelector('#__kw_optwin_x').onclick = closeOptWin;
