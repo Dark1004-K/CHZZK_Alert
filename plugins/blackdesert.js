@@ -114,6 +114,11 @@
     return grpIn;
   }
   // 이동 손잡이: 창 오른쪽 위 X 옆의 "사방 화살표" 아이콘 (크기 조절 막대와는 다른 모양). 다음 우두머리 창에 있고, 그 창이 없으면 쿠폰 창에 둔다.
+  // 창 제목 아이콘 (이모지는 색을 못 바꿔서 SVG로): 다음 우두머리=파랑, 쿠폰=보라, 파티=주황
+  const TI = (path, color) => '<span style="display:inline-flex;align-items:center;color:' + color + ';margin-right:5px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + path + '</svg></span>';
+  const TI_SWORDS = '<path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M14.5 6.5L18 3h3v3l-3.5 3.5M5 14l4 4M7 17l-3 3M3 19l2 2"/>';
+  const TI_TICKET = '<path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2M13 17v2M13 11v2"/>';
+  const TI_USERS = '<circle cx="9" cy="8" r="3.2"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.2a4.2 4.2 0 0 1 4.5 4.3V20"/>';
   const ICON_MOVE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>';
   const gripBtn = (color) => '<button data-kwgrip="1" title="드래그로 창 묶음 이동 (화면 가장자리·다른 창에 자석처럼 붙음) · 더블클릭: 원래 자리로" style="border:1px solid ' + color + ';background:rgb(20,20,24);color:' + color + ';cursor:grab;padding:3px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;position:absolute;left:-9px;top:-9px;width:24px;height:24px;box-sizing:border-box;z-index:3;touch-action:none;box-shadow:0 2px 6px rgba(0,0,0,.5)">' + ICON_MOVE.replace('width="16" height="16"', 'width="14" height="14"') + '</button>';
   function bindGrip(el) { // 창 내용을 다시 그려도 유지되도록 창 자체에 한 번만 단다
@@ -255,11 +260,12 @@
     const days = Math.floor((next.t + KST) / DAY) - Math.floor((now + KST) / DAY);
     const dayTxt = days === 0 ? '' : days === 1 ? '내일 ' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + '요일 ';
     // 쿠폰 모아보기 창과 같은 디자인: 굵은 12px 제목 줄(이모지 아이콘 + 제목) → 보스 이름 줄 → 시각 줄
-    nextEl.innerHTML = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px"><b style="font-size:12px;white-space:nowrap">⚔ 다음 우두머리</b></div>' +
-      // 보스 이름은 왼쪽, 출현 시각(위)과 남은 시간(아래)은 오른쪽에 맞춰 한 줄에 둔다
-      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px">' +
+    nextEl.innerHTML = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SWORDS, '#3b9eff') + '다음 우두머리</b></div>' +
+      // 한 줄: 보스 이름 · 출현 시각(11:00) ········· 남은 시간(34:08, 오른쪽 끝)
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:2px">' +
       '<div style="font-size:13px;font-weight:bold;display:flex;flex-wrap:wrap;gap:2px 10px;word-break:keep-all;min-width:0">' + next.bosses.map((n) => '<span>' + esc(n) + '</span>').join('') + '</div>' +
-      '<div style="flex:none;text-align:right;font-size:11px;line-height:1.35;color:#3b9eff;white-space:nowrap"><div>' + dayTxt + next.hhmm + '</div><div>' + fmtLong(next.t - now) + ' 후</div></div></div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:2px;right:3px') + gripBtn('#3b9eff');
+      '<span style="flex:none;font-size:12px;color:#3b9eff;white-space:nowrap">' + dayTxt + next.hhmm + '</span>' +
+      '<span style="flex:none;margin-left:auto;font-size:12px;font-weight:bold;color:#3b9eff;white-space:nowrap">' + fmtLong(next.t - now) + '</span></div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:2px;right:3px') + gripBtn('#3b9eff');
   }
 
   let box = null;
@@ -394,7 +400,7 @@
     if (sig === cpnSig && cpnEl && cpnEl.isConnected) return;
     cpnSig = sig;
     let h = '<div id="__kw_cpn_hd" style="display:flex;align-items:center;justify-content:flex-start;gap:4px;cursor:pointer;min-height:26px;padding-right:58px">' +
-      '<b style="font-size:12px;white-space:nowrap">🎟 쿠폰 모아보기 <span style="color:#b784ff">(' + list.length + ')</span></b>' +
+      '<b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_TICKET, '#b784ff') + '쿠폰 모아보기&nbsp;<span style="color:#b784ff">(' + list.length + ')</span></b>' +
       '<span style="display:inline-flex;align-items:center"><button id="__kw_cpn_rf" class="' + (busy ? '__kw_ic __kw_spin' : '') + '" title="' + (cpnFetchedAt ? '새로고침 (마지막 갱신 ' + pad2(new Date(cpnFetchedAt).getHours()) + ':' + pad2(new Date(cpnFetchedAt).getMinutes()) + ':' + pad2(new Date(cpnFetchedAt).getSeconds()) + ')' : '새로고침') + '" style="border:0;background:transparent;color:#b784ff;cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;position:relative;top:1.5px">' + (busy ? ICON_REFRESH : flash ? (cpnFlashErr ? ICON_FAIL : ICON_DONE) : ICON_REFRESH) + '</button>' +
       '<span title="' + (fold ? '펼치기' : '접기') + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:#b784ff;position:absolute;top:2px;right:29px;z-index:2"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (fold ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></span></div>' + xBtn('__kw_cpn_x', '#b784ff', 'position:absolute;top:2px;right:3px;z-index:2') + (hasNext ? '' : gripBtn('#b784ff'));
     if (!fold) {
@@ -606,7 +612,7 @@
     const sig = list.map((x) => x.id).join(',');
     if (sig !== partySig) {
       partySig = sig;
-      let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap">👥 파티 모집 <span style="color:#ff7a59">(' + list.length + ')</span></b></div>' +
+      let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_USERS, '#ff7a59') + '파티 모집&nbsp;<span style="color:#ff7a59">(' + list.length + ')</span></b></div>' +
         xBtn('__kw_bdo_party_x', '#ff7a59', 'position:absolute;top:2px;right:3px;z-index:2') +
         '<div class="__kw_sb_pty" style="flex:1;min-height:0;overflow-y:auto">';
       if (!list.length) h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">모집 중인 파티가 없습니다.<br>채팅에 <b>#파티 검은사당 10분 내용</b> 처럼 쓰면 등록됩니다.</div>';
