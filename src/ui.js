@@ -452,8 +452,8 @@ function showReloadPopup(openInstall) {
   box.innerHTML = '<div style="font-size:14px"><b>🔄 업데이트</b></div>' +
     '<div style="font-size:12px;color:#bbb;margin:8px 0 8px;line-height:1.5">새 버전을 설치합니다. <b>확인</b>을 누르면 Tampermonkey 설치 창이 열립니다.</div>' +
     '<div style="font-size:14px;font-weight:bold;color:#ffd400;background:rgba(255,212,0,.12);border:1px solid #ffd400;border-radius:8px;padding:8px 10px;margin:0 0 12px;line-height:1.5">새로 열린 Tampermonkey 창에서<br><span style="font-size:15px">재설치/업데이트</span>를 누르세요</div>' +
-    '<div style="display:flex;gap:14px;align-items:center"><button class="__kw_b" id="__kw_upd_ok" style="background:#1f6feb;color:#fff;margin:0">확인</button>' +
-    '<button class="__kw_b" id="__kw_upd_cancel" style="background:#444;color:#fff;margin:0">취소</button></div>';
+    '<div style="display:flex;gap:10px;align-items:stretch"><button class="__kw_b" id="__kw_upd_ok" style="background:#1f6feb;color:#fff;margin:0;flex:1;padding:12px 0;font-size:14px">확인</button>' +
+    '<button class="__kw_b" id="__kw_upd_cancel" style="background:#444;color:#fff;margin:0;flex:1;padding:12px 0;font-size:14px">취소</button></div>';
   document.body.appendChild(box);
   box.querySelector('#__kw_upd_cancel').onclick = () => { try { box.remove(); } catch (e) {} };
   box.querySelector('#__kw_upd_ok').onclick = () => {
