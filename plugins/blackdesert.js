@@ -481,18 +481,18 @@
       return { err: "'" + kind.slice(0, 12) + "'은(는) 없는 종류입니다. " + PARTY_KINDS.join(' · ') + ' 중 하나를 써 주세요.' };
     }
     let rest = mk[2];
-    let mins = PARTY_MAX_MIN; // 쓴 분(예: 5분)이 모집 시간. 안 쓰면 10분, 10분을 넘게 써도 10분까지
+    // 시간(종류 다음 세 번째 말)은 꼭 "X분" 형태여야 한다 (생략 불가). 쓴 분이 모집 시간이고, 10분을 넘게 써도 10분까지.
     let clamped = false;
     const mm = /^\s*(\d{1,4})\s*분\s*([\s\S]*)$/.exec(rest);
-    if (mm) {
-      const n = parseInt(mm[1], 10);
-      if (n < 1) return { err: '시간은 1분 이상으로 적어 주세요. 예) 5분' };
-      if (n > PARTY_MAX_MIN) clamped = true;
-      mins = Math.min(PARTY_MAX_MIN, n);
-      rest = mm[2];
-    } else if (/^\s*\d+(?:\s|$)/.test(rest)) {
-      return { err: "시간은 '10분'처럼 숫자 뒤에 '분'을 붙여 주세요." };
+    if (!mm) {
+      if (/^\s*\d+(?:\s|$)/.test(rest)) return { err: "시간은 '10분'처럼 숫자 뒤에 '분'을 붙여 주세요." };
+      return { err: "종류 다음에 시간을 '10분'처럼 꼭 써 주세요 (생략할 수 없어요). 예) #파티 " + kind + ' 10분 내용' };
     }
+    const n = parseInt(mm[1], 10);
+    if (n < 1) return { err: '시간은 1분 이상으로 적어 주세요. 예) 5분' };
+    if (n > PARTY_MAX_MIN) clamped = true;
+    const mins = Math.min(PARTY_MAX_MIN, n);
+    rest = mm[2];
     return { kind, mins, clamped, content: rest.replace(/\s+/g, ' ').trim().slice(0, 60) };
   }
   // 등록이 안 될 때(쓰는 법 오류·이미 모집 중) 이유를 안내한다: 토스트 + 파티 창 아래 줄(60초). 같은 사람이 같은 이유로 도배하면 15초에 한 번만.
