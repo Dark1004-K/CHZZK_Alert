@@ -461,7 +461,7 @@
   const PARTY_KINDS = ['항해일퀘', '검은사당', '피의제단', '파티사냥', '아토락시온', '솔라레', '기타'];
   const PARTY_MAX_MIN = 10;
   let parties = []; // { id, nick, kind, content, exp }
-  let partyEl = null, partySig = '';
+  let partyEl = null, partySig = null;
   function partyKindsSel() {
     const v = opt('partyKinds', null);
     return Array.isArray(v) ? v : PARTY_KINDS.slice();
@@ -490,7 +490,7 @@
       if (parties.some((x) => x.nick === nick)) return; // 한 사람당 1회 (진행 중인 모집이 있으면 무시)
       const e = { id: now + '-' + Math.random().toString(36).slice(2, 6), nick, kind: p.kind, content: p.content, exp: now + p.mins * 60000 };
       parties.push(e);
-      partySig = '';
+      partySig = null;
       if (partyKindsSel().includes(e.kind)) { // 선택한 종류만 알림
         try { KW.toast('👥 ' + e.kind + ' 파티 모집', nick + (e.content ? ': ' + e.content : '')); } catch (er) {}
         if (opt('sound', true)) { if (typeof KW.sound === 'function') KW.sound(); else beep(); }
@@ -509,7 +509,7 @@
   function removeParty() {
     if (partyEl) { try { partyEl.remove(); } catch (e) {} }
     partyEl = null;
-    partySig = '';
+    partySig = null;
     cleanupGroup();
   }
   function updateParty(now) {
@@ -526,14 +526,14 @@
       partyEl.id = '__kw_bdo_party';
       partyEl.onclick = (e) => { if (e.target && e.target.closest && e.target.closest('#__kw_bdo_party_x')) { turnOff('party'); removeParty(); } };
       grp.appendChild(partyEl);
-      partySig = '';
+      partySig = null;
       // [BETA-TEST-ONLY:start]
       partyEl.addEventListener('click', (e) => { // 베타 전용: ✕로 모집 삭제
         const b = e.target && e.target.closest ? e.target.closest('[data-pdel]') : null;
         if (!b) return;
         const id = b.getAttribute('data-pdel');
         parties = parties.filter((x) => x.id !== id);
-        partySig = '';
+        partySig = null;
         updateParty(Date.now());
       });
       // [BETA-TEST-ONLY:end]
