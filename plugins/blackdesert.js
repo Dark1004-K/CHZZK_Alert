@@ -692,12 +692,15 @@
       try { localStorage.setItem(LS_FAMQ, famQuery); } catch (er) {}
       famSig = null;
       renderFamily();
+      famResQ = famQuery;
+      famResSig = null;
+      updateFamRes(Date.now());
     };
     if (qi) qi.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
     const gb = famEl.querySelector('#__kw_fam_go');
     if (gb) gb.onclick = go;
     const fx = famEl.querySelector('#__kw_bdo_family_x');
-    if (fx) fx.onclick = (e) => { e.stopPropagation(); turnOff('family'); removeFamily(); };
+    if (fx) fx.onclick = (e) => { e.stopPropagation(); turnOff('family'); removeFamily(); removeFamRes(); };
   }
   function updateFamily(now) {
     const stack = document.getElementById('__kw_stack');
@@ -725,15 +728,137 @@
     } catch (e) {}
   }
 
+  // ---------- 가문검색 결과창 (#__kw_bdo_family_r: 검색창 오른쪽 별도 창, 가로+세로) ----------
+  const LS_FAMRPOS = '__kw_family_r_pos';
+  const LS_FAMRH = '__kw_family_r_h';
+  const FAMR_H_DEF = 300, FAMR_H_MIN = 120;
+  const famRHMax = () => Math.max(FAMR_H_MIN, window.innerHeight);
+  let famRH = FAMR_H_DEF;
+  try { const fhv = parseInt(localStorage.getItem(LS_FAMRH), 10); if (fhv >= FAMR_H_MIN && fhv <= 4000) famRH = fhv; } catch (e) {}
+  let famResEl = null, famResSig = null;
+  let famResQ = ''; // 결과창에 보여줄 검색어 (''면 결과창 숨김)
+  function removeFamRes() {
+    if (famResEl) { try { famResEl.remove(); } catch (e) {} }
+    famResEl = null;
+    famResSig = null;
+  }
+  // 결과창 위치: 저장된 곳, 없으면 검색창 오른쪽
+  function placeFamRes() {
+    if (!famResEl) return;
+    let done = false;
+    try {
+      const o = JSON.parse(localStorage.getItem(LS_FAMRPOS));
+      if (o && isFinite(o.x) && isFinite(o.y)) {
+        const w = isFinite(o.w) ? Math.max(225, Math.min(600, Math.round(o.w))) : 300;
+        famResEl.style.position = 'fixed';
+        famResEl.style.left = Math.max(0, Math.min(window.innerWidth - w, o.x)) + 'px';
+        famResEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, o.y)) + 'px';
+        famResEl.style.bottom = 'auto';
+        famResEl.style.width = w + 'px';
+        done = true;
+      }
+    } catch (e) {}
+    if (done) return;
+    try {
+      const r = famEl && famEl.isConnected ? famEl.getBoundingClientRect() : null;
+      const w = 300;
+      famResEl.style.position = 'fixed';
+      famResEl.style.width = w + 'px';
+      famResEl.style.bottom = 'auto';
+      if (r && r.width > 0) {
+        famResEl.style.left = Math.max(0, Math.min(window.innerWidth - w, Math.round(r.right + 8))) + 'px';
+        famResEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, Math.round(r.top))) + 'px';
+      } else {
+        famResEl.style.left = Math.max(0, window.innerWidth - w - 16) + 'px';
+        famResEl.style.top = '70px';
+      }
+    } catch (e2) {}
+  }
+  function renderFamRes() {
+    if (!famResEl || !famResEl.isConnected) return;
+    const q = famResQ;
+    const f = q ? famFind(q) : null;
+    const sig = [famState, q, f ? f.family : '', f ? (f.characters || []).length : 0, famFetchedAt].join('|');
+    if (sig === famResSig) return;
+    famResSig = sig;
+    let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + (f ? esc(f.family) + '&nbsp;<span style="color:#ff7ab8">(' + (f.characters || []).length + ')</span>' : esc(q || '검색 결과')) + '</b></div>' +
+      xBtn('__kw_bdo_family_r_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
+      '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' +
+      '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
+    if (famState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">가문 목록을 받지 못했습니다. 잠시 뒤 다시 시도하세요.</div>';
+    else if (famState === 'loading' || !famData) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
+    else if (f) {
+      h += '<div style="margin-top:6px;font-size:11px;color:#888">' +
+        (f.created ? esc(f.created) : '') +
+        (f.guild ? ' · <span style="color:#ff7ab8">' + esc(f.guild) + '</span>' : '') + '</div>';
+      (f.characters || []).forEach((c) => {
+        h += '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.12)">' +
+          '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(c.name || '?') + (c.main ? ' <span style="color:#ff7ab8;font-size:10px">대표</span>' : '') + '</b>' +
+          '<span style="font-size:11px;color:#ddd;white-space:nowrap">' + esc(c.class || '') + '</span>' +
+          '<span style="font-size:11px;color:' + (c.level ? '#7dffb3' : '#888') + ';white-space:nowrap">' + (c.level ? 'Lv' + c.level : '비공개') + '</span></div>';
+      });
+      if (famData && famData.updatedAt) {
+        const d = new Date(famData.updatedAt + KST);
+        const p2 = (n) => String(n).padStart(2, '0');
+        h += '<div style="font-size:10px;color:#777;margin-top:6px">목록 갱신 ' + (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + '</div>';
+      }
+    } else h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">등록되지 않은 가문입니다.<br>GitHub Issues로 등록을 요청하세요.</div>';
+    h += '</div>';
+    famResEl.innerHTML = h;
+    const fx = famResEl.querySelector('#__kw_bdo_family_r_x');
+    if (fx) fx.onclick = () => { famResQ = ''; removeFamRes(); };
+  }
+  function updateFamRes(now) {
+    const stack = document.getElementById('__kw_stack');
+    const panel = document.getElementById('__kw_panel');
+    if (!opt('family', true) || !stack || !panel || !panel.classList.contains('show') || !famResQ.trim() || !famEl || !famEl.isConnected) { removeFamRes(); return; }
+    if (!famResEl || !famResEl.isConnected) {
+      famResEl = document.createElement('div');
+      famResEl.id = '__kw_bdo_family_r';
+      famResEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;height:' + Math.min(famRH, famRHMax()) + 'px';
+      document.body.appendChild(famResEl);
+      placeFamRes();
+      famResSig = null;
+    }
+    renderFamRes();
+    try { // 창 기본형 상속: 결과창=가로+세로
+      if (KW && typeof KW.window === 'function') {
+        KW.window(famResEl, {
+          color: '#ff7ab8', posKey: LS_FAMRPOS, rsz: 'd', dock: () => placeFamRes(),
+          getH: () => famRH,
+          setH: (v) => {
+            famRH = Math.max(FAMR_H_MIN, Math.min(famRHMax(), v));
+            famResEl.style.height = Math.min(famRH, famRHMax()) + 'px';
+          },
+          saveH: () => { try { localStorage.setItem(LS_FAMRH, String(famRH)); } catch (er) {} },
+        });
+      } else {
+        if (KW && typeof KW.rsz === 'function') KW.rsz(famResEl, {
+          dir: 'd', color: '#ff7ab8', wMode: 'self',
+          getW: () => famResEl.getBoundingClientRect().width,
+          setW: (v) => { famResEl.style.width = Math.max(225, Math.min(600, Math.round(v))) + 'px'; },
+          getH: () => famRH,
+          setH: (v) => {
+            famRH = Math.max(FAMR_H_MIN, Math.min(famRHMax(), v));
+            famResEl.style.height = Math.min(famRH, famRHMax()) + 'px';
+          },
+          save: () => { try { localStorage.setItem(LS_FAMRH, String(famRH)); } catch (er) {} },
+        });
+        if (KW && typeof KW.float === 'function') KW.float(famResEl, { color: '#ff7ab8', key: LS_FAMPOS, dock: () => placeFamRes() });
+      }
+    } catch (e) {}
+  }
+
   function tick() {
     try {
-      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); return; }
+      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); removeFamRes(); return; }
       const now = Date.now();
       if (now - bossFetchedAt >= BOSS_REFRESH_MS) loadSchedule(); // 처음 켜질 때 한 번, 이후 6시간마다
       updateNext(now);
       updateCoupons(now);
       updateParty(now);
       updateFamily(now);
+      updateFamRes(now);
       const lead = Math.max(1, Math.min(30, Number(opt('lead', 3)) || 3)) * 60000;
       const sel = opt('bosses', null);
       const active = new Set();
