@@ -1362,6 +1362,7 @@ let dropsPanel = null, dropsPoll = null, dropsTick = null;
 let dropsSaveN = 0;
 let dropsCid = '', dropsJoinAt = 0, dropsNo = 0, dropsInfo = null;
 let dropsDone = new Set(); // 시간 충족 알림을 이미 한 보상 번호
+let dropsQuietTest = false; // 테스트 버튼용 무음 플래그 (베타 블록에서만 true로 둠. 정식에서는 항상 false)
 let dropsSrv = null; // 서버 집계 { min, claimed }. null이면 이 페이지 경과 시간으로 표시
 let dropsSrvSynced = false;
 let dropsCurNo = null; // 지금 창에 보여주는 보상 번호 (바뀌면 다시 그림)
@@ -1467,8 +1468,9 @@ function renderDrops() {
 // 시간이 찬 보상을 알림 (토스트 + 브라우저 알림 + 소리, TTS는 확장이 'drops' 이벤트로 읽음)
 function dropsReached(r, last) {
   const text = '드롭스 시간 충족: ' + r.title;
-  kwEmit('drops', { title: r.title, minutes: r.conditionForMinutes, last: !!last });
   dlog('drops-reached', r.rewardNo, r.conditionForMinutes);
+  if (dropsQuietTest) return; // 테스트 버튼: 알람(알림·토스트·소리·TTS) 제외, 전환·기록만 확인
+  kwEmit('drops', { title: r.title, minutes: r.conditionForMinutes, last: !!last });
   if (muted()) return;
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
@@ -1528,6 +1530,7 @@ function fetchDropsServer(cid, no) {
   });
 }
 // [BETA-TEST-ONLY:start]
+// 테스트 버튼은 알람 제외(무음·무알림): 전환·기록 로직만 확인한다
 // 진단용: 서버 시청 분을 가짜 값으로 바꿔 시간 충족 알림/다음 보상 전환을 바로 시험한다 (다음 서버 갱신 때 원래 값으로 복귀)
 function dropsSimMin(n) {
   if (!dropsInfo) return '드롭스 정보 없음 (드롭스가 있는 방송에서 창이 보일 때 사용)';
@@ -1535,8 +1538,8 @@ function dropsSimMin(n) {
   dropsSrv = { min, claimed: new Set() };
   dropsSrvSynced = true;
   dropsRewards().forEach((r) => { if (min < r.conditionForMinutes) dropsDone.delete(r.rewardNo); }); // 다시 넘으면 또 울리도록
-  renderDrops();
-  dropsCheck();
+  dropsQuietTest = true;
+  try { renderDrops(); dropsCheck(); } finally { dropsQuietTest = false; }
   return '드롭스 시청 ' + min + '분으로 시뮬레이션 (1분 안에 서버 값으로 복귀)';
 }
 // [BETA-TEST-ONLY] 테스트 버튼용: 누를 때마다 다음 보상 시간이 찬 것으로 가정, 모두 찼으면 처음으로 되돌림
