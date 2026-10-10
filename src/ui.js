@@ -102,10 +102,12 @@ function kwRsz(el, o) {
     const listH = ((dir === 'v' || dir === 'd') && o.setH) ? snapLenList('h', originT, el, startH) : null;
     const move = (ev) => {
       let hit = false;
+      const guides = [];
       if (dir === 'h' || dir === 'd') {
         const w = startW + (ev.clientX - startX);
         const sn = snapLenNear(w, listW);
         hit = hit || sn.hit;
+        if (sn.hit) guides.push({ axis: 'v', pos: originL + sn.v }); // 늘어나는 오른쪽 모서리선
         if (o.wMode === 'self' && o.setW) o.setW(sn.v);
         else kwStackW(sn.v);
       }
@@ -113,14 +115,17 @@ function kwRsz(el, o) {
         const hgt = Math.round(startH + (ev.clientY - startY));
         const sn = snapLenNear(hgt, listH);
         hit = hit || sn.hit;
+        if (sn.hit) guides.push({ axis: 'h', pos: originT + sn.v }); // 늘어나는 아래 모서리선
         o.setH(sn.v);
       }
       el.style.boxShadow = hit ? '0 0 0 2px rgba(0,255,163,.7)' : '';
+      snapGuideShow(guides);
     };
     const up = () => {
       document.removeEventListener('mousemove', move);
       document.removeEventListener('mouseup', up);
       el.style.boxShadow = '';
+      snapGuideHide();
       try { if (o.save) o.save(); } catch (err) {}
       if (o.log) dlog(o.log, dir === 'v' || dir === 'd' ? (o.getH ? o.getH() : '') : curWidth);
     };
@@ -245,6 +250,10 @@ function dragFloatBtn(e, el, o) {
     cur = { x, y, w };
     el.style.left = x + 'px'; el.style.top = y + 'px';
     el.style.boxShadow = sn.hit ? '0 0 0 2px rgba(0,255,163,.7)' : '';
+    const guides = [];
+    if (sn.hx !== null && sn.hx !== undefined) guides.push({ axis: 'v', pos: sn.hx });
+    if (sn.hy !== null && sn.hy !== undefined) guides.push({ axis: 'h', pos: sn.hy });
+    snapGuideShow(guides);
     try { if (o.onMove) o.onMove(cur); } catch (err) {}
   };
   const up = () => {
@@ -253,6 +262,7 @@ function dragFloatBtn(e, el, o) {
     window.removeEventListener('pointercancel', up);
     document.documentElement.style.cursor = prevCur;
     el.style.boxShadow = '';
+    snapGuideHide();
     el.__kwDragging = false;
     try { if (o.save) o.save({ x: Math.round(cur.x), y: Math.round(cur.y), w }); } catch (err) {}
     try { if (o.apply) o.apply({ x: Math.round(cur.x), y: Math.round(cur.y), w }); } catch (err2) {}
@@ -1219,8 +1229,27 @@ function snapRect(x, y, w, h, skipEl) {
     return { v: bv, hit: bd <= SNAP_TH };
   };
   const bx = best(x, xs), by = best(y, ys);
-  return { x: bx.v, y: by.v, hit: bx.hit || by.hit };
+  return { x: bx.v, y: by.v, hit: bx.hit || by.hit, hx: bx.hit ? bx.v : null, hy: by.hit ? by.v : null };
 }
+// ---------- 스냅 가이드라인: 드래그 중 자석이 걸린 기준선을 화면에 표시 ----------
+// 이동·늘리기 드래그에서 snap hit된 축의 선만 그림. 드롭하면 지움.
+function snapGuideShow(lines) {
+  let g = null;
+  try { g = document.getElementById('__kw_snapguide'); } catch (e) {}
+  if (!g) {
+    g = document.createElement('div');
+    g.id = '__kw_snapguide';
+    g.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;display:none';
+    try { document.body.appendChild(g); } catch (e2) { return; }
+  }
+  try {
+    g.innerHTML = (lines || []).map((L) => L.axis === 'v'
+      ? '<div style="position:absolute;top:0;bottom:0;left:' + Math.round(L.pos) + 'px;width:1px;background:rgba(0,255,163,.85)"></div>'
+      : '<div style="position:absolute;left:0;right:0;top:' + Math.round(L.pos) + 'px;height:1px;background:rgba(0,255,163,.85)"></div>').join('');
+    g.style.display = (lines && lines.length) ? 'block' : 'none';
+  } catch (e3) {}
+}
+function snapGuideHide() { try { const g = document.getElementById('__kw_snapguide'); if (g) g.style.display = 'none'; } catch (e) {} }
 function applySetVisibility() {
   if (!setPanel) return;
   setPanel.style.display = (setOpen && panel && panel.classList.contains('show')) ? 'block' : 'none';
