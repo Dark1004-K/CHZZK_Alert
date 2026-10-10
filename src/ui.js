@@ -295,6 +295,7 @@ function kwFloatKey(el, o) {
 //   dock (더블클릭 복귀 추가동작), onMove/onDrop (드래그 중/후 추가동작) }
 // 가로축: dock 상태면 스택너비 공유(감시중 창을 따름), float 상태면 자기너비.
 // innerHTML 재렌더 대응 멱등: 매 렌더 후 다시 호출해도 위치를 리셋하지 않음.
+// 자석은 snapRects(테두리 기준: 이동=Top·Left, 크기변경=Bottom·Right, 동그라미 제외)를 통한다.
 function kwWindow(el, cfg) {
   if (!el || !cfg) return;
   const color = cfg.color, posKey = cfg.posKey || null;
@@ -1184,12 +1185,11 @@ function applySetPos() {
 }
 // 자석 대상 창들의 rect 목록 (skipEl 자신은 제외). 이동(snapRect)·늘리기(snapLen) 공용.
 // 우리 창만: id가 __kw_ 로 시작 + 지금 화면에 보이는 것(computed display/visibility)만. 뒷배경(치지직 페이지)은 절대 포함 안 됨.
-// 기준은 창 테두리가 아니라 +원·리사이즈원 끝: 사방 6px(동그라미 돌출분) 확장해서 자석 후보로 삼는다.
-const HANDLE_OVERHANG = 6;
+// 자석 기준(전창 공통, kwWindow 규격): 1.+원·리사이즈원은 기준 아님. 2.기준은 창 라운드박스 테두리.
+// 3.이동은 창의 Top·Left로. 4.크기변경은 창의 Bottom·Right로. 5.상대창 좌표도 테두리 기준.
 function snapRects(skipEl) {
   const out = [];
   const seen = new Set();
-  const partyDrag = !!(skipEl && skipEl.id === '__kw_bdo_party'); // 파티는 기본 설정(테두리 기준): 끌 때도 상대도 확장 없음
   const pushEl = (el) => {
     if (!el || el === skipEl || (skipEl && skipEl.contains && skipEl.contains(el))) return;
     if (seen.has(el)) return;
@@ -1202,8 +1202,7 @@ function snapRects(skipEl) {
     let r = null;
     try { r = el.getBoundingClientRect(); } catch (e) { return; }
     if (!r || r.width < 20 || r.height < 20) return;
-    const ex = (partyDrag || el.id === '__kw_bdo_party') ? 0 : HANDLE_OVERHANG;
-    out.push({ l: r.left - ex, t: r.top - ex, r: r.right + ex, b: r.bottom + ex, w: r.width, h: r.height });
+    out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height });
   };
   ['__kw_panel', '__kw_dropsp', '__kw_histp', '__kw_bdop', '__kw_cpn', '__kw_bdo_party', '__kw_setp', '__kw_optwin'].forEach((id) => {
     try { pushEl(document.getElementById(id)); } catch (e) {}
