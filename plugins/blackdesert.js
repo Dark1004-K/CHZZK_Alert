@@ -466,31 +466,63 @@
     const v = opt('partyKinds', null);
     return Array.isArray(v) ? v : PARTY_KINDS.slice();
   }
+  // "#파티"로 시작하는 채팅을 읽는다. 쓰는 법이 틀리면 { err: '이유' }, 맞으면 { kind, mins, content, clamped }.
   function parseParty(text) {
-    const m = /^\s*#\s*파티\s+(\S+)([\s\S]*)$/.exec(String(text || ''));
-    if (!m) return null;
-    let kind = m[1];
+    const m = /^\s*#\s*파티([\s\S]*)$/.exec(String(text || ''));
+    if (!m) return null; // #파티 로 시작하지 않으면 파티모집 채팅이 아님
+    if (m[1] && !/^\s/.test(m[1])) return { err: "'#파티' 다음에 띄어쓰기를 하고 종류를 적어 주세요. 예) #파티 검은사당 10분 내용" };
+    const body = (m[1] || '').trim();
+    if (!body) return { err: '종류를 적어 주세요. 예) #파티 검은사당 10분 내용' };
+    const mk = /^(\S+)([\s\S]*)$/.exec(body);
+    let kind = mk[1];
     let lead = ''; // 목록에 없는 종류 말은 "기타"로 넣고 그 말은 내용으로 살린다
     if (!PARTY_KINDS.includes(kind)) { lead = kind + ' '; kind = '기타'; }
-    let rest = m[2];
+    let rest = mk[2];
     let mins = PARTY_MAX_MIN; // 쓴 분(예: 5분)이 모집 시간. 안 쓰면 10분, 10분을 넘게 써도 10분까지
+    let clamped = false;
     const mm = /^\s*(\d{1,4})\s*분\s*([\s\S]*)$/.exec(rest);
-    if (mm) { mins = Math.max(1, Math.min(PARTY_MAX_MIN, parseInt(mm[1], 10) || PARTY_MAX_MIN)); rest = mm[2]; }
-    return { kind, mins, content: (lead + rest).replace(/\s+/g, ' ').trim().slice(0, 60) };
+    if (mm) {
+      const n = parseInt(mm[1], 10);
+      if (n < 1) return { err: '시간은 1분 이상으로 적어 주세요. 예) 5분' };
+      if (n > PARTY_MAX_MIN) clamped = true;
+      mins = Math.min(PARTY_MAX_MIN, n);
+      rest = mm[2];
+    } else if (/^\s*\d+(?:\s|$)/.test(rest)) {
+      return { err: "시간은 '10분'처럼 숫자 뒤에 '분'을 붙여 주세요." };
+    }
+    return { kind, mins, clamped, content: (lead + rest).replace(/\s+/g, ' ').trim().slice(0, 60) };
   }
-
+  // 등록이 안 될 때(쓰는 법 오류·이미 모집 중) 이유를 안내한다: 토스트 + 파티 창 아래 줄(60초). 같은 사람이 같은 이유로 도배하면 15초에 한 번만.
+  let partyNote = null; // { t, text }
+  const partyNoteGuard = new Map();
+  function partyNotice(nick, reason) {
+    const now = Date.now();
+    const key = nick + '|' + reason;
+    if (now - (partyNoteGuard.get(key) || 0) < 15000) return;
+    partyNoteGuard.set(key, now);
+    if (partyNoteGuard.size > 100) { for (const [k, t] of partyNoteGuard) { if (now - t > 60000) partyNoteGuard.delete(k); } }
+    partyNote = { t: now, text: nick + ': ' + reason };
+    partySig = null;
+    try { KW.toast('👥 파티 모집 안내', nick + ' · ' + reason); } catch (e) {}
+  }
   function onChat(d) {
     try {
       if (!d || !KW.enabled(ID) || !opt('party', true)) return;
       const p = parseParty(d.text);
       if (!p) return;
       const nick = String(d.nick || '익명');
+      if (p.err) { partyNotice(nick, p.err); return; }
       const now = Date.now();
       parties = parties.filter((x) => x.exp > now);
-      if (parties.some((x) => x.nick === nick)) return; // 한 사람당 1회 (진행 중인 모집이 있으면 무시)
+      const mine = parties.find((x) => x.nick === nick);
+      if (mine) { // 한 사람당 1회: 진행 중인 모집이 끝나야 다시 등록할 수 있다
+        partyNotice(nick, '이미 모집 중입니다. ' + fmt(mine.exp - now) + ' 뒤에 다시 등록할 수 있어요.');
+        return;
+      }
       const e = { id: now + '-' + Math.random().toString(36).slice(2, 6), nick, kind: p.kind, content: p.content, exp: now + p.mins * 60000 };
       parties.push(e);
       partySig = null;
+      if (p.clamped) partyNotice(nick, '모집 시간은 최대 ' + PARTY_MAX_MIN + '분이라 ' + PARTY_MAX_MIN + '분으로 등록했어요.');
       if (partyKindsSel().includes(e.kind)) { // 선택한 종류만 알림
         try { KW.toast('👥 ' + e.kind + ' 파티 모집', nick + (e.content ? ': ' + e.content : '')); } catch (er) {}
         if (opt('sound', true)) { if (typeof KW.sound === 'function') KW.sound(); else beep(); }
@@ -544,7 +576,8 @@
     const css = lay + 'box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7a59;display:flex;flex-direction:column;overflow:hidden';
     if (partyEl.style.cssText !== css && partyEl.getAttribute('data-css') !== css) { partyEl.style.cssText = css; partyEl.setAttribute('data-css', css); }
     placeGroup();
-    const sig = list.map((x) => x.id).join(',');
+    if (partyNote && now - partyNote.t > 60000) { partyNote = null; partySig = null; } // 안내는 60초 뒤 사라짐
+    const sig = list.map((x) => x.id).join(',') + '|' + (partyNote ? partyNote.t : 0);
     if (sig !== partySig) {
       partySig = sig;
       let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap">👥 파티 모집 <span style="color:#ff7a59">(' + list.length + ')</span></b></div>' +
@@ -559,6 +592,7 @@
           (x.content ? '<div style="font-size:12px;color:#ddd;margin-top:3px;word-break:break-all">' + esc(x.content) + '</div>' : '') + '</div>';
       });
       h += '</div>';
+      if (partyNote) h += '<div style="flex:none;margin-top:6px;padding:5px 7px;border-radius:8px;background:rgba(255,212,0,.12);color:#ffd400;font-size:11px;line-height:1.4;word-break:break-all">⚠ ' + esc(partyNote.text) + '</div>';
       const sc = partyEl.querySelector('.__kw_sb_pty');
       const top = sc ? sc.scrollTop : 0;
       partyEl.innerHTML = h;
