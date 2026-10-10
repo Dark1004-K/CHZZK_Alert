@@ -100,8 +100,11 @@ function kwRsz(el, o) {
     // 자석 후보는 시작 때 한 번만 고정: 늘리면서 창들이 움직여도 후보가 흔들리지 않음
     const listW = (dir === 'h' || dir === 'd') ? snapLenList('w', originL, el, startW) : null;
     const snapBottom = originT + (rectH || startH); // 도크 세로용 고정 아래 모서리
+    // 높이 조절이 패널 통째가 아니라 안쪽 박스면(불린대화·쿠폰) 헤더분 오프셋을 뺀다
+    let snapOff = 0;
+    try { if ((dir === 'v' || dir === 'd') && o.setH && o.getBoxH) { const bh = Math.round(o.getBoxH()); if (isFinite(bh) && bh > 0) snapOff = Math.max(0, (rectH || startH) - bh); } } catch (e1) {}
     const listH = ((dir === 'v' || dir === 'd') && o.setH)
-      ? (o.snapTop ? snapLenListTop(snapBottom, el, startH) : snapLenList('h', originT, el, startH))
+      ? (o.snapTop ? snapLenListTop(snapBottom, el, startH, snapOff) : snapLenList('h', originT, el, startH))
       : null;
     const move = (ev) => {
       let hit = false;
@@ -118,7 +121,7 @@ function kwRsz(el, o) {
         const hgt = Math.round(startH + (ev.clientY - startY));
         const sn = snapLenNear(hgt, listH);
         hit = hit || sn.hit;
-        if (sn.hit) guides.push({ axis: 'h', pos: o.snapTop ? snapBottom - sn.v : originT + sn.v }); // 움직이는 모서리선
+        if (sn.hit) guides.push({ axis: 'h', pos: o.snapTop ? snapBottom - sn.v - snapOff : originT + sn.v }); // 움직이는 모서리선
         o.setH(sn.v);
       }
       el.style.boxShadow = hit ? '0 0 0 2px rgba(0,255,163,.7)' : '';
@@ -169,18 +172,19 @@ function snapLenNear(v, list) {
 }
 // 도크 상태 세로 늘리기용: 아래 모서리는 고정이라 위 모서리(bottomFixed - h)를 맞춤.
 // 같이 움직이는 위쪽 도크 형제는 제외하고, 고정된 것(화면 위 끝·아래쪽 형제·floating 창)만 후보.
-function snapLenListTop(bottomFixed, skipEl, startH) {
+function snapLenListTop(bottomFixed, skipEl, startH, offset) {
+  const off = isFinite(offset) && offset > 0 ? Math.round(offset) : 0;
   const list = [];
   const push = (c) => { if (isFinite(c) && Math.abs(c - startH) > 1) list.push(c); };
-  push(bottomFixed - 0); // 화면 위 끝
+  push(bottomFixed - 0 - off); // 화면 위 끝
   try {
     snapRects(skipEl).forEach((rc) => {
       push(rc.h); // 같은 높이 (움직여도 값 불변)
       let fx = false;
       try { fx = !!rc.el && getComputedStyle(rc.el).position === 'fixed'; } catch (e) {}
       if (!fx && rc.t < bottomFixed - 1) return; // 위쪽 도크 형제(같이 움직임) 제외
-      push(bottomFixed - rc.t); push(bottomFixed - rc.b);
-      push(bottomFixed - (rc.t - SNAP_GAP)); push(bottomFixed - (rc.b + SNAP_GAP));
+      push(bottomFixed - rc.t - off); push(bottomFixed - rc.b - off);
+      push(bottomFixed - (rc.t - SNAP_GAP) - off); push(bottomFixed - (rc.b + SNAP_GAP) - off);
     });
   } catch (e) {}
   return list;
@@ -336,7 +340,7 @@ function kwWindow(el, cfg) {
         o.setW = cfg.setW || ((v) => { el.style.width = Math.max(225, Math.min(600, Math.round(v))) + 'px'; });
       }
     }
-    if (dir === 'v' || dir === 'd') { o.getH = cfg.getH; o.setH = cfg.setH; o.snapTop = !floating; } // 도크 세로는 위 모서리 기준
+    if (dir === 'v' || dir === 'd') { o.getH = cfg.getH; o.setH = cfg.setH; o.snapTop = !floating; if (cfg.getBoxH) o.getBoxH = cfg.getBoxH; } // 도크 세로는 위 모서리 기준
     o.save = () => {
       try { if (cfg.saveH) cfg.saveH(); } catch (e) {}
       if (floating && posKey) saveFloatRect(posKey, el);
@@ -387,7 +391,11 @@ function attachHistHandlers() {
   histPanel.__kwWired = true;
   kwWindow(histPanel, { // 불린대화: 가로+세로 (가로 dock=스택공유, float=자기너비 / 세로=목록 높이)
     color: '#ffd400', posKey: LS_HISTPOS, rsz: 'd',
-    getH: () => histH,
+    getH: () => {
+      try { const r = histBox ? histBox.getBoundingClientRect().height : 0; if (r > 10) return Math.round(r); } catch (e) {}
+      return histH;
+    },
+    getBoxH: () => { try { return histBox ? histBox.getBoundingClientRect().height : 0; } catch (e) { return 0; } },
     setH: (v) => {
       histCustom = true;
       histH = Math.max(HH_MIN, Math.min(hhMax(), v));

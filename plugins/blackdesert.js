@@ -368,6 +368,7 @@
         KW.window(cpnEl, {
           color: '#b784ff', posKey: LS_CPNNPOS, rsz: 'd', dock: () => bdoOrder(),
           getH: () => cpnH,
+          getBoxH: () => { try { const l = cpnEl.querySelector('.__kw_sb_cpn'); return l ? l.getBoundingClientRect().height : 0; } catch (e) { return 0; } },
           setH: (v) => {
             cpnH = Math.max(CPN_H_MIN, Math.min(cpnHMax(), v));
             const lst = cpnEl.querySelector('.__kw_sb_cpn');
