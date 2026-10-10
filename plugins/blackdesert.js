@@ -103,13 +103,13 @@
   const partyHMax = () => Math.max(PARTY_H_MIN, window.innerHeight);
   let partyH = PARTY_H_DEF;
   try { const phv = parseInt(localStorage.getItem(LS_PARTYH), 10); if (phv >= PARTY_H_MIN && phv <= 4000) partyH = phv; } catch (e) {}
-  function bdoOrder() { // 스택 안에서 다음→쿠폰→파티 순서로, 불린대화 창 바로 위에 둔다 (띄운 창은 제외)
+  function bdoOrder() { // 스택 안에서 다음→쿠폰→파티→가문 순서로, 불린대화 창 바로 위에 둔다 (띄운 창은 제외)
     try {
       const stack = document.getElementById('__kw_stack');
       if (!stack) return;
       const hist = document.getElementById('__kw_histp');
       const ref = (hist && hist.parentNode === stack) ? hist : null;
-      [nextEl, cpnEl, partyEl].forEach((el) => {
+      [nextEl, cpnEl, partyEl, famEl].forEach((el) => {
         if (el && el.isConnected && el.parentNode === stack && el.style.position !== 'fixed' && ref && el !== ref) {
           try { stack.insertBefore(el, ref); } catch (er) {}
         }
@@ -140,6 +140,7 @@
   const TI_SWORDS = '<path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M14.5 6.5L18 3h3v3l-3.5 3.5M5 14l4 4M7 17l-3 3M3 19l2 2"/>';
   const TI_TICKET = '<path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2M13 17v2M13 11v2"/>';
   const TI_USERS = '<circle cx="9" cy="8" r="3.2"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.2a4.2 4.2 0 0 1 4.5 4.3V20"/>';
+  const TI_SEARCH = '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>';
   function placeGroup() { bdoOrder(); }
   // 감시 화면(#__kw_stack)의 드롭스 창 바로 아래에 파란색 "다음 우두머리" 창을 둔다 (스택 직속)
   let nextEl = null;
@@ -619,14 +620,142 @@
     } catch (e) {}
   }
 
+  // ---------- 가문검색 (#__kw_bdo_family) ----------
+  // 미리 등록된 가문(data/adventure-targets.json)만 검색된다. 목록은 scripts/crawl-adventurers.js가
+  // 시간마다 읽어 adventurers.json으로 올린다 (브라우저 CORS 우회, 쿠폰과 같은 방식).
+  const FAM_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/adventurers.json';
+  const FAM_REFRESH_MS = 3600000; // 1시간마다 자동 갱신 (프로필 갱신 주기와 동일)
+  const LS_FAMH = '__kw_family_h';
+  const FAM_H_DEF = 190, FAM_H_MIN = 120;
+  const famHMax = () => Math.max(FAM_H_MIN, window.innerHeight);
+  let famH = FAM_H_DEF;
+  try { const fhv = parseInt(localStorage.getItem(LS_FAMH), 10); if (fhv >= FAM_H_MIN && fhv <= 4000) famH = fhv; } catch (e) {}
+  const LS_FAMPOS = '__kw_family_pos';
+  const LS_FAMQ = '__kw_family_q';
+  let famEl = null, famSig = null;
+  let famData = null; // 마지막으로 받은 adventurers.json
+  let famState = 'idle'; // idle | loading | ok | err
+  let famFetchedAt = 0;
+  let famQuery = '';
+  try { famQuery = localStorage.getItem(LS_FAMQ) || ''; } catch (e) {}
+  function removeFamily() {
+    if (famEl) { try { famEl.remove(); } catch (e) {} }
+    famEl = null;
+    famSig = null;
+  }
+  function loadFam() {
+    if (famState === 'loading') return;
+    famState = 'loading';
+    famSig = null;
+    fetch(FAM_URL + '?t=' + Date.now(), { cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('http'); return r.json(); })
+      .then((j) => { if (!j || !Array.isArray(j.families)) throw new Error('format'); famData = j; famState = 'ok'; })
+      .catch(() => { famState = famData ? 'ok' : 'err'; }) // 실패해도 이전에 받은 목록은 유지
+      .then(() => { famFetchedAt = Date.now(); famSig = null; });
+  }
+  function famFind(q) {
+    const l = famData && Array.isArray(famData.families) ? famData.families : [];
+    const t = String(q || '').trim();
+    if (!t) return null;
+    return l.find((f) => f && f.family === t) || l.find((f) => f && f.family && f.family.includes(t)) || null;
+  }
+  function renderFamily() {
+    if (!famEl || !famEl.isConnected) return;
+    const q = famQuery;
+    const f = q ? famFind(q) : null;
+    const sig = [famState, f ? f.family : '', f ? (f.characters || []).length : 0, famFetchedAt].join('|');
+    if (sig === famSig) return;
+    famSig = sig;
+    let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + '가문검색</b></div>' +
+      xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
+      '<div style="display:flex;gap:6px;margin-top:4px;flex:none"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(q) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;border-radius:6px;background:#ff7ab8;color:#000;font:bold 12px sans-serif;padding:4px 10px;cursor:pointer;flex:none">검색</button></div>' +
+      '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
+    if (famState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">가문 목록을 받지 못했습니다. 잠시 뒤 다시 시도하세요.</div>';
+    else if (famState === 'loading' || !famData) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
+    else if (!q) h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">가문명을 쓰고 검색(또는 Enter)을 누르세요.<br>등록된 가문만 나옵니다.</div>';
+    else if (!f) h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">등록되지 않은 가문입니다.<br>GitHub Issues로 등록을 요청하세요.</div>';
+    else {
+      h += '<div style="margin-top:6px;font-size:12px"><b>' + esc(f.family) + '</b>' +
+        (f.created ? ' <span style="color:#888;font-size:11px">' + esc(f.created) + '</span>' : '') +
+        (f.guild ? ' <span style="color:#ff7ab8;font-size:11px">' + esc(f.guild) + '</span>' : '') + '</div>';
+      (f.characters || []).forEach((c) => {
+        h += '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.12)">' +
+          '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(c.name || '?') + (c.main ? ' <span style="color:#ff7ab8;font-size:10px">대표</span>' : '') + '</b>' +
+          '<span style="font-size:11px;color:#ddd;white-space:nowrap">' + esc(c.class || '') + '</span>' +
+          '<span style="font-size:11px;color:' + (c.level ? '#7dffb3' : '#888') + ';white-space:nowrap">' + (c.level ? 'Lv' + c.level : '비공개') + '</span></div>';
+      });
+      if (famData && famData.updatedAt) {
+        const d = new Date(famData.updatedAt + KST);
+        const p2 = (n) => String(n).padStart(2, '0');
+        h += '<div style="font-size:10px;color:#777;margin-top:6px">목록 갱신 ' + (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + '</div>';
+      }
+    }
+    h += '</div>';
+    famEl.innerHTML = h;
+    const qi = famEl.querySelector('#__kw_fam_q');
+    const go = () => {
+      famQuery = qi ? qi.value : '';
+      try { localStorage.setItem(LS_FAMQ, famQuery); } catch (er) {}
+      famSig = null;
+      renderFamily();
+    };
+    if (qi) qi.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    const gb = famEl.querySelector('#__kw_fam_go');
+    if (gb) gb.onclick = go;
+    const fx = famEl.querySelector('#__kw_bdo_family_x');
+    if (fx) fx.onclick = (e) => { e.stopPropagation(); turnOff('family'); removeFamily(); };
+  }
+  function updateFamily(now) {
+    const stack = document.getElementById('__kw_stack');
+    const panel = document.getElementById('__kw_panel');
+    if (!opt('family', true)) { removeFamily(); return; }
+    if (!stack || !panel || !panel.classList.contains('show')) { removeFamily(); return; }
+    if (famState === 'idle') loadFam(); // 처음 켜질 때 한 번 받아온다
+    else if (famState !== 'loading' && now - famFetchedAt >= FAM_REFRESH_MS) loadFam(); // 이후 1시간마다 자동 갱신
+    if (!famEl || !famEl.isConnected) {
+      famEl = document.createElement('div');
+      famEl.id = '__kw_bdo_family';
+      famEl.style.cssText = 'position:relative;width:100%;height:' + Math.min(famH, famHMax()) + 'px;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible';
+      famSig = null;
+      stack.appendChild(famEl);
+    }
+    bdoOrder();
+    renderFamily();
+    try { // 창 기본형 상속: 파티와 같은 가로+세로
+      if (KW && typeof KW.window === 'function') {
+        KW.window(famEl, {
+          color: '#ff7ab8', posKey: LS_FAMPOS, rsz: 'd', dock: () => bdoOrder(),
+          getH: () => famH,
+          setH: (v) => {
+            famH = Math.max(FAM_H_MIN, Math.min(famHMax(), v));
+            famEl.style.height = Math.min(famH, famHMax()) + 'px';
+          },
+          saveH: () => { try { localStorage.setItem(LS_FAMH, String(famH)); } catch (er) {} },
+        });
+      } else {
+        if (KW && typeof KW.rsz === 'function') KW.rsz(famEl, {
+          dir: 'v', color: '#ff7ab8',
+          getH: () => famH,
+          setH: (v) => {
+            famH = Math.max(FAM_H_MIN, Math.min(famHMax(), v));
+            famEl.style.height = Math.min(famH, famHMax()) + 'px';
+          },
+          save: () => { try { localStorage.setItem(LS_FAMH, String(famH)); } catch (er) {} },
+        });
+        if (KW && typeof KW.float === 'function') KW.float(famEl, { color: '#ff7ab8', key: LS_FAMPOS, dock: () => bdoOrder() });
+      }
+    } catch (e) {}
+  }
+
   function tick() {
     try {
-      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); return; }
+      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); return; }
       const now = Date.now();
       if (now - bossFetchedAt >= BOSS_REFRESH_MS) loadSchedule(); // 처음 켜질 때 한 번, 이후 6시간마다
       updateNext(now);
       updateCoupons(now);
       updateParty(now);
+      updateFamily(now);
       const lead = Math.max(1, Math.min(30, Number(opt('lead', 3)) || 3)) * 60000;
       const sel = opt('bosses', null);
       const active = new Set();

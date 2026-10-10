@@ -1,0 +1,207 @@
+{
+  "source": "https://www.kr.playblackdesert.com/ko-KR/Adventure?searchType=2&checkSearchText=False&searchKeyword=",
+  "updatedAt": 1791674366411,
+  "families": [
+    {
+      "family": "비류라미",
+      "profileTarget": "coSuKY1K7C%2f877ylTj8cZf2j8eUU7XpS4A7UHaK7xqESEtKvjJGExIluzD6dioQr2NWupefNyyfZO1nN5r3XYeN4pqiI3FtggXU8H4wSefC51x3oEvikdXb6VyJHbL159XxvkCX69vWYdiwLlRdpkGaWbkNbOJGpgndmk2Syp6HiMduxTO63FDXyuyMF3g5x",
+      "created": "2014.12.20",
+      "guild": null,
+      "characters": [
+        {
+          "name": "비류라미",
+          "class": "레인저",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "친절한복희씨",
+          "class": "소서러",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "비류닌자",
+          "class": "쿠노이치",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "비류수랑",
+          "class": "금수랑",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "비류위치",
+          "class": "위치",
+          "level": null,
+          "main": true
+        },
+        {
+          "name": "비류다크",
+          "class": "다크나이트",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "란라미",
+          "class": "란",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "꼬마라미",
+          "class": "샤이",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "철퇴라미",
+          "class": "노바",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "라미드라",
+          "class": "드라카니아",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "꼬마라미양",
+          "class": "샤이",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "꼬마라미씨",
+          "class": "샤이",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "물빛라미",
+          "class": "커세어",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "또꼬마라미",
+          "class": "샤이",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "숲속라미",
+          "class": "레인저",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "우아한라미",
+          "class": "우사",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "라우라미",
+          "class": "미스틱",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "여우라미",
+          "class": "매구",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "무역하는라미",
+          "class": "위치",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "샛꼬마라미",
+          "class": "샤이",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "마력적인라미",
+          "class": "위치",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "앙꼬마라미",
+          "class": "샤이",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "우유빛깔라미",
+          "class": "샤이",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "두드리는라미",
+          "class": "스칼라",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "방랑하는라미",
+          "class": "위치",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "열일하는라미",
+          "class": "샤이",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "황야라미",
+          "class": "데드아이",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "산속라미",
+          "class": "위치",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "붉은매화라미",
+          "class": "매화",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "덩치큰라미",
+          "class": "가디언",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "큰칼라미",
+          "class": "세라핌",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "검방라미",
+          "class": "발키리",
+          "level": null,
+          "main": false
+        }
+      ],
+      "fetchedAt": 1791674366411
+    }
+  ]
+}

@@ -135,7 +135,7 @@ function placeToastBox(box) {
       const r = target.getBoundingClientRect();
       box.style.maxWidth = Math.max(220, window.innerWidth - r.right - 8 - 14) + 'px';
       box.style.bottom = '0';
-      const obs = ['__kw_setp', '__kw_dropsp', '__kw_histp', '__kw_bdop', '__kw_cpn', '__kw_bdo_party', '__kw_optwin'].map((id) => document.getElementById(id)).filter((el) => {
+      const obs = ['__kw_setp', '__kw_dropsp', '__kw_histp', '__kw_bdop', '__kw_cpn', '__kw_bdo_party', '__kw_bdo_family', '__kw_optwin'].map((id) => document.getElementById(id)).filter((el) => {
         if (!el || el.style.display === 'none') return false;
         const q = el.getBoundingClientRect();
         return q.width > 20 && q.height > 20;
