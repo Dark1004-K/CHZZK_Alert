@@ -27,49 +27,6 @@ function applyHistHeight() {
   histBox.style.maxHeight = h + 'px';
   histBox.style.height = histCustom ? h + 'px' : '';
 }
-function wireHGrip() {
-  if (!histPanel) return;
-  const g = histPanel.querySelector('#__kw_hgrip');
-  if (!g || g.__kwWired) return;
-  g.__kwWired = true;
-  g.addEventListener('mousedown', (e) => {
-    e.preventDefault();
-    if (e.stopPropagation) e.stopPropagation();
-    const startY = e.clientY;
-    const startH = histBox ? histBox.getBoundingClientRect().height : histH;
-    let bot = 0;
-    try { bot = Math.round(histPanel.getBoundingClientRect().bottom); } catch (e0) {}
-    const move = (ev) => {
-      histCustom = true;
-      let nh = Math.round(startH + (startY - ev.clientY) * HH_GAIN);
-      // 위쪽 모서리를 화면 끝·다른 창에 맞춤 (아래 모서리 고정)
-      let hit = false;
-      try {
-        const top = bot - nh;
-        const cands = [0];
-        snapRects(histPanel).forEach((rc) => { cands.push(rc.t, rc.b, rc.t - SNAP_GAP, rc.b + SNAP_GAP); });
-        let bt = top, bd = RSZ_SNAP + 1;
-        cands.forEach((c) => { const d = Math.abs(c - top); if (d < bd) { bd = d; bt = c; } });
-        if (bd <= RSZ_SNAP) { nh = bot - bt; hit = true; }
-      } catch (e1) {}
-      histH = Math.max(HH_MIN, Math.min(hhMax(), nh));
-      applyHistHeight();
-      // 위에 있는 창들이 화면을 넘지 않도록 CSS가 실제 높이를 줄이므로, 저장 높이도 실제로 보이는 높이를 넘지 않게 맞춘다
-      const real = histBox ? histBox.getBoundingClientRect().height : histH;
-      if (real > 0 && real + 1 < histH) histH = Math.max(HH_MIN, Math.round(real));
-      histPanel.style.boxShadow = hit ? '0 0 0 2px rgba(0,255,163,.7)' : '';
-    };
-    const up = () => {
-      document.removeEventListener('mousemove', move);
-      document.removeEventListener('mouseup', up);
-      histPanel.style.boxShadow = '';
-      try { localStorage.setItem(LS_HH, String(histH)); } catch (err) {}
-      dlog('hits-height', histH);
-    };
-    document.addEventListener('mousemove', move);
-    document.addEventListener('mouseup', up);
-  });
-}
 let setPanel = null;
 let setOpen = false;
 try { setOpen = localStorage.getItem(LS_SET) === '1'; } catch (e) {}
@@ -103,38 +60,12 @@ function ensureMidrow() {
   if (midRowEl && midRowEl.isConnected) return midRowEl;
   let ex = null;
   try { ex = document.getElementById('__kw_midrow'); } catch (e) {}
-  if (ex) { midRowEl = ex; wireGrip(); return ex; }
+  if (ex) { midRowEl = ex; return ex; }
   const r = document.createElement('div');
   r.id = '__kw_midrow';
   stackEl.appendChild(r);
   midRowEl = r;
-  const g = document.createElement('div');
-  g.id = '__kw_grip';
-  g.title = '드래그로 가로 조절';
-  r.appendChild(g);
-  wireGrip();
   return r;
-}
-function wireGrip() {
-  if (!midRowEl) return;
-  const g = midRowEl.querySelector('#__kw_grip');
-  if (!g || g.__kwWired) return;
-  g.__kwWired = true;
-  g.addEventListener('mousedown', (e) => {
-    e.preventDefault();
-    if (e.stopPropagation) e.stopPropagation();
-    const startX = e.clientX;
-    const startW = curWidth;
-    const move = (ev) => setStackWidth(startW + (ev.clientX - startX));
-    const up = () => {
-      document.removeEventListener('mousemove', move);
-      document.removeEventListener('mouseup', up);
-      try { localStorage.setItem(LS_W, String(curWidth)); } catch (err) {}
-      dlog('width', curWidth);
-    };
-    document.addEventListener('mousemove', move);
-    document.addEventListener('mouseup', up);
-  });
 }
 
 // ---------- 통일 핸들 (우하 리사이즈 .__kw_rsz + 좌상 이동 .__kw_mv) ----------
@@ -166,18 +97,21 @@ function kwRsz(el, o) {
     const startH = o.getH ? o.getH() : 0;
     let originL = 0, originT = 0;
     try { const r0 = el.getBoundingClientRect(); originL = Math.round(r0.left); originT = Math.round(r0.top); } catch (e0) {}
+    // 자석 후보는 시작 때 한 번만 고정: 늘리면서 창들이 움직여도 후보가 흔들리지 않음
+    const listW = (dir === 'h' || dir === 'd') ? snapLenList('w', originL, el, startW) : null;
+    const listH = ((dir === 'v' || dir === 'd') && o.setH) ? snapLenList('h', originT, el, startH) : null;
     const move = (ev) => {
       let hit = false;
       if (dir === 'h' || dir === 'd') {
         const w = startW + (ev.clientX - startX);
-        const sn = snapLen(w, 'w', originL, el);
+        const sn = snapLenNear(w, listW);
         hit = hit || sn.hit;
         if (o.wMode === 'self' && o.setW) o.setW(sn.v);
         else kwStackW(sn.v);
       }
       if ((dir === 'v' || dir === 'd') && o.setH) {
         const hgt = Math.round(startH + (ev.clientY - startY));
-        const sn = snapLen(hgt, 'h', originT, el);
+        const sn = snapLenNear(hgt, listH);
         hit = hit || sn.hit;
         o.setH(sn.v);
       }
@@ -194,20 +128,35 @@ function kwRsz(el, o) {
     document.addEventListener('mouseup', up);
   });
 }
-// ---------- 늘리기 자석: 늘리는 모서리(origin+길이)를 다른 창 모서리·화면 끝에 맞춤 ----------
-// axis 'w'=오른쪽 모서리(origin=왼쪽), 'h'=아래 모서리(origin=위쪽). 8px 안이면 맞춤.
+// ---------- 늘리기 자석: 늘리는 모서리를 다른 창 모서리·화면 끝·같은 크기에 맞춤 (8px) ----------
+// 후보 목록은 드래그 시작 때 snapLenList로 한 번만 만든다. snapLenNear는 그 목록에서 가장 가까움을 고른다.
+// axis 'w'=오른쪽 모서리(origin=왼쪽), 'h'=아래 모서리(origin=위쪽).
 const RSZ_SNAP = 8;
-function snapLen(v, axis, origin, skipEl) {
-  const edge = origin + v;
-  const cands = axis === 'w' ? [window.innerWidth] : [window.innerHeight];
+function snapLenList(axis, origin, skipEl, startV) {
+  const list = [];
+  const push = (c) => { if (isFinite(c) && Math.abs(c - startV) > 1) list.push(c); }; // 제자리 후보 제외 → 시작점 달라붙음 방지
   try {
-    snapRects(skipEl).forEach((rc) => {
-      if (axis === 'w') cands.push(rc.l, rc.r, rc.l - SNAP_GAP, rc.r + SNAP_GAP);
-      else cands.push(rc.t, rc.b, rc.t - SNAP_GAP, rc.b + SNAP_GAP);
-    });
+    if (axis === 'w') {
+      push(window.innerWidth - origin); // 화면 오른쪽 끝까지
+      snapRects(skipEl).forEach((rc) => {
+        push(rc.l - origin); push(rc.r - origin); // 다른 창 모서리에 맞춤
+        push(rc.l - SNAP_GAP - origin); push(rc.r + SNAP_GAP - origin); // 간격 두고 맞춤
+        push(rc.r - rc.l); // 다른 창과 같은 너비
+      });
+    } else {
+      push(window.innerHeight - origin); // 화면 아래 끝까지
+      snapRects(skipEl).forEach((rc) => {
+        push(rc.t - origin); push(rc.b - origin);
+        push(rc.t - SNAP_GAP - origin); push(rc.b + SNAP_GAP - origin);
+        push(rc.b - rc.t); // 다른 창과 같은 높이
+      });
+    }
   } catch (e) {}
+  return list;
+}
+function snapLenNear(v, list) {
   let bv = v, bd = RSZ_SNAP + 1;
-  cands.forEach((c) => { const d = Math.abs(c - edge); if (d < bd) { bd = d; bv = c - origin; } });
+  (list || []).forEach((c) => { const d = Math.abs(c - v); if (d < bd) { bd = d; bv = c; } });
   return { v: Math.round(bv), hit: bd <= RSZ_SNAP };
 }
 // ---------- 낱개 띄우기 (스택창을 + 배지로 끌어내 fixed로, 위치 저장+자석) ----------
@@ -400,7 +349,6 @@ function saveFloatRect(key, el) {
 function attachHistHandlers() {
   if (!histPanel || histPanel.__kwWired) return;
   histPanel.__kwWired = true;
-  wireHGrip();
   kwWindow(histPanel, { // 불린대화: 가로+세로 (가로 dock=스택공유, float=자기너비 / 세로=목록 높이)
     color: '#ffd400', posKey: LS_HISTPOS, rsz: 'd',
     getH: () => histH,
@@ -448,7 +396,7 @@ function ensureHistPanel() {
   }
   const d = document.createElement('div');
   d.id = '__kw_histp';
-  d.innerHTML = `<div id="__kw_hgrip" title="드래그로 높이 조절"></div><div id="__kw_hist_head"><span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-flex;align-items:center">${TI(TI_BELL, '#ffd400')}불린 대화&nbsp;<b id="__kw_hits_count">0</b></span><button class="__kw_ic" id="__kw_hits_clear" title="지우기" style="color:#ffd400">${IC.trash}</button></span><button class="__kw_ic __kw_xabs" id="__kw_hits_close" title="닫기 (설정 > 일반설정에서 다시 켤 수 있음)" style="color:#ffd400">${IC.close}</button></div><div id="__kw_hits"></div>`;
+  d.innerHTML = `<div id="__kw_hist_head"><span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-flex;align-items:center">${TI(TI_BELL, '#ffd400')}불린 대화&nbsp;<b id="__kw_hits_count">0</b></span><button class="__kw_ic" id="__kw_hits_clear" title="지우기" style="color:#ffd400">${IC.trash}</button></span><button class="__kw_ic __kw_xabs" id="__kw_hits_close" title="닫기 (설정 > 일반설정에서 다시 켤 수 있음)" style="color:#ffd400">${IC.close}</button></div><div id="__kw_hits"></div>`;
   stackEl.appendChild(d);
   histPanel = d;
   histBox = d.querySelector('#__kw_hits');
