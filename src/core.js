@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.4.0-beta034';
+const SCRIPT_VERSION = '3.4.0-beta035';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -317,9 +317,9 @@ function hitSig(text) { try { return norm(text).slice(0, 80); } catch (e) { retu
 function takeHit(sig) {
   const now = Date.now();
   const prev = hitTimes.get(sig) || 0;
-  // 같은 건 이중 발화(WS+DOM이 같은 메시지를 ms 간격으로 봄) 방지용 최소 가드 1초.
-  // 반복 호출 간격은 "같은 호출 다시 울리기까지 N초"/무제한 설정이 담당. N=0이면 1초 밖은 항상 울림.
-  if (now - prev < 1000) return false;
+  // 반복 차단 간격은 설정(재알림 방지 초)을 그대로 쓴다. 0·꺼짐·무제한이면 여기서 막지 않고 histSuppressed 규칙에 맡김.
+  const win = (!dedupOn() || redupInf()) ? 0 : redupMs();
+  if (win > 0 && now - prev < win) return false;
   hitTimes.set(sig, now);
   if (hitTimes.size > 200) {
     for (const [k, t] of hitTimes) { if (now - t > 30000) hitTimes.delete(k); }
