@@ -656,35 +656,11 @@
   }
   function renderFamily() {
     if (!famEl || !famEl.isConnected) return;
-    const q = famQuery;
-    const f = q ? famFind(q) : null;
-    const sig = [famState, f ? f.family : '', f ? (f.characters || []).length : 0, famFetchedAt].join('|');
+    const sig = [famState, famFetchedAt].join('|'); // 입력 중에는 다시 그리지 않음 (포커스 유지)
     if (sig === famSig) return;
     famSig = sig;
-    let h = xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
-      '<div style="display:flex;gap:6px;flex:none;padding-right:26px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(q) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;border-radius:6px;background:#ff7ab8;color:#000;font:bold 12px sans-serif;padding:4px 10px;cursor:pointer;flex:none">검색</button></div>' +
-      '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px;max-height:min(420px,60vh)">';
-    if (famState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">가문 목록을 받지 못했습니다. 잠시 뒤 다시 시도하세요.</div>';
-    else if (famState === 'loading' || !famData) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
-    else if (q && !f) h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">등록되지 않은 가문입니다.<br>GitHub Issues로 등록을 요청하세요.</div>';
-    else {
-      h += '<div style="margin-top:6px;font-size:12px"><b>' + esc(f.family) + '</b>' +
-        (f.created ? ' <span style="color:#888;font-size:11px">' + esc(f.created) + '</span>' : '') +
-        (f.guild ? ' <span style="color:#ff7ab8;font-size:11px">' + esc(f.guild) + '</span>' : '') + '</div>';
-      (f.characters || []).forEach((c) => {
-        h += '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.12)">' +
-          '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(c.name || '?') + (c.main ? ' <span style="color:#ff7ab8;font-size:10px">대표</span>' : '') + '</b>' +
-          '<span style="font-size:11px;color:#ddd;white-space:nowrap">' + esc(c.class || '') + '</span>' +
-          '<span style="font-size:11px;color:' + (c.level ? '#7dffb3' : '#888') + ';white-space:nowrap">' + (c.level ? 'Lv' + c.level : '비공개') + '</span></div>';
-      });
-      if (famData && famData.updatedAt) {
-        const d = new Date(famData.updatedAt + KST);
-        const p2 = (n) => String(n).padStart(2, '0');
-        h += '<div style="font-size:10px;color:#777;margin-top:6px">목록 갱신 ' + (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + '</div>';
-      }
-    }
-    h += '</div>';
-    famEl.innerHTML = h;
+    famEl.innerHTML = xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
+      '<div style="display:flex;gap:6px;flex:none;padding-right:26px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;border-radius:6px;background:#ff7ab8;color:#000;font:bold 12px sans-serif;padding:4px 10px;cursor:pointer;flex:none">검색</button></div>';
     const qi = famEl.querySelector('#__kw_fam_q');
     const go = () => {
       famQuery = qi ? qi.value : '';
@@ -696,6 +672,7 @@
       updateFamRes(Date.now());
     };
     if (qi) qi.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    if (qi) qi.addEventListener('input', () => { famQuery = qi.value; try { localStorage.setItem(LS_FAMQ, famQuery); } catch (er) {} });
     const gb = famEl.querySelector('#__kw_fam_go');
     if (gb) gb.onclick = go;
     const fx = famEl.querySelector('#__kw_bdo_family_x');
