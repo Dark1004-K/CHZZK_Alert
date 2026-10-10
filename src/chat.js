@@ -229,6 +229,7 @@ function fmtTime(t) {
 }
 function recordHit(nick, text, kw, sig, el) {
   rememberSig(sig);
+  rememberHitTime(sig);
   if (!histOn() && !dedupOn()) return;
   hitLog.unshift({ t: Date.now(), nick: nick || '', text: (text || '').slice(0, 120), kw, sig, el: el || null });
   while (hitLog.length > HITS_MAX) hitLog.pop();

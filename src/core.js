@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.4.0-beta031';
+const SCRIPT_VERSION = '3.4.0-beta032';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -78,6 +78,17 @@ const loadSeen = () => {
 };
 let seenList = loadSeen();
 let seenSigs = new Set(seenList);
+// 서명별 마지막 알림 시각 (재알림 간격 TTL 판정용. hitLog 30개 cap과 무관하게 최대 400개까지 기억)
+const SEEN_T_MAX = 400;
+const seenTimes = new Map();
+function rememberHitTime(sig) {
+  if (!sig) return;
+  try {
+    if (seenTimes.has(sig)) seenTimes.delete(sig);
+    seenTimes.set(sig, Date.now());
+    while (seenTimes.size > SEEN_T_MAX) { const k = seenTimes.keys().next().value; seenTimes.delete(k); }
+  } catch (e) {}
+}
 function rememberSig(sig) {
   if (!sig || seenSigs.has(sig)) return;
   seenSigs.add(sig);
@@ -293,6 +304,8 @@ function histSuppressed(sig) {
   if (redupInf() && alreadyListed(sig)) return true; // 무제한: 시간이 얼마가 지나도 같은 내용은 울리지 않음
   const now = Date.now();
   const ttl = redupMs();
+  const st = seenTimes.get(sig);
+  if (st && now - st < ttl) return true; // hitLog 30개 소멸과 무관하게 N초 판정 (WS 리플레이 대응)
   for (const h of hitLog) {
     if (h.sig === sig && now - h.t < ttl) return true;
   }
