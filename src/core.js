@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.4.0-beta011';
+const SCRIPT_VERSION = '3.4.0-beta012';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -387,12 +387,12 @@ function ensureStyle() {
 #__kw_dropsp,#__kw_histp{position:relative}
 #__kw_dropsp .__kw_dr{padding-right:26px;min-height:26px}
 /* 통일 핸들: 우하 리사이즈 원형(.__kw_rsz h=좌우/v=위아래/d=대각, 라운드와 겹침) + 좌상 이동 원형(.__kw_mv +) */
-.__kw_rsz{position:absolute;right:-9px;bottom:-9px;width:20px;height:20px;box-sizing:border-box;border-radius:50%;background:rgb(20,20,24);border:1.5px solid;display:flex;align-items:center;justify-content:center;font:11px/1 sans-serif;cursor:nwse-resize;z-index:3;user-select:none;touch-action:none;box-shadow:0 2px 6px rgba(0,0,0,.5);padding:0 0 1px}
+.__kw_rsz{position:absolute;right:-6px;bottom:-6px;width:20px;height:20px;box-sizing:border-box;border-radius:50%;background:rgb(20,20,24);border:1.5px solid;display:flex;align-items:center;justify-content:center;font:11px/1 sans-serif;cursor:nwse-resize;z-index:3;user-select:none;touch-action:none;box-shadow:0 2px 6px rgba(0,0,0,.5);padding:0 0 1px}
 .__kw_rsz:hover{filter:brightness(1.4)}
 .__kw_rsz.h{cursor:ew-resize}
 .__kw_rsz.v{cursor:ns-resize}
 .__kw_rsz.d{cursor:nwse-resize}
-.__kw_mv{position:absolute;left:-9px;top:-9px;width:20px;height:20px;box-sizing:border-box;border-radius:50%;border:1.5px solid;background:rgb(20,20,24);cursor:grab;display:inline-flex;align-items:center;justify-content:center;font:bold 13px/1 sans-serif;z-index:3;touch-action:none;box-shadow:0 2px 6px rgba(0,0,0,.5);padding:0 0 1px}
+.__kw_mv{position:absolute;left:-6px;top:-6px;width:20px;height:20px;box-sizing:border-box;border-radius:50%;border:1.5px solid;background:rgb(20,20,24);cursor:grab;display:inline-flex;align-items:center;justify-content:center;font:bold 13px/1 sans-serif;z-index:3;touch-action:none;box-shadow:0 2px 6px rgba(0,0,0,.5);padding:0 0 1px}
 .__kw_upbtn{background:#1f6feb;color:#fff;border:0;border-radius:8px;padding:5px 12px;font:bold 12px sans-serif;cursor:pointer;margin-left:6px}
 .__kw_upbtn:disabled{background:#333;color:#777;cursor:default}
 #__kw_update_msg{font-size:12px;color:#ddd;margin-top:4px}
