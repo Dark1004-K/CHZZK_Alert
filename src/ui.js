@@ -406,7 +406,7 @@ function ensureHistPanel() {
   }
   const d = document.createElement('div');
   d.id = '__kw_histp';
-  d.innerHTML = `<div id="__kw_hist_head"><span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-flex;align-items:center">${TI(TI_BELL, '#ffd400')}불린 대화&nbsp;<b id="__kw_hits_count">0</b></span><button class="__kw_ic" id="__kw_hits_clear" title="지우기" style="color:#ffd400">${IC.trash}</button></span><button class="__kw_ic __kw_xabs" id="__kw_hits_close" title="닫기 (설정 > 일반설정에서 다시 켤 수 있음)" style="color:#ffd400">${IC.close}</button></div><div id="__kw_hits"></div>`;
+  d.innerHTML = `<div id="__kw_hist_head"><span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-flex;align-items:center">${TI(TI_BELL, '#ffd400')}불린 대화&nbsp;<b id="__kw_hits_count">0</b></span><button class="__kw_ic" id="__kw_hits_clear" title="지우기" style="color:#ffd400">${IC.trash}</button></span><button class="__kw_ic __kw_xabs" id="__kw_hits_close" title="닫기 (설정 > 일반설정에서 다시 켤 수 있음)" style="color:#ffd400">${IC.close}</button></div><div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:2px -10px 4px"></div><div id="__kw_hits"></div>`;
   stackEl.appendChild(d);
   histPanel = d;
   histBox = d.querySelector('#__kw_hits');
@@ -736,7 +736,7 @@ function renderOptWin() {
     const ss = loadOptSize();
     if (ss) { w.style.width = Math.min(ss.w, window.innerWidth - 16) + 'px'; w.style.height = Math.min(ss.h, optHMax()) + 'px'; }
   } catch (e) {}
-  w.innerHTML = `<div id="__kw_optwin_mv" class="__kw_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</div><div style="display:flex;align-items:center;flex:none;min-height:26px;padding-right:26px;margin-bottom:8px"><b style="display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button><div id="__kw_optwin_body" style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;padding-left:19px">${extOptHtml(p)}</div>`; /* 본문은 타이틀 글자 시작점에 맞춤 */
+  w.innerHTML = `<div id="__kw_optwin_mv" class="__kw_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</div><div style="display:flex;align-items:center;flex:none;min-height:26px;padding-right:26px;margin-bottom:0"><b style="display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button><div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:8px -10px"></div><div id="__kw_optwin_body" style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;padding-left:19px;padding-right:19px">${extOptHtml(p)}</div>`; /* 본문은 타이틀 글자 시작점에 맞춤, 우측 대칭 */
   if (!old) document.body.appendChild(w);
   try { // 옵션 창 폭이 넓어서 설정 창 오른쪽에 다 들어가지 않으면 화면 가운데로 (저장 위치가 없을 때만)
     if (!loadOptPos()) {
@@ -875,7 +875,8 @@ function renderSettings() {
     <b id="__kw_set_title" title="끌어서 설정 창 이동" style="position:absolute;top:10px;left:18px;font-size:14px;color:#fff;cursor:grab;touch-action:none;user-select:none;display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>설정</b>
     <button id="__kw_set_move" class="__kw_mv" title="드래그로 설정 창 이동 (화면 가장자리·다른 창에 자석처럼 붙음) · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</button>
     <button class="__kw_ic __kw_xabs" id="__kw_set_close" title="설정 닫기" style="color:#aaaab9">${IC.close}</button>
-    <div style="display:flex;gap:14px;height:calc(100% - 28px);margin-top:28px">
+    <div style="height:1px;flex:none;background:rgba(255,255,255,.14);margin:22px -10px 0"></div>
+    <div style="display:flex;gap:14px;height:calc(100% - 39px);margin-top:8px">
       <div class="__kw_tabs">
         <button class="__kw_tab${setTab === 'general' ? ' on' : ''}" data-tab="general">일반설정</button>
         <button class="__kw_tab${setTab === 'sound' ? ' on' : ''}" data-tab="sound">음향설정</button>
