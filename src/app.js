@@ -64,7 +64,7 @@ function checkRoute() {
       if (cid !== lastCid) { // 다른 채널로 이동: 감시 중단 + 인가 재확인
         lastCid = cid;
         allowState = 'pending';
-        allowEntry = null;
+        allowEntry = null; allowExpiry = null;
         try { stop(); } catch (e) {}
         hitLog = []; hitTimes.clear(); clearSeen(); saveHits(); renderHitsList(); // 다른 채널: 불린 대화 초기화
         try { syncPlugins(); } catch (e) {}

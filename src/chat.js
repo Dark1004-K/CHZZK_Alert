@@ -508,10 +508,10 @@ function readAllowCache() {
   } catch (e) {}
   return null;
 }
-function noteDenied(cid) {
+function noteDenied(cid, msg) {
   if (noteDenied._id === cid) return;
   noteDenied._id = cid;
-  showToast('인가되지 않은 채널입니다');
+  showToast(msg || '인가되지 않은 채널입니다');
   dlog('allow-denied-notice', cid);
   // 토스트가 끝나면 감시 중단 + UI 제거 (같은 채널로 다시 들어오면 토스트를 다시 띄움)
   setTimeout(() => {
@@ -520,19 +520,47 @@ function noteDenied(cid) {
     teardownUi();
   }, TOAST_MS);
 }
-// 항목 정규화: "id" 문자열 또는 {id, name, discord, home} 객체
+// 항목 정규화: "id" 문자열 또는 {id, name, discord, home, expires} 객체
 const normEntry = (e) => {
-  if (typeof e === 'string') return { id: e, name: '', discord: '', home: '' };
+  if (typeof e === 'string') return { id: e, name: '', discord: '', home: '', expires: '' };
   if (e && typeof e === 'object') {
     return {
       id: String(e.id || ''),
       name: String(e.name || ''),
       discord: String(e.discord || ''),
       home: String(e.home || ''),
+      expires: String(e.expires || ''), // 만료일 "YYYY-MM-DD" (한국시간 그날 끝까지). 없으면 만료 없음
     };
   }
   return null;
 };
+// 만료: 만료일이 지나면 "만료 경고"를 띄우고, 만료일 + 3일이 지나면 동작을 멈춘다.
+// 기준은 이 컴퓨터의 시계라서(클라이언트 코드) 강제력은 없다 — 정직한 사용자용 관리.
+const EXPIRE_GRACE_MS = 3 * 86400000;
+const LS_EXWARN = '__kw_exwarn_at';
+let allowExpiry = null; // 만료 경고 중이면 { date, stopDays } (녹색 창 경고 줄용)
+function expiryInfo(entry) {
+  if (!entry || !entry.expires) return { state: 'none' };
+  const t = Date.parse(entry.expires + 'T23:59:59+09:00');
+  if (!isFinite(t)) return { state: 'none' }; // 형식이 틀리면 무시(만료 없음)
+  const now = Date.now();
+  if (now <= t) return { state: 'ok', date: entry.expires };
+  if (now <= t + EXPIRE_GRACE_MS) return { state: 'warn', date: entry.expires, stopDays: Math.max(1, Math.ceil((t + EXPIRE_GRACE_MS - now) / 86400000)) };
+  return { state: 'dead', date: entry.expires };
+}
+// 만료 경고 안내: 녹색 창에 경고 줄 + 안내문(1시간에 한 번만)
+function noteExpiryWarn(ex) {
+  allowExpiry = ex && ex.state === 'warn' ? ex : null;
+  try { renderPanel(); } catch (e) {}
+  if (!allowExpiry) return;
+  try {
+    const last = Number(localStorage.getItem(LS_EXWARN)) || 0;
+    if (Date.now() - last < 3600000) return;
+    localStorage.setItem(LS_EXWARN, String(Date.now()));
+  } catch (e) {}
+  showToast('⚠ 만료 경고: 사용 기간이 ' + allowExpiry.date + '에 끝났습니다. ' + allowExpiry.stopDays + '일 뒤부터 동작하지 않습니다.');
+  dlog('allow-expiry-warn', allowExpiry.date);
+}
 let allowEntry = null; // 현재 채널의 인가 항목 (표시명·링크 버튼용)
 // id 일치 + (등록명이 있으면) 페이지 표시명 일치해야 통과.
 // 페이지명을 못 읽으면 id만으로 허용 (DOM 변경 대비, 로그 남김).
@@ -550,8 +578,16 @@ function judgeAllow(entries, cid, silent, tag) {
       why = 'noname-page';
     }
   }
+  let denyMsg = '';
+  const ex = ok ? expiryInfo(entry) : { state: 'none' };
+  if (ok && ex.state === 'dead') { // 만료일 + 3일이 지남: 더 이상 동작하지 않음
+    ok = false;
+    why = 'expired';
+    denyMsg = '사용 기간(' + ex.date + ')이 만료되어 사용할 수 없습니다';
+  }
+  if (ok) noteExpiryWarn(ex); else allowExpiry = null;
   if (!silent) dlog(tag + ':' + why, cid);
-  if (!ok) noteDenied(cid);
+  if (!ok) noteDenied(cid, denyMsg);
   return ok;
 }
 function refreshAllowlist(silent, done) {
