@@ -476,9 +476,10 @@
     const body = (m[1] || '').trim();
     if (!body) return { err: '종류를 적어 주세요. 예) #파티 검은사당 10분 내용' };
     const mk = /^(\S+)([\s\S]*)$/.exec(body);
-    let kind = mk[1];
-    let lead = ''; // 목록에 없는 종류 말은 "기타"로 넣고 그 말은 내용으로 살린다
-    if (!PARTY_KINDS.includes(kind)) { lead = kind + ' '; kind = '기타'; }
+    const kind = mk[1];
+    if (!PARTY_KINDS.includes(kind)) { // 종류(#파티 다음 두 번째 말)가 목록에 없으면 오류
+      return { err: "'" + kind.slice(0, 12) + "'은(는) 없는 종류입니다. " + PARTY_KINDS.join(' · ') + ' 중 하나를 써 주세요.' };
+    }
     let rest = mk[2];
     let mins = PARTY_MAX_MIN; // 쓴 분(예: 5분)이 모집 시간. 안 쓰면 10분, 10분을 넘게 써도 10분까지
     let clamped = false;
@@ -492,7 +493,7 @@
     } else if (/^\s*\d+(?:\s|$)/.test(rest)) {
       return { err: "시간은 '10분'처럼 숫자 뒤에 '분'을 붙여 주세요." };
     }
-    return { kind, mins, clamped, content: (lead + rest).replace(/\s+/g, ' ').trim().slice(0, 60) };
+    return { kind, mins, clamped, content: rest.replace(/\s+/g, ' ').trim().slice(0, 60) };
   }
   // 등록이 안 될 때(쓰는 법 오류·이미 모집 중) 이유를 안내한다: 토스트 + 파티 창 아래 줄(60초). 같은 사람이 같은 이유로 도배하면 15초에 한 번만.
   let partyNote = null; // { t, text }
