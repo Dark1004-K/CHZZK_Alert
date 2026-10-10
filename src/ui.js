@@ -1383,6 +1383,7 @@ function setupDragToAdd() {
     if (!rect || (rect.width === 0 && rect.height === 0)) { sel.style.display = 'none'; return; }
     sel.innerHTML = '';
     sel.style.display = 'flex';
+    sel.style.flexDirection = 'column';
     sel.style.gap = '6px';
     const mkBtn = (label, bg) => {
       const b = document.createElement('button');
