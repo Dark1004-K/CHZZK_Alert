@@ -289,8 +289,8 @@ function kwFloatKey(el, o) {
 // ---------- 창 기본형 kwWindow (abstract): 모든 창은 여기서 파생 ----------
 // 창 규격(공통):
 // [전체] 1.타이틀은 ICON+타이틀 우선. 2.창 고유색 기반 디자인. 3.메인(감시중) 제외 전창 이동(+)+리사이즈(위치 현행).
-// [세로확장] 1.타이틀-본문 가로 구분선(전폭). 2.리스트 본문은 좌우 공백 없이 전폭(스크롤바 영역 고려). (우두머리·설정 제외)
-// [가로전용] 1.구분선 없음. 2.본문 시작=타이틀 아이콘 오른쪽이면 우측도 같은 공백.
+// [세로확장] 1.타이틀-본문 가로 구분선(전폭). 2.본문 박스는 타이틀 아이콘 왼쪽선에 맞춤(좌우 대칭). 스크롤바 영역은 별도 고려. (우두머리·설정 제외)
+// [가로전용] 1.구분선 없음. 2.본문 박스는 타이틀 아이콘 왼쪽선에 맞춤(좌우 대칭).
 // 감시중(녹색창)은 posKey 없이 rsz만 (이동 불가). 나머지 창은 posKey 필수.
 // cfg: { color(창색, +원·리사이즈원 테두리), posKey(위치 저장키, 없으면 이동 불가),
 //   rsz: null|'h'(가로)|'v'(세로)|'d'(가로+세로),
@@ -741,7 +741,7 @@ function renderOptWin() {
     const ss = loadOptSize();
     if (ss) { w.style.width = Math.min(ss.w, window.innerWidth - 16) + 'px'; w.style.height = Math.min(ss.h, optHMax()) + 'px'; }
   } catch (e) {}
-  w.innerHTML = `<div id="__kw_optwin_mv" class="__kw_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</div><div style="display:flex;align-items:center;flex:none;min-height:26px;padding-right:26px;margin-bottom:0"><b style="display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button><div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:8px -10px"></div><div id="__kw_optwin_body" style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;padding-left:19px;padding-right:19px">${extOptHtml(p)}</div>`; /* 본문은 타이틀 글자 시작점에 맞춤, 우측 대칭 */
+  w.innerHTML = `<div id="__kw_optwin_mv" class="__kw_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</div><div style="display:flex;align-items:center;flex:none;min-height:26px;padding-right:26px;margin-bottom:0"><b style="display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button><div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:8px -10px"></div><div id="__kw_optwin_body" style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin">${extOptHtml(p)}</div>`;
   if (!old) document.body.appendChild(w);
   try { // 옵션 창 폭이 넓어서 설정 창 오른쪽에 다 들어가지 않으면 화면 가운데로 (저장 위치가 없을 때만)
     if (!loadOptPos()) {
