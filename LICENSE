@@ -1,10 +1,68 @@
-Proprietary License — chizizic_call_nickname
+CHZZK Alert (치지직 채팅 호출 알림) — 사용 허가 조건부 독점 라이선스
+Proprietary License — All Rights Reserved
 
-Copyright (c) Dark1004-K. All rights reserved.
+Copyright (c) 2026 Dark1004-K. All rights reserved.
 
-1. 이 리포지토리의 모든 코드와 문서는 저작자의 단독 재산이다.
-2. 사용, 복제, 배포, 수정, 2차 저작, 상업적 이용을 하려면
-   사전에 저작자의 명시적(서면/이슈 답변 등 기록이 남는 형태) 허가를 받아야 한다.
-3. 허가 없이 재배포하거나 수정한 것을 공개하는 것을 금지한다.
-4. allowlist.json 에 채널이 등록된 것은 해당 방송에서의 실행 허용을 뜻할 뿐,
-   코드에 대한 권리 이전이나 사용 허락이 아니다.
+이 라이선스는 오픈소스 라이선스가 아닙니다. 소스 코드가 공개되어 있어도 아래에서
+명시적으로 허락한 것 외의 모든 권리는 저작자(Dark1004-K)가 가집니다.
+
+1. 정의
+   - "소프트웨어"란 이 저장소의 사용자 스크립트(chzzk_alert.user.js, beta/chzzk_alert.beta.user.js),
+     src/, release/, plugins/ 와 그에 딸린 데이터 파일(allowlist.json, plugins.json, coupons.json,
+     bosses.json 등)과 문서를 말합니다.
+   - "인가 채널"이란 allowlist.json 에 등록되어 있고 만료되지 않은 치지직 채널을 말합니다.
+
+2. 허락되는 사용
+   저작자가 안내한 설치 방법(README 의 설치 링크)으로 설치한 배포본을, 인가 채널의 방송을
+   시청하는 동안 개인적·비상업적 목적으로 실행하는 것을 허락합니다.
+   이 허락은 양도·재허락할 수 없고, 비독점적이며, 아래 3항에 따라 종료될 수 있습니다.
+
+3. 허락의 종료
+   - allowlist.json 의 채널 항목에 만료일(expires)이 있으면, 만료일이 지난 뒤 경고가 표시되고
+     만료일 + 3일이 지나면 이 허락은 끝나며 소프트웨어는 동작하지 않을 수 있습니다.
+   - 저작자는 사유를 밝히지 않고 언제든지 인가 채널 등록을 해제하거나 이 허락을 철회할 수 있습니다.
+   - 인가 채널로 등록되었다는 것은 그 방송에서 실행해도 된다는 뜻일 뿐, 코드에 대한 권리 이전이나
+     그 밖의 사용 허락이 아닙니다.
+
+4. 금지되는 행위 (저작자의 사전 허가가 없는 한)
+   a. 소프트웨어의 전부 또는 일부를 복제·배포·게시·판매·대여하는 것 (포크·미러 포함)
+   b. 수정하거나 2차 저작물을 만들어 공개·배포하는 것
+   c. 난독화된 배포본(release/)을 해제·역분석하거나 코드를 추출해 다른 곳에 쓰는 것
+      (법률이 이를 금지할 수 없도록 정한 범위는 제외)
+   d. 인가 채널 확인, 만료 확인 등 사용 제한 기능을 우회·제거·무력화하는 것
+   e. 상업적 이용 (유료 서비스에 포함, 광고·후원 유도 등 영리 목적의 사용 포함)
+   f. 소프트웨어를 이용해 치지직·검은사막 등 제3자 서비스의 이용약관을 위반하거나
+      해당 서비스에 과도한 부하를 주는 행위
+
+5. 허가 요청
+   위 금지 행위에 대한 허가나 새 채널 등록은 GitHub Issues 로 요청해 주세요.
+   허가는 서면 또는 이슈 답변처럼 기록이 남는 형태일 때만 효력이 있습니다.
+
+6. 제3자 권리 및 비공식 고지
+   - 이 소프트웨어는 NAVER(치지직), 펄어비스(검은사막)와 아무 관련이 없는 비공식 프로그램입니다.
+     각 서비스의 이름·상표·콘텐츠에 대한 권리는 해당 권리자에게 있습니다.
+   - 쿠폰·우두머리 시간표 등 데이터는 공식 사이트 공개 정보를 바탕으로 하며, 권리자가 요청하면
+     삭제하거나 제공을 중단합니다.
+
+7. 개인정보
+   소프트웨어는 사용자의 채팅·설정·시청 정보를 저작자의 서버로 보내지 않고, 사용자의
+   브라우저 저장소(localStorage)에만 보관합니다.
+
+8. 보증의 부인 및 책임의 제한
+   소프트웨어는 "있는 그대로" 제공되며 상품성, 특정 목적에의 적합성, 무결함에 대한 어떠한 보증도
+   없습니다. 관련 법률이 허용하는 최대한도에서 저작자는 이 소프트웨어의 사용 또는 사용 불능으로
+   생긴 손해(알림 누락, 계정·서비스 이용 제한 등)에 대해 책임지지 않습니다.
+
+9. 준거법
+   이 라이선스는 대한민국 법률에 따라 해석됩니다.
+
+-----------------------------------------------------------------------------
+English summary (the Korean text above controls)
+
+This is NOT an open-source license. All rights reserved by Dark1004-K.
+You may run the officially distributed userscript, for personal non-commercial use, while
+watching a channel that is listed (and not expired) in allowlist.json. The permission ends
+3 days after a channel's "expires" date and can be revoked at any time. You may not copy,
+redistribute, fork, modify, de-obfuscate, bypass the allowlist/expiry checks, or use the
+software commercially without prior written permission (GitHub Issues is fine). Unofficial;
+not affiliated with NAVER or Pearl Abyss. Provided "AS IS" without warranty.
