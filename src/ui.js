@@ -1377,14 +1377,30 @@ function setupDragToAdd() {
     const range = s.getRangeAt(0);
     const rect = range.getBoundingClientRect();
     if (!rect || (rect.width === 0 && rect.height === 0)) { sel.style.display = 'none'; return; }
-    sel.textContent = '＋ 호출 단어로 추가';
-    sel.style.left = (rect.left + window.scrollX) + 'px';
-    sel.style.top = (rect.top + window.scrollY - 30) + 'px';
-    sel.style.display = 'block';
-    sel.onclick = () => {
+    sel.innerHTML = '';
+    sel.style.display = 'flex';
+    sel.style.gap = '6px';
+    const mkBtn = (label, bg) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.style.cssText = 'background:' + bg + ';color:#000;font:bold 12px sans-serif;padding:5px 9px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.5);cursor:pointer;border:0;white-space:nowrap';
+      return b;
+    };
+    const b1 = mkBtn('＋ 호출 단어로 추가', '#00ffa3');
+    b1.onclick = () => {
       if (!keywords.includes(text)) { keywords.push(text); saveKeywords(keywords); refreshNormCache(); renderPanel(); }
       sel.style.display = 'none';
     };
+    const b2 = mkBtn('내 닉네임으로 설정', '#ffd400');
+    b2.title = '내 채팅 제외용';
+    b2.onclick = () => {
+      myNick = text; saveNick(myNick); refreshNormCache(); renderPanel();
+      try { if (setPanel && setPanel.isConnected) renderSettings(); } catch (e) {}
+      sel.style.display = 'none';
+    };
+    sel.appendChild(b1); sel.appendChild(b2);
+    sel.style.left = (rect.left + window.scrollX) + 'px';
+    sel.style.top = (rect.top + window.scrollY - 30) + 'px';
   });
 }
 
