@@ -521,7 +521,7 @@
         partyNotice(nick, '이미 모집 중입니다. ' + fmt(mine.exp - now) + ' 뒤에 다시 등록할 수 있어요.');
         return;
       }
-      const e = { id: now + '-' + Math.random().toString(36).slice(2, 6), nick, kind: p.kind, content: p.content, exp: now + p.mins * 60000 };
+      const e = { id: now + '-' + Math.random().toString(36).slice(2, 6), nick, kind: p.kind, content: p.content, raw: String(d.text || ''), exp: now + p.mins * 60000 };
       parties.push(e);
       partySig = null;
       if (p.clamped) partyNotice(nick, '모집 시간은 최대 ' + PARTY_MAX_MIN + '분이라 ' + PARTY_MAX_MIN + '분으로 등록했어요.');
@@ -540,6 +540,28 @@
     partyDelBtn = (id) => '<button data-pdel="' + esc(id) + '" title="이 모집 삭제 (베타 전용)" style="border:0;background:transparent;color:#ff7a59;cursor:pointer;padding:0 2px;font-size:13px;line-height:1;flex:none">✕</button>';
   }
   // [BETA-TEST-ONLY:end]
+  // 파티 항목을 누르면 불린 대화처럼 그 채팅으로 스크롤한다. 지금 대화창에 없으면 없다고만 알린다.
+  const collapse = (t) => String(t || '').replace(/\s+/g, '');
+  function findPartyChat(e) {
+    const want = collapse(e.raw);
+    const nick = collapse(e.nick);
+    let found = null;
+    try {
+      document.querySelectorAll('[class*="chatting_message"]').forEach((el) => { // 같은 글이 여러 번이면 가장 아래(최근) 것
+        const t = collapse(el.textContent);
+        if (t.includes(want) && (!nick || t.includes(nick))) found = el;
+      });
+    } catch (er) {}
+    return found;
+  }
+  function jumpToParty(id) {
+    const e = parties.find((x) => x.id === id);
+    if (!e) return;
+    const el = findPartyChat(e);
+    if (!el) { try { KW.toast('👥 파티 모집', '현재 대화창에 없음'); } catch (er) {} return; }
+    try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (er) { try { el.scrollIntoView(); } catch (er2) {} }
+    try { if (typeof KW.highlight === 'function') KW.highlight(el); } catch (er) {}
+  }
   function removeParty() {
     if (partyEl) { try { partyEl.remove(); } catch (e) {} }
     partyEl = null;
@@ -558,7 +580,12 @@
     if (!partyEl || !partyEl.isConnected) {
       partyEl = document.createElement('div');
       partyEl.id = '__kw_bdo_party';
-      partyEl.onclick = (e) => { if (e.target && e.target.closest && e.target.closest('#__kw_bdo_party_x')) { turnOff('party'); removeParty(); } };
+      partyEl.onclick = (e) => {
+        if (e.target && e.target.closest && e.target.closest('#__kw_bdo_party_x')) { turnOff('party'); removeParty(); return; }
+        if (e.target && e.target.closest && e.target.closest('[data-pdel]')) return; // 베타 삭제 버튼은 이동하지 않음
+        const row = e.target && e.target.closest ? e.target.closest('[data-pjump]') : null;
+        if (row) jumpToParty(row.getAttribute('data-pjump'));
+      };
       grp.appendChild(partyEl);
       partySig = null;
       // [BETA-TEST-ONLY:start]
@@ -587,7 +614,7 @@
         '<div class="__kw_sb_pty" style="flex:1;min-height:0;overflow-y:auto">';
       if (!list.length) h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">모집 중인 파티가 없습니다.<br>채팅에 <b>#파티 검은사당 10분 내용</b> 처럼 쓰면 등록됩니다.</div>';
       list.forEach((x) => {
-        h += '<div style="margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)">' +
+        h += '<div data-pjump="' + esc(x.id) + '" title="클릭하면 해당 채팅으로 이동" style="margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12);cursor:pointer">' +
           '<div style="display:flex;align-items:center;gap:6px"><span style="background:#3a2a24;color:#ff9a7a;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:bold;white-space:nowrap">' + esc(x.kind) + '</span>' +
           '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">' + esc(x.nick) + '</b>' +
           '<span data-pexp="' + x.exp + '" style="margin-left:auto;font-size:11px;color:#ff9a7a;white-space:nowrap"></span>' + partyDelBtn(x.id) + '</div>' +
