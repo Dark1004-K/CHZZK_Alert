@@ -353,7 +353,35 @@ function checkUpdate() {
   }
 }
 // 플러그인 옵션 입력칸 (type: bool | number | multi)
+// (?) 도움말: 옵션 정의의 help { title, text } 를 팝업으로 보여준다
+function showOptHelp(h) {
+  const old = document.getElementById('__kw_opthelp');
+  if (old) old.remove();
+  if (!h || !h.text) return;
+  const w = document.createElement('div');
+  w.id = '__kw_opthelp';
+  w.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);padding:16px;box-sizing:border-box';
+  const lines = String(h.text).split('\n').map((l) => {
+    const t = escapeHtml(l);
+    if (!l.trim()) return '<div style="height:8px"></div>';
+    if (/^#파티/.test(l) || /^예\)/.test(l)) return '<div style="background:#2a2a33;border-radius:6px;padding:4px 8px;margin:2px 0;font-weight:bold;color:#ffd400;white-space:pre-wrap">' + t + '</div>';
+    if (/^[①②③④]/.test(l) || l === '이렇게 동작해요') return '<div style="margin-top:6px;font-weight:bold;color:#fff">' + t + '</div>';
+    return '<div style="color:#ccc;white-space:pre-wrap">' + t + '</div>';
+  }).join('');
+  w.innerHTML = '<div style="position:relative;width:min(420px,100%);max-height:100%;overflow-y:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px/1.55 sans-serif;padding:14px 16px 16px;border-radius:12px;border:1px solid #777;box-shadow:0 8px 28px rgba(0,0,0,.6);scrollbar-width:thin">' +
+    '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;margin-bottom:6px"><b style="font-size:14px">' + escapeHtml(h.title || '도움말') + '</b></div>' +
+    '<button class="__kw_ic __kw_xabs" id="__kw_opthelp_x" title="닫기" style="color:#aaaab9">' + IC.close + '</button>' + lines +
+    '<button class="__kw_b" id="__kw_opthelp_ok" style="display:block;width:100%;margin:14px 0 0;padding:10px 0;background:#1f6feb;color:#fff;font-size:14px">확인</button></div>';
+  document.body.appendChild(w);
+  const close = () => { try { w.remove(); } catch (e) {} };
+  w.querySelector('#__kw_opthelp_x').onclick = close;
+  w.querySelector('#__kw_opthelp_ok').onclick = close;
+  w.onclick = (e) => { if (e.target === w) close(); };
+}
 function bindPluginOpts(root) {
+  root.querySelectorAll('[data-help]').forEach((b) => {
+    b.onclick = (e) => { e.preventDefault(); const d = pluginOptDef(b.dataset.pid, b.dataset.key) || {}; showOptHelp(d.help); };
+  });
   root.querySelectorAll('.__kw_popt').forEach((c) => {
     c.onchange = () => {
       const def = pluginOptDef(c.dataset.pid, c.dataset.key) || {};
@@ -380,6 +408,7 @@ function bindPluginOpts(root) {
     };
   });
 }
+const OPT_CB = 'margin:0;width:14px;height:14px;accent-color:#00ffa3;flex:none'; // 옵션 창 체크박스: 글자와 세로 가운데 정렬
 const pluginHasOpts = (p) => Array.isArray(p.options) && p.options.length > 0;
 function extOptHtml(p) {
   if (!pluginHasOpts(p)) return '';
@@ -387,13 +416,13 @@ function extOptHtml(p) {
     const v = pluginOptGet(p.id, o.key);
     const at = `data-pid="${escapeHtml(p.id)}" data-key="${escapeHtml(o.key)}"`;
     const lb = escapeHtml(o.label || o.key);
-    if (o.type === 'bool') return `<div><label style="cursor:pointer"><input type="checkbox" class="__kw_popt" ${at} ${v ? 'checked' : ''}> ${lb}</label></div>`;
-    if (o.type === 'number') return `<div>${lb} <input class="__kw_in __kw_popt" type="number" ${at} min="${Number(o.min) || 0}" max="${Number(o.max) || 999}" step="1" style="width:46px;text-align:center;padding:4px 2px" value="${escapeHtml(String(v))}">${o.unit ? ' ' + escapeHtml(o.unit) : ''}</div>`;
+    if (o.type === 'bool') return `<div style="display:flex;align-items:center;gap:6px"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px"><input type="checkbox" class="__kw_popt" ${at} ${v ? 'checked' : ''} style="${OPT_CB}"> ${lb}</label>${o.help ? `<button class="__kw_help" data-help="1" ${at} title="사용 방법" style="width:16px;height:16px;padding:0;border-radius:50%;border:1px solid #8a8a99;background:transparent;color:#ccc;font:bold 11px/14px sans-serif;cursor:pointer;flex:none">?</button>` : ''}</div>`;
+    if (o.type === 'number') return `<div style="display:flex;align-items:center;gap:6px">${lb} <input class="__kw_in __kw_popt" type="number" ${at} min="${Number(o.min) || 0}" max="${Number(o.max) || 999}" step="1" style="width:46px;text-align:center;padding:4px 2px;margin:0" value="${escapeHtml(String(v))}">${o.unit ? '<span>' + escapeHtml(o.unit) + '</span>' : ''}</div>`;
     if (o.type === 'multi') {
       const sel = Array.isArray(v) ? v : [];
       // parent: 같은 확장의 다른 체크 옵션이 켜져 있어야 아래 항목을 고를 수 있다 (꺼져 있으면 흐리게 + 비활성)
       const par = o.parent ? !!pluginOptGet(p.id, o.parent) : true;
-      const box = (c) => `<label style="cursor:${par ? 'pointer' : 'default'};white-space:nowrap"><input type="checkbox" class="__kw_popt_m" ${at} data-val="${escapeHtml(c)}" ${sel.includes(c) ? 'checked' : ''} ${par ? '' : 'disabled'}> ${escapeHtml(c)}</label>`;
+      const box = (c) => `<label style="cursor:${par ? 'pointer' : 'default'};white-space:nowrap;display:inline-flex;align-items:center;gap:5px"><input type="checkbox" class="__kw_popt_m" ${at} data-val="${escapeHtml(c)}" ${sel.includes(c) ? 'checked' : ''} ${par ? '' : 'disabled'} style="${OPT_CB}"> ${escapeHtml(c)}</label>`;
       // groups가 있으면 묶음마다 따로 그리되, 모든 줄이 같은 칸(columns, 기본 4)에 맞춰 정렬된다
       const groups = Array.isArray(o.groups) && o.groups.length ? o.groups : [o.choices || []];
       const cols = Math.max(1, Math.min(6, Number(o.columns) || 4));
