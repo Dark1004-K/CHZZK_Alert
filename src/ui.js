@@ -723,7 +723,7 @@ function renderOptWin() {
     const r = setPanel && setPanel.isConnected && setPanel.style.display !== 'none' ? setPanel.getBoundingClientRect() : null;
     if (r && r.width > 0 && r.right + 330 < window.innerWidth) pos = 'bottom:' + Math.max(8, Math.round(window.innerHeight - r.bottom)) + 'px;left:' + Math.round(r.right + 8) + 'px';
   } catch (e) {}
-  w.style.cssText = 'position:fixed;' + pos + ';z-index:2147483647;width:fit-content;min-width:min(225px,92vw);max-width:96vw;min-height:min(470px,86vh);max-height:86vh;overflow:visible;display:flex;flex-direction:column;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777;opacity:' + ((100 - getTransparency()) / 100);
+  w.style.cssText = 'position:fixed;' + pos + ';z-index:2147483647;width:fit-content;min-width:min(225px,92vw);max-width:96vw;max-height:86vh;overflow:visible;display:flex;flex-direction:column;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px; /* 하단=상단, 우측=좌측 */border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777;opacity:' + ((100 - getTransparency()) / 100);
   try { // 저장된 위치/크기가 있으면 우선 (통일: 좌상 + 이동, 우하 대각 리사이즈)
     const sp = loadOptPos();
     if (sp) {
@@ -736,7 +736,7 @@ function renderOptWin() {
     const ss = loadOptSize();
     if (ss) { w.style.width = Math.min(ss.w, window.innerWidth - 16) + 'px'; w.style.height = Math.min(ss.h, optHMax()) + 'px'; }
   } catch (e) {}
-  w.innerHTML = `<div id="__kw_optwin_mv" class="__kw_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</div><div style="display:flex;align-items:center;flex:none;min-height:26px;padding-right:26px;margin-bottom:8px"><b style="display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button><div id="__kw_optwin_body" style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin">${extOptHtml(p)}</div>`;
+  w.innerHTML = `<div id="__kw_optwin_mv" class="__kw_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</div><div style="display:flex;align-items:center;flex:none;min-height:26px;padding-right:26px;margin-bottom:8px"><b style="display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button><div id="__kw_optwin_body" style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;padding-left:19px">${extOptHtml(p)}</div>`; /* 본문은 타이틀 글자 시작점에 맞춤 */
   if (!old) document.body.appendChild(w);
   try { // 옵션 창 폭이 넓어서 설정 창 오른쪽에 다 들어가지 않으면 화면 가운데로 (저장 위치가 없을 때만)
     if (!loadOptPos()) {
