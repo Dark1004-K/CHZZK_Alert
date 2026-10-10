@@ -645,7 +645,7 @@ function checkUpdate() {
   }
 }
 // 플러그인 옵션 입력칸 (type: bool | number | multi)
-// (?) 도움말: 옵션 정의의 help { title, text } 를 팝업으로 보여준다
+// (?) 도움말: 옵션 정의의 help { title, text } 를 팝업으로 보여준다. 기본: X·바깥 클릭 닫기, 확인 버튼 없음.
 function showOptHelp(h) {
   const old = document.getElementById('__kw_opthelp');
   if (old) old.remove();
@@ -662,13 +662,11 @@ function showOptHelp(h) {
   }).join('');
   w.innerHTML = '<div style="position:relative;width:min(420px,100%);max-height:100%;overflow-y:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px/1.55 sans-serif;padding:14px 16px 16px;border-radius:12px;border:1px solid #777;box-shadow:0 8px 28px rgba(0,0,0,.6);scrollbar-width:thin">' +
     '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;margin-bottom:6px"><b style="font-size:14px">' + escapeHtml(h.title || '도움말') + '</b></div>' +
-    '<button class="__kw_ic __kw_xabs" id="__kw_opthelp_x" title="닫기" style="color:#aaaab9">' + IC.close + '</button>' + lines +
-    '<button class="__kw_b" id="__kw_opthelp_ok" style="display:block;width:100%;margin:14px 0 0;padding:10px 0;background:#1f6feb;color:#fff;font-size:14px">확인</button></div>';
+    '<button class="__kw_ic __kw_xabs" id="__kw_opthelp_x" title="닫기" style="color:#aaaab9">' + IC.close + '</button>' + lines + '</div>';
   document.body.appendChild(w);
   const close = () => { try { w.remove(); } catch (e) {} };
   w.querySelector('#__kw_opthelp_x').onclick = close;
-  w.querySelector('#__kw_opthelp_ok').onclick = close;
-  w.onclick = (e) => { if (e.target === w) close(); };
+  w.onclick = (e) => { if (e.target === w) close(); }; // 도움말 팝업 기본: X·바깥 클릭으로 닫기 (확인 버튼 없음)
 }
 function bindPluginOpts(root) {
   root.querySelectorAll('[data-help]').forEach((b) => {
