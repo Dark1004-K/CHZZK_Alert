@@ -108,18 +108,22 @@
     grp.id = '__kw_bdo_grp';
     grp.style.cssText = GRP_BASE + 'width:100%';
     grpSig = '';
-    const grip = document.createElement('div');
-    grip.id = '__kw_bdo_grip';
-    grip.title = '드래그로 이동 (화면 가장자리·다른 창에 자석처럼 붙음) · 더블클릭: 원래 자리로';
-    grip.style.cssText = 'height:10px;margin:-2px 0 -2px;cursor:grab;position:relative;touch-action:none;flex:none';
-    grip.innerHTML = '<span style="position:absolute;left:50%;top:50%;width:32px;height:3px;margin:-1.5px 0 0 -16px;border-radius:2px;background:rgba(255,255,255,.45)"></span>';
     grpIn = document.createElement('div');
     grpIn.style.cssText = 'display:flex;flex-direction:column;gap:8px';
-    grp.appendChild(grip);
     grp.appendChild(grpIn);
-    grip.onpointerdown = (e) => startGroupDrag(e, grip);
-    grip.ondblclick = () => { saveGpos(null); grpSig = ''; placeGroup(); };
     return grpIn;
+  }
+  // 이동 손잡이: 창 오른쪽 위 X 옆의 "사방 화살표" 아이콘 (크기 조절 막대와는 다른 모양). 다음 우두머리 창에 있고, 그 창이 없으면 쿠폰 창에 둔다.
+  const ICON_MOVE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>';
+  const gripBtn = (color, right) => '<button data-kwgrip="1" title="드래그로 창 묶음 이동 (화면 가장자리·다른 창에 자석처럼 붙음) · 더블클릭: 원래 자리로" style="border:0;background:transparent;color:' + color + ';cursor:grab;padding:5px;border-radius:8px;display:inline-flex;align-items:center;position:absolute;top:2px;right:' + right + 'px;z-index:2;touch-action:none">' + ICON_MOVE + '</button>';
+  function bindGrip(el) { // 창 내용을 다시 그려도 유지되도록 창 자체에 한 번만 단다
+    el.onpointerdown = (e) => {
+      const g = e.target && e.target.closest ? e.target.closest('[data-kwgrip]') : null;
+      if (g) startGroupDrag(e, g);
+    };
+    el.ondblclick = (e) => {
+      if (e.target && e.target.closest && e.target.closest('[data-kwgrip]')) { saveGpos(null); grpSig = ''; placeGroup(); }
+    };
   }
   function cleanupGroup() {
     if (grp && grpIn && !grpIn.children.length) { try { grp.remove(); } catch (e) {} grp = null; grpIn = null; grpSig = ''; }
@@ -178,7 +182,8 @@
     const ox = e.clientX - r.left, oy = e.clientY - r.top;
     const w = Math.round(stack.getBoundingClientRect().width) || Math.round(r.width);
     grpDrag = true;
-    grip.style.cursor = 'grabbing';
+    const prevCur = document.documentElement.style.cursor;
+    document.documentElement.style.cursor = 'grabbing';
     let cur = { x: r.left, y: r.top };
     if (grp.parentNode !== stack) stack.appendChild(grp);
     grp.style.cssText = floatCss(cur.x, cur.y, w); // 제자리에서 그대로 들어올린다
@@ -196,7 +201,7 @@
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
       grpDrag = false;
-      grip.style.cursor = 'grab';
+      document.documentElement.style.cursor = prevCur;
       grp.style.boxShadow = '';
       saveGpos({ x: cur.x, y: cur.y });
       grpSig = '';
@@ -234,7 +239,8 @@
     if (!nextEl || !nextEl.isConnected) {
       nextEl = document.createElement('div');
       nextEl.id = '__kw_bdop';
-      nextEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #3b9eff;position:relative;padding-right:30px';
+      nextEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #3b9eff;position:relative;padding-right:58px';
+      bindGrip(nextEl);
       nextEl.onclick = (e) => { // X 버튼 (내용을 매초 다시 그리므로 창에 한 번만 달아 둔다)
         if (e.target && e.target.closest && e.target.closest('#__kw_bdop_x')) { turnOff('nextBoss'); removeNext(); }
       };
@@ -245,8 +251,8 @@
     const when = new Date(next.t + KST);
     const days = Math.floor((next.t + KST) / DAY) - Math.floor((now + KST) / DAY);
     const dayTxt = days === 0 ? '' : days === 1 ? '내일 ' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + '요일 ';
-    nextEl.innerHTML = '<div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⚔ 다음 우두머리 · <b>' + next.bosses.join(' / ') + '</b></div>' +
-      '<div style="font-size:11px;color:#3b9eff;margin-top:2px">' + dayTxt + next.hhmm + ' · ' + fmtLong(next.t - now) + ' 후</div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:2px;right:3px');
+    nextEl.innerHTML = '<div style="font-size:12px;line-height:1.35;word-break:keep-all">⚔ 다음 우두머리 · <b>' + next.bosses.join(' / ') + '</b></div>' +
+      '<div style="font-size:11px;color:#3b9eff;margin-top:2px">' + dayTxt + next.hhmm + ' · ' + fmtLong(next.t - now) + ' 후</div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:2px;right:3px') + gripBtn('#3b9eff', 29);
   }
 
   let box = null;
@@ -376,13 +382,14 @@
     const fold = cpnFolded();
     const busy = cpnState === 'loading' || now < cpnBusyUntil;
     const flash = now < cpnFlashUntil;
-    const sig = [cpnState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, cpnData ? cpnData.updatedAt : 0, cpnFetchedAt, list.map((c) => c.code).join(',')].join('|');
+    const hasNext = !!(nextEl && nextEl.isConnected);
+    const sig = [hasNext ? 1 : 0, cpnState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, cpnData ? cpnData.updatedAt : 0, cpnFetchedAt, list.map((c) => c.code).join(',')].join('|');
     if (sig === cpnSig && cpnEl && cpnEl.isConnected) return;
     cpnSig = sig;
-    let h = '<div id="__kw_cpn_hd" style="display:flex;align-items:center;justify-content:flex-start;gap:4px;cursor:pointer;min-height:26px;padding-right:58px">' +
+    let h = '<div id="__kw_cpn_hd" style="display:flex;align-items:center;justify-content:flex-start;gap:4px;cursor:pointer;min-height:26px;padding-right:' + (hasNext ? 58 : 84) + 'px">' +
       '<b style="font-size:12px;white-space:nowrap">🎟 쿠폰 모아보기 <span style="color:#b784ff">(' + list.length + ')</span></b>' +
       '<span style="display:inline-flex;align-items:center"><button id="__kw_cpn_rf" class="' + (busy ? '__kw_ic __kw_spin' : '') + '" title="' + (cpnFetchedAt ? '새로고침 (마지막 갱신 ' + pad2(new Date(cpnFetchedAt).getHours()) + ':' + pad2(new Date(cpnFetchedAt).getMinutes()) + ':' + pad2(new Date(cpnFetchedAt).getSeconds()) + ')' : '새로고침') + '" style="border:0;background:transparent;color:#b784ff;cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;position:relative;top:1.5px">' + (busy ? ICON_REFRESH : flash ? (cpnFlashErr ? ICON_FAIL : ICON_DONE) : ICON_REFRESH) + '</button>' +
-      '<span title="' + (fold ? '펼치기' : '접기') + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:#b784ff;position:absolute;top:2px;right:29px;z-index:2"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (fold ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></span></div>' + xBtn('__kw_cpn_x', '#b784ff', 'position:absolute;top:2px;right:3px;z-index:2');
+      '<span title="' + (fold ? '펼치기' : '접기') + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:#b784ff;position:absolute;top:2px;right:29px;z-index:2"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (fold ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></span></div>' + xBtn('__kw_cpn_x', '#b784ff', 'position:absolute;top:2px;right:3px;z-index:2') + (hasNext ? '' : gripBtn('#b784ff', 55));
     if (!fold) {
       h += '<div class="__kw_sb_cpn" style="max-height:190px;overflow-y:auto;margin-top:2px">';
       if (cpnState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">쿠폰 목록을 받지 못했습니다. 새로고침(↻)을 눌러 보세요.</div>';
@@ -432,6 +439,7 @@
       cpnEl = document.createElement('div');
       cpnEl.id = '__kw_cpn';
       cpnEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #b784ff;position:relative';
+      bindGrip(cpnEl);
       cpnSig = '';
     }
     const gin = ensureGroup(stack);
