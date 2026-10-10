@@ -632,8 +632,8 @@
         if (now >= o.t || (!o.test && now < o.t - lead)) continue; // 알림 구간: 출현 N분 전 ~ 출현 시각
         const bosses = Array.isArray(sel) && !o.test ? o.bosses.filter((b) => sel.includes(b)) : o.bosses;
         if (!bosses.length) continue;
-        // 출현 30초 전: 테스트가 아닐 때만 TTS로 한 번 더 알린다 (구독: on('ext:boss30'))
-        if (!o.test && o.t - now <= 30000 && !warned30.has(o.t)) {
+        // 출현 30초 전: 알림을 닫았어도, 몇 분 전 알림 설정과 상관없이 무조건 한 번 더 TTS로 알린다 (구독: on('ext:boss30'))
+        if (o.t - now <= 30000 && !warned30.has(o.t)) {
           warned30.add(o.t);
           try { if (typeof KW.emit === 'function') KW.emit('boss30', { bosses }); } catch (e) {}
         }
@@ -641,10 +641,10 @@
         active.add(o.t);
         if (!items.has(o.t)) {
           addItem(o);
-          if (!o.test && opt('sound', true)) { if (typeof KW.sound === 'function') KW.sound(); else beep(); } // 설정의 알림 소리 사용 (테스트는 무음)
-          // TTS 확장이 켜져 있으면 우두머리 이름을 읽는다 (구독: on('ext:boss')). 테스트는 읽지 않음.
+          if (opt('sound', true)) { if (typeof KW.sound === 'function') KW.sound(); else beep(); } // 설정의 알림 소리 사용
+          // TTS 확장이 켜져 있으면 우두머리 이름을 읽는다 (구독: on('ext:boss'))
           try {
-            if (!o.test && typeof KW.emit === 'function') {
+            if (typeof KW.emit === 'function') {
               const ms = o.t - now;
               KW.emit('boss', { bosses, when: ms >= 60000 ? Math.round(ms / 60000) + '분' : Math.max(1, Math.ceil(ms / 1000)) + '초' });
             }
