@@ -470,13 +470,15 @@
     const m = /^\s*#\s*파티\s+(\S+)([\s\S]*)$/.exec(String(text || ''));
     if (!m) return null;
     let kind = m[1];
+    let lead = ''; // 목록에 없는 종류 말은 "기타"로 넣고 그 말은 내용으로 살린다
+    if (!PARTY_KINDS.includes(kind)) { lead = kind + ' '; kind = '기타'; }
     let rest = m[2];
-    if (!PARTY_KINDS.includes(kind)) { kind = '기타'; rest = ' ' + m[1] + rest; } // 모르는 말은 기타 + 내용으로
-    let mins = PARTY_MAX_MIN;
-    const mm = /^\s*(\d{1,3})\s*분\s*([\s\S]*)$/.exec(rest);
+    let mins = PARTY_MAX_MIN; // 쓴 분(예: 5분)이 모집 시간. 안 쓰면 10분, 10분을 넘게 써도 10분까지
+    const mm = /^\s*(\d{1,4})\s*분\s*([\s\S]*)$/.exec(rest);
     if (mm) { mins = Math.max(1, Math.min(PARTY_MAX_MIN, parseInt(mm[1], 10) || PARTY_MAX_MIN)); rest = mm[2]; }
-    return { kind, mins, content: rest.replace(/\s+/g, ' ').trim().slice(0, 60) };
+    return { kind, mins, content: (lead + rest).replace(/\s+/g, ' ').trim().slice(0, 60) };
   }
+
   function onChat(d) {
     try {
       if (!d || !KW.enabled(ID) || !opt('party', true)) return;
