@@ -207,6 +207,7 @@ const IC = {
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l.9 12.1a1 1 0 0 0 1 .9h7.2a1 1 0 0 0 1-.9L17.5 7M10 11v6M14 11v6"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 3v5h-5"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  move: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>',
   house: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7M6 9.5V20h12V9.5"/></svg>',
@@ -515,7 +516,8 @@ function showReloadPopup(openInstall) {
 function renderSettings() {
   if (!setPanel) return;
   setPanel.innerHTML = `
-    <b style="position:absolute;top:10px;left:12px;font-size:14px;color:#fff">설정</b>
+    <b id="__kw_set_title" title="끌어서 설정 창 이동" style="position:absolute;top:10px;left:12px;font-size:14px;color:#fff;cursor:grab;touch-action:none;user-select:none">설정</b>
+    <button class="__kw_ic __kw_xabs" id="__kw_set_move" title="드래그로 설정 창 이동 (화면 가장자리·다른 창에 자석처럼 붙음) · 더블클릭: 원래 자리로" style="right:29px;color:#aaaab9;cursor:grab;touch-action:none">${IC.move}</button>
     <button class="__kw_ic __kw_xabs" id="__kw_set_close" title="설정 닫기" style="color:#aaaab9">${IC.close}</button>
     <div style="display:flex;gap:14px;height:calc(100% - 28px);margin-top:28px">
       <div class="__kw_tabs">
@@ -588,6 +590,9 @@ function renderSettings() {
       </div>
     </div>`;
 
+  setPanel.querySelector('#__kw_set_move').onpointerdown = startSetDrag;
+  setPanel.querySelector('#__kw_set_title').onpointerdown = startSetDrag;
+  setPanel.querySelector('#__kw_set_move').ondblclick = () => { try { localStorage.removeItem(LS_SETPOS); } catch (e) {} applySetPos(); try { if (document.getElementById('__kw_optwin')) renderOptWin(); } catch (e) {} };
   setPanel.querySelector('#__kw_set_close').onclick = () => { // X = 설정 창 닫기 (⚙ 버튼과 같음)
     setOpen = false;
     try { localStorage.setItem(LS_SET, '0'); } catch (e) {}
@@ -782,9 +787,80 @@ function renderSettings() {
   if (updateGoBtn) updateGoBtn.onclick = () => showReloadPopup(() => window.open(UPDATE_URL, '_blank')); // 확인 팝업 → 확인하면 설치 창
   applySetVisibility();
 }
+// ---------- 설정 창 떼어서 옮기기 + 자석 ----------
+// 설정 창 오른쪽 위의 사방 화살표 아이콘(또는 "설정" 제목)을 끌면 화면 아무 곳으로 옮길 수 있다. 화면 가장자리·다른 창에 14px 안이면 자석처럼 붙고, 아이콘을 더블클릭하면 원래 자리로 돌아온다.
+const LS_SETPOS = '__kw_set_pos';
+const SNAP_TH = 14, SNAP_GAP = 8;
+function loadSetPos() {
+  try { const o = JSON.parse(localStorage.getItem(LS_SETPOS)); if (o && isFinite(o.x) && isFinite(o.y)) return o; } catch (e) {}
+  return null;
+}
+function applySetPos() {
+  if (!setPanel) return;
+  const p = loadSetPos();
+  if (!p) { setPanel.style.position = ''; setPanel.style.left = ''; setPanel.style.top = ''; setPanel.style.bottom = ''; return; }
+  const w = setPanel.offsetWidth || 440, h = setPanel.offsetHeight || 320;
+  setPanel.style.position = 'fixed';
+  setPanel.style.left = Math.max(0, Math.min(window.innerWidth - w, p.x)) + 'px';
+  setPanel.style.top = Math.max(0, Math.min(window.innerHeight - h, p.y)) + 'px';
+  setPanel.style.bottom = 'auto';
+}
+// 화면 가장자리·다른 창 가장자리에 자석처럼 맞춘다 (skipEl 자신은 제외)
+function snapRect(x, y, w, h, skipEl) {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const xs = [0, vw - w], ys = [0, vh - h];
+  ['__kw_panel', '__kw_dropsp', '__kw_histp', '__kw_bdo_grp', '__kw_setp', '__kw_optwin'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el || el === skipEl || (skipEl && skipEl.contains(el))) return;
+    const r = el.getBoundingClientRect();
+    if (r.width < 20 || r.height < 20 || el.style.display === 'none') return;
+    xs.push(r.left, r.right - w, r.right + SNAP_GAP, r.left - SNAP_GAP - w);
+    ys.push(r.top, r.bottom - h, r.bottom + SNAP_GAP, r.top - SNAP_GAP - h);
+  });
+  const best = (v, list) => {
+    let bv = v, bd = SNAP_TH + 1;
+    list.forEach((c) => { const d = Math.abs(c - v); if (d < bd) { bd = d; bv = c; } });
+    return { v: bv, hit: bd <= SNAP_TH };
+  };
+  const bx = best(x, xs), by = best(y, ys);
+  return { x: bx.v, y: by.v, hit: bx.hit || by.hit };
+}
+function startSetDrag(e) {
+  if (!setPanel || (e.button !== undefined && e.button !== 0)) return;
+  e.preventDefault();
+  const r = setPanel.getBoundingClientRect();
+  const ox = e.clientX - r.left, oy = e.clientY - r.top;
+  const w = r.width, h = r.height;
+  const prevCur = document.documentElement.style.cursor;
+  document.documentElement.style.cursor = 'grabbing';
+  let cur = { x: r.left, y: r.top };
+  setPanel.style.position = 'fixed'; // 제자리에서 그대로 들어올린다
+  setPanel.style.left = r.left + 'px'; setPanel.style.top = r.top + 'px'; setPanel.style.bottom = 'auto';
+  const move = (ev) => {
+    const sn = snapRect(ev.clientX - ox, ev.clientY - oy, w, h, setPanel);
+    const x = Math.max(0, Math.min(window.innerWidth - w, sn.x));
+    const y = Math.max(0, Math.min(window.innerHeight - h, sn.y));
+    cur = { x, y };
+    setPanel.style.left = x + 'px'; setPanel.style.top = y + 'px';
+    setPanel.style.boxShadow = sn.hit ? '0 0 0 2px rgba(0,255,163,.7)' : '';
+    try { const ow = document.getElementById('__kw_optwin'); if (ow) renderOptWin(); } catch (err) {} // 옵션 창은 설정 창 옆을 따라감
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+    document.documentElement.style.cursor = prevCur;
+    setPanel.style.boxShadow = '';
+    try { localStorage.setItem(LS_SETPOS, JSON.stringify(cur)); } catch (err) {}
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
+}
 function applySetVisibility() {
   if (!setPanel) return;
   setPanel.style.display = (setOpen && panel && panel.classList.contains('show')) ? 'block' : 'none';
+  applySetPos();
   try { const tb = document.getElementById('__kw_box'); if (tb) placeToastBox(tb); } catch (e) {} // 열려 있는 알람 토스트 위치 갱신
 }
 
