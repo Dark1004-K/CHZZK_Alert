@@ -95,11 +95,14 @@ function kwRsz(el, o) {
     const startX = e.clientX, startY = e.clientY;
     const startW = o.wMode === 'self' && o.getW ? o.getW() : curWidth;
     const startH = o.getH ? o.getH() : 0;
-    let originL = 0, originT = 0;
-    try { const r0 = el.getBoundingClientRect(); originL = Math.round(r0.left); originT = Math.round(r0.top); } catch (e0) {}
+    let originL = 0, originT = 0, rectH = 0;
+    try { const r0 = el.getBoundingClientRect(); originL = Math.round(r0.left); originT = Math.round(r0.top); rectH = Math.round(r0.height); } catch (e0) {}
     // 자석 후보는 시작 때 한 번만 고정: 늘리면서 창들이 움직여도 후보가 흔들리지 않음
     const listW = (dir === 'h' || dir === 'd') ? snapLenList('w', originL, el, startW) : null;
-    const listH = ((dir === 'v' || dir === 'd') && o.setH) ? snapLenList('h', originT, el, startH) : null;
+    const snapBottom = originT + (rectH || startH); // 도크 세로용 고정 아래 모서리
+    const listH = ((dir === 'v' || dir === 'd') && o.setH)
+      ? (o.snapTop ? snapLenListTop(snapBottom, el, startH) : snapLenList('h', originT, el, startH))
+      : null;
     const move = (ev) => {
       let hit = false;
       const guides = [];
@@ -115,7 +118,7 @@ function kwRsz(el, o) {
         const hgt = Math.round(startH + (ev.clientY - startY));
         const sn = snapLenNear(hgt, listH);
         hit = hit || sn.hit;
-        if (sn.hit) guides.push({ axis: 'h', pos: originT + sn.v }); // 늘어나는 아래 모서리선
+        if (sn.hit) guides.push({ axis: 'h', pos: o.snapTop ? snapBottom - sn.v : originT + sn.v }); // 움직이는 모서리선
         o.setH(sn.v);
       }
       el.style.boxShadow = hit ? '0 0 0 2px rgba(0,255,163,.7)' : '';
@@ -163,6 +166,24 @@ function snapLenNear(v, list) {
   let bv = v, bd = RSZ_SNAP + 1;
   (list || []).forEach((c) => { const d = Math.abs(c - v); if (d < bd) { bd = d; bv = c; } });
   return { v: Math.round(bv), hit: bd <= RSZ_SNAP };
+}
+// 도크 상태 세로 늘리기용: 아래 모서리는 고정이라 위 모서리(bottomFixed - h)를 맞춤.
+// 같이 움직이는 위쪽 도크 형제는 제외하고, 고정된 것(화면 위 끝·아래쪽 형제·floating 창)만 후보.
+function snapLenListTop(bottomFixed, skipEl, startH) {
+  const list = [];
+  const push = (c) => { if (isFinite(c) && Math.abs(c - startH) > 1) list.push(c); };
+  push(bottomFixed - 0); // 화면 위 끝
+  try {
+    snapRects(skipEl).forEach((rc) => {
+      push(rc.h); // 같은 높이 (움직여도 값 불변)
+      let fx = false;
+      try { fx = !!rc.el && getComputedStyle(rc.el).position === 'fixed'; } catch (e) {}
+      if (!fx && rc.t < bottomFixed - 1) return; // 위쪽 도크 형제(같이 움직임) 제외
+      push(bottomFixed - rc.t); push(bottomFixed - rc.b);
+      push(bottomFixed - (rc.t - SNAP_GAP)); push(bottomFixed - (rc.b + SNAP_GAP));
+    });
+  } catch (e) {}
+  return list;
 }
 // ---------- 낱개 띄우기 (스택창을 + 배지로 끌어내 fixed로, 위치 저장+자석) ----------
 // load()->{x,y,w}|null, save(p), clear(), dock() (원래 자리 복구), apply(p) (위치 적용)
@@ -299,7 +320,7 @@ function kwFloatKey(el, o) {
 //   dock (더블클릭 복귀 추가동작), onMove/onDrop (드래그 중/후 추가동작) }
 // 가로축: dock 상태면 스택너비 공유(감시중 창을 따름), float 상태면 자기너비.
 // innerHTML 재렌더 대응 멱등: 매 렌더 후 다시 호출해도 위치를 리셋하지 않음.
-// 자석은 snapRects(테두리 기준: 이동=Top·Left, 크기변경=Bottom·Right, 동그라미 제외)를 통한다.
+// 자석은 snapRects(테두리 기준: 이동=Top·Left, 크기변경=움직이는 모서리, 동그라미 제외)를 통한다.
 function kwWindow(el, cfg) {
   if (!el || !cfg) return;
   const color = cfg.color, posKey = cfg.posKey || null;
@@ -315,7 +336,7 @@ function kwWindow(el, cfg) {
         o.setW = cfg.setW || ((v) => { el.style.width = Math.max(225, Math.min(600, Math.round(v))) + 'px'; });
       }
     }
-    if (dir === 'v' || dir === 'd') { o.getH = cfg.getH; o.setH = cfg.setH; }
+    if (dir === 'v' || dir === 'd') { o.getH = cfg.getH; o.setH = cfg.setH; o.snapTop = !floating; } // 도크 세로는 위 모서리 기준
     o.save = () => {
       try { if (cfg.saveH) cfg.saveH(); } catch (e) {}
       if (floating && posKey) saveFloatRect(posKey, el);
@@ -1190,7 +1211,7 @@ function applySetPos() {
 // 자석 대상 창들의 rect 목록 (skipEl 자신은 제외). 이동(snapRect)·늘리기(snapLen) 공용.
 // 우리 창만: id가 __kw_ 로 시작 + 지금 화면에 보이는 것(computed display/visibility)만. 뒷배경(치지직 페이지)은 절대 포함 안 됨.
 // 자석 기준(전창 공통, kwWindow 규격): 1.+원·리사이즈원은 기준 아님. 2.기준은 창 라운드박스 테두리.
-// 3.이동은 창의 Top·Left로. 4.크기변경은 창의 Bottom·Right로. 5.상대창 좌표도 테두리 기준.
+// 3.이동은 창의 Top·Left로. 4.크기변경은 움직이는 모서리로(가로=Right, 세로=floating Bottom·docked Top). 5.상대창 좌표도 테두리 기준.
 function snapRects(skipEl) {
   const out = [];
   const seen = new Set();
@@ -1206,7 +1227,7 @@ function snapRects(skipEl) {
     let r = null;
     try { r = el.getBoundingClientRect(); } catch (e) { return; }
     if (!r || r.width < 20 || r.height < 20) return;
-    out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height });
+    out.push({ el, l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height });
   };
   ['__kw_panel', '__kw_dropsp', '__kw_histp', '__kw_bdop', '__kw_cpn', '__kw_bdo_party', '__kw_setp', '__kw_optwin'].forEach((id) => {
     try { pushEl(document.getElementById(id)); } catch (e) {}
