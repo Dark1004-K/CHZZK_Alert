@@ -4,10 +4,10 @@
 let panel;
 let stackEl = null, histPanel = null, histBox = null, histCount = null;
 let midRowEl = null;
-let curWidth = 246; // 처음 시작은 최소 너비
-try { const wv = parseInt(localStorage.getItem(LS_W), 10); if (wv >= 246 && wv <= 600) curWidth = wv; } catch (e) {}
+let curWidth = 225; // 처음 시작은 최소 너비
+try { const wv = parseInt(localStorage.getItem(LS_W), 10); if (wv >= 225 && wv <= 600) curWidth = wv; } catch (e) {}
 function setStackWidth(w) {
-  curWidth = Math.max(246, Math.min(600, Math.round(w)));
+  curWidth = Math.max(225, Math.min(600, Math.round(w)));
   if (stackEl) stackEl.style.width = curWidth + 'px';
 }
 // 불린 대화 목록 높이: 위쪽 손잡이를 위로 끌면 커진다 (스택이 아래 고정이라). 한계 80px ~ 화면 높이의 85%
@@ -70,7 +70,7 @@ function ensureMidrow() {
 
 // ---------- 통일 핸들 (우하 리사이즈 .__kw_rsz + 좌상 이동 .__kw_mv) ----------
 // dir 'h'=가로만(스택너비 공유) 'v'=세로만 'd'=대각(가로+세로).
-// 떠있는 창(setp/optwin)은 wMode:'self'로 자기 너비를 쓴다 (범위만 246~600으로 감시중 창을 따름).
+// 떠있는 창(setp/optwin)은 wMode:'self'로 자기 너비를 쓴다 (범위만 225~600으로 감시중 창을 따름).
 const RSZ_GLYPH = { h: '↔', v: '↕', d: '⤡' };
 function kwStackW(v) {
   if (v === undefined) return curWidth;
@@ -137,14 +137,14 @@ function snapLenList(axis, origin, skipEl, startV) {
   const push = (c) => { if (isFinite(c) && Math.abs(c - startV) > 1) list.push(c); }; // 제자리 후보 제외 → 시작점 달라붙음 방지
   try {
     if (axis === 'w') {
-      push(window.innerWidth - origin); // 화면 오른쪽 끝까지
+      // 화면 끝 자석 제외: 우리 창끼리만
       snapRects(skipEl).forEach((rc) => {
         push(rc.l - origin); push(rc.r - origin); // 다른 창 모서리에 맞춤
         push(rc.l - SNAP_GAP - origin); push(rc.r + SNAP_GAP - origin); // 간격 두고 맞춤
         push(rc.r - rc.l); // 다른 창과 같은 너비
       });
     } else {
-      push(window.innerHeight - origin); // 화면 아래 끝까지
+      // 화면 끝 자석 제외: 우리 창끼리만
       snapRects(skipEl).forEach((rc) => {
         push(rc.t - origin); push(rc.b - origin);
         push(rc.t - SNAP_GAP - origin); push(rc.b + SNAP_GAP - origin);
@@ -167,7 +167,7 @@ function loadFloatPos(key) {
     if (o && isFinite(o.x) && isFinite(o.y)) {
       return {
         x: Math.round(o.x), y: Math.round(o.y),
-        w: isFinite(o.w) ? Math.max(246, Math.min(600, Math.round(o.w))) : curWidth,
+        w: isFinite(o.w) ? Math.max(225, Math.min(600, Math.round(o.w))) : curWidth,
       };
     }
   } catch (e) {}
@@ -281,7 +281,7 @@ function kwFloatKey(el, o) {
 // cfg: { color(창색, +원·리사이즈원 테두리), posKey(위치 저장키, 없으면 이동 불가),
 //   rsz: null|'h'(가로)|'v'(세로)|'d'(가로+세로),
 //   getH/setH (v/d용 세로값), saveH (세로 저장),
-//   getW/setW (floating 자기너비 직접 지정 시, 생략하면 기본 246~600),
+//   getW/setW (floating 자기너비 직접 지정 시, 생략하면 기본 225~600),
 //   dock (더블클릭 복귀 추가동작), onMove/onDrop (드래그 중/후 추가동작) }
 // 가로축: dock 상태면 스택너비 공유(감시중 창을 따름), float 상태면 자기너비.
 // innerHTML 재렌더 대응 멱등: 매 렌더 후 다시 호출해도 위치를 리셋하지 않음.
@@ -297,7 +297,7 @@ function kwWindow(el, cfg) {
       if (floating) {
         o.wMode = 'self';
         o.getW = cfg.getW || (() => { try { return el.getBoundingClientRect().width; } catch (e) { return curWidth; } });
-        o.setW = cfg.setW || ((v) => { el.style.width = Math.max(246, Math.min(600, Math.round(v))) + 'px'; });
+        o.setW = cfg.setW || ((v) => { el.style.width = Math.max(225, Math.min(600, Math.round(v))) + 'px'; });
       }
     }
     if (dir === 'v' || dir === 'd') { o.getH = cfg.getH; o.setH = cfg.setH; }
@@ -692,7 +692,7 @@ function loadOptSize() {
   try {
     const o = JSON.parse(localStorage.getItem(LS_OPTSIZE));
     if (o && isFinite(o.w) && isFinite(o.h)) {
-      return { w: Math.max(246, Math.min(600, Math.round(o.w))), h: Math.max(OPT_H_MIN, Math.min(4000, Math.round(o.h))) };
+      return { w: Math.max(225, Math.min(600, Math.round(o.w))), h: Math.max(OPT_H_MIN, Math.min(4000, Math.round(o.h))) };
     }
   } catch (e) {}
   return null;
@@ -713,7 +713,7 @@ function renderOptWin() {
     const r = setPanel && setPanel.isConnected && setPanel.style.display !== 'none' ? setPanel.getBoundingClientRect() : null;
     if (r && r.width > 0 && r.right + 330 < window.innerWidth) pos = 'bottom:' + Math.max(8, Math.round(window.innerHeight - r.bottom)) + 'px;left:' + Math.round(r.right + 8) + 'px';
   } catch (e) {}
-  w.style.cssText = 'position:fixed;' + pos + ';z-index:2147483647;width:fit-content;min-width:min(246px,92vw);max-width:96vw;min-height:min(470px,86vh);max-height:86vh;overflow:visible;display:flex;flex-direction:column;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777;opacity:' + ((100 - getTransparency()) / 100);
+  w.style.cssText = 'position:fixed;' + pos + ';z-index:2147483647;width:fit-content;min-width:min(225px,92vw);max-width:96vw;min-height:min(470px,86vh);max-height:86vh;overflow:visible;display:flex;flex-direction:column;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777;opacity:' + ((100 - getTransparency()) / 100);
   try { // 저장된 위치/크기가 있으면 우선 (통일: 좌상 + 이동, 우하 대각 리사이즈)
     const sp = loadOptPos();
     if (sp) {
@@ -753,7 +753,7 @@ function renderOptWin() {
     },
     onDock: () => renderOptWin(),
     getW: () => w.getBoundingClientRect().width || 340,
-    setW: (v) => { w.style.width = Math.max(246, Math.min(600, Math.round(v))) + 'px'; },
+    setW: (v) => { w.style.width = Math.max(225, Math.min(600, Math.round(v))) + 'px'; },
     getH: () => w.getBoundingClientRect().height || 470,
     setH: (v) => { w.style.height = Math.max(OPT_H_MIN, Math.min(optHMax(), v)) + 'px'; },
     saveSize: () => {
@@ -946,7 +946,7 @@ function renderSettings() {
     onMove: () => { try { const ow = document.getElementById('__kw_optwin'); if (ow) renderOptWin(); } catch (err) {} }, // 옵션 창은 설정 창 옆을 따라감
     onDrop: () => { try { const tb = document.getElementById('__kw_box'); if (tb) placeToastBox(tb); } catch (err) {} }, // 열려 있는 알람 토스트가 옮긴 창과 겹치면 위로
     getW: () => setPanel.getBoundingClientRect().width || SET_W_DEF,
-    setW: (v) => { setPanel.style.width = Math.max(246, Math.min(600, Math.round(v))) + 'px'; },
+    setW: (v) => { setPanel.style.width = Math.max(225, Math.min(600, Math.round(v))) + 'px'; },
     getH: () => setPanel.getBoundingClientRect().height || SET_H_DEF,
     setH: (v) => { setPanel.style.height = Math.max(SET_H_MIN, Math.min(setHMax(), v)) + 'px'; },
     saveSize: () => {
@@ -1206,7 +1206,7 @@ function snapRects(skipEl) {
 // 신규 창은 id="__kw_*" 또는 data-kw-float="1"이면 자동으로 자석 대상에 포함된다.
 function snapRect(x, y, w, h, skipEl) {
   const vw = window.innerWidth, vh = window.innerHeight;
-  const xs = [0, vw - w], ys = [0, vh - h];
+  const xs = [], ys = []; // 화면 끝 자석 제외: 우리 창끼리만 (화면 밖으로 나가지 않게 clamp는 유지)
   snapRects(skipEl).forEach((rc) => {
     xs.push(rc.l, rc.r - w, rc.r + SNAP_GAP, rc.l - SNAP_GAP - w);
     ys.push(rc.t, rc.b - h, rc.b + SNAP_GAP, rc.t - SNAP_GAP - h);
@@ -1226,7 +1226,7 @@ function applySetVisibility() {
   applySetPos();
   try { const tb = document.getElementById('__kw_box'); if (tb) placeToastBox(tb); } catch (e) {} // 열려 있는 알람 토스트 위치 갱신
 }
-// ---------- 설정 창 크기 (대각 핸들, 가로는 246~600으로 감시중 창을 따름) ----------
+// ---------- 설정 창 크기 (대각 핸들, 가로는 225~600으로 감시중 창을 따름) ----------
 const LS_SETSIZE = '__kw_set_size';
 const SET_W_DEF = 440, SET_H_DEF = 320, SET_H_MIN = 200;
 const setHMax = () => Math.max(SET_H_MIN, window.innerHeight - 16);
@@ -1235,7 +1235,7 @@ function loadSetSize() {
     const o = JSON.parse(localStorage.getItem(LS_SETSIZE));
     if (o && isFinite(o.w) && isFinite(o.h)) {
       return {
-        w: Math.max(246, Math.min(600, Math.round(o.w))),
+        w: Math.max(225, Math.min(600, Math.round(o.w))),
         h: Math.max(SET_H_MIN, Math.min(4000, Math.round(o.h))),
       };
     }
