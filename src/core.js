@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.4.0-beta016';
+const SCRIPT_VERSION = '3.4.0-beta017';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -323,7 +323,7 @@ function ensureStyle() {
 @keyframes __kwupd{0%,100%{box-shadow:0 8px 28px rgba(0,0,0,.6);border-color:#1f6feb}50%{box-shadow:0 0 22px 8px rgba(31,111,235,.95);border-color:#8bb8ff}}
 #__kw_upd.blink{animation:__kwupd .7s ease-in-out infinite}
 @keyframes __kwpulse{0%{box-shadow:0 0 0 0 rgba(0,255,163,.8)}70%{box-shadow:0 0 0 8px rgba(0,255,163,0)}100%{box-shadow:0 0 0 0 rgba(0,255,163,0)}}
-#__kw_panel{position:fixed;bottom:14px;left:14px;z-index:2147483647;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:2px solid #00ffa3;user-select:none;min-width:250px;max-width:330px;display:none}
+#__kw_panel{position:fixed;bottom:6px;left:6px;z-index:2147483647;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:10px 12px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:2px solid #00ffa3;user-select:none;min-width:250px;max-width:330px;display:none}
 #__kw_panel.show{display:block}
 #__kw_panel.off{border-color:#777}
 #__kw_row{display:flex;align-items:center;gap:8px}
@@ -341,7 +341,7 @@ function ensureStyle() {
 .__kw_lbl{font-size:11px;color:#aaa;margin:8px 0 3px}
 #__kw_box{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:2147483647;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
 .__kw_toast{background:#ffd400;color:#000;font:bold 15px sans-serif;padding:12px 18px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:520px;pointer-events:auto;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#__kw_ask{position:fixed;bottom:14px;left:14px;z-index:2147483647;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:12px 14px;border-radius:12px;border:2px solid #ffd400;box-shadow:0 4px 16px rgba(0,0,0,.5);max-width:320px}
+#__kw_ask{position:fixed;bottom:6px;left:6px;z-index:2147483647;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:12px 14px;border-radius:12px;border:2px solid #ffd400;box-shadow:0 4px 16px rgba(0,0,0,.5);max-width:320px}
 #__kw_ask .__kw_b{margin-top:8px;margin-right:6px}
 #__kw_sel{position:absolute;z-index:2147483647;background:#00ffa3;color:#000;font:bold 12px sans-serif;padding:5px 9px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.5);cursor:pointer;display:none;white-space:nowrap}
 .__kw_hl{outline:3px solid #ffd400 !important;background:rgba(255,212,0,.18) !important;border-radius:4px;transition:background 2.5s ease,outline-color 2.5s ease}
@@ -353,7 +353,7 @@ function ensureStyle() {
 .__kw_hit_kw{color:#ffd400;font-weight:bold}
 .__kw_hit.gone{opacity:.55}
 .__kw_hit_gone{color:#ff7b7b;font-size:11px;margin-left:4px}
-#__kw_stack{position:fixed;bottom:14px;left:14px;z-index:2147483647;display:flex;flex-direction:column;gap:8px;align-items:stretch;width:350px;max-width:calc(100vw - 28px);max-height:calc(100vh - 28px)}
+#__kw_stack{position:fixed;bottom:6px;left:6px;z-index:2147483647;display:flex;flex-direction:column;gap:8px;align-items:stretch;width:350px;max-width:calc(100vw - 12px);max-height:calc(100vh - 12px)}
 #__kw_stack > *{flex:none}
 #__kw_stack > #__kw_histp{flex:0 1 auto;min-height:0}
 #__kw_stack #__kw_panel{position:static;width:100%;box-sizing:border-box;min-width:0;max-width:none} /* static 유지: 리사이즈원은 relative인 #__kw_midrow 기준이라 모서리 위치 동일 */
@@ -389,7 +389,6 @@ function ensureStyle() {
 #__kw_dropsp,#__kw_histp{position:relative}
 #__kw_dropsp .__kw_dr{padding-right:26px;min-height:26px}
 #__kw_dropsp .__kw_dr_s{padding-left:19px} /* 본문(시청 시간)은 타이틀 글자 시작점에 맞춤 */
-#__kw_titlerow{padding-left:19px} /* 상태줄은 채널명 글자 시작점에 맞춤 */
 /* 통일 핸들: 우하 리사이즈 원형(.__kw_rsz h=좌우/v=위아래/d=대각, 라운드와 겹침) + 좌상 이동 원형(.__kw_mv +) */
 .__kw_rsz{position:absolute;right:-6px;bottom:-6px;width:20px;height:20px;box-sizing:border-box;border-radius:50%;background:rgb(20,20,24);border:1.5px solid;display:flex;align-items:center;justify-content:center;font:11px/1 sans-serif;cursor:nwse-resize;z-index:3;user-select:none;touch-action:none;box-shadow:0 2px 6px rgba(0,0,0,.5);padding:0 0 1px}
 .__kw_rsz:hover{filter:brightness(1.4)}
@@ -422,6 +421,11 @@ function ensureStyle() {
 #__kw_set_body::-webkit-scrollbar-thumb{background:rgba(170,170,185,.60);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
 #__kw_set_body::-webkit-scrollbar-thumb:hover{background:rgb(170,170,185);background-clip:padding-box}
 #__kw_set_body::-webkit-scrollbar-corner{background:transparent}
+#__kw_optwin_body::-webkit-scrollbar{width:8px;height:8px}
+#__kw_optwin_body::-webkit-scrollbar-track{background:rgba(170,170,185,.10);border-radius:8px}
+#__kw_optwin_body::-webkit-scrollbar-thumb{background:rgba(170,170,185,.60);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+#__kw_optwin_body::-webkit-scrollbar-thumb:hover{background:rgb(170,170,185);background-clip:padding-box}
+#__kw_optwin_body::-webkit-scrollbar-corner{background:transparent}
 .__kw_sb_pty::-webkit-scrollbar{width:8px;height:8px}
 .__kw_sb_pty::-webkit-scrollbar-track{background:rgba(255,122,89,.10);border-radius:8px}
 .__kw_sb_pty::-webkit-scrollbar-thumb{background:rgba(255,122,89,.60);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
@@ -434,6 +438,7 @@ function ensureStyle() {
 @supports not selector(::-webkit-scrollbar){
   #__kw_hits{scrollbar-width:thin;scrollbar-color:rgba(255,212,0,.7) rgba(255,212,0,.12)}
   #__kw_set_body{scrollbar-width:thin;scrollbar-color:rgba(170,170,185,.7) rgba(170,170,185,.12)}
+  #__kw_optwin_body{scrollbar-width:thin;scrollbar-color:rgba(170,170,185,.7) rgba(170,170,185,.12)}
   .__kw_sb_cpn{scrollbar-width:thin;scrollbar-color:rgba(183,132,255,.7) rgba(183,132,255,.12)}
 }
 `;
