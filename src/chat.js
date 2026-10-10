@@ -231,7 +231,14 @@ function recordHit(nick, text, kw, sig, el) {
   rememberSig(sig);
   rememberHitTime(sig);
   if (!histOn() && !dedupOn()) return;
-  hitLog.unshift({ t: Date.now(), nick: nick || '', text: (text || '').slice(0, 120), kw, sig, el: el || null });
+  const ex = hitLog.findIndex((h) => h.sig === sig);
+  if (ex >= 0) { // 재알림(TTL 만료 후)은 중복 추가 대신 기존 항목 시간 갱신 + 최신으로 이동
+    const h = hitLog.splice(ex, 1)[0];
+    h.t = Date.now(); h.el = el || h.el; h.gone = false;
+    hitLog.unshift(h);
+  } else {
+    hitLog.unshift({ t: Date.now(), nick: nick || '', text: (text || '').slice(0, 120), kw, sig, el: el || null });
+  }
   while (hitLog.length > HITS_MAX) hitLog.pop();
   saveHits();
   renderHitsList();
