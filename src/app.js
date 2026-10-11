@@ -94,7 +94,7 @@ function pluginStateMap() {
 function pluginIsOn(p) {
   if (p.noOwner && isOwner()) return false; // 방장이면 항상 꺼짐 (사용자 선택보다 우선)
   const cp = channelPlugins(); // 현재 채널의 플러그인 구성 (없으면 전역 동작)
-  if (cp && !(p.id in cp)) return false; // 채널 목록에 없으면 미제공
+  if (cp && (!(p.id in cp) || cp[p.id].on === false)) return false; // 채널 미제공·off는 사용 불가
   const m = pluginStateMap();
   if (p.id in m) return !!m[p.id]; // 사용자 선택 우선
   if (cp && cp[p.id] && typeof cp[p.id].on === 'boolean') return !!cp[p.id].on; // 채널 기본값

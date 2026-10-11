@@ -826,10 +826,10 @@ function extListHtml() {
   if (pluginList === null) return '<div class="__kw_lbl">목록을 불러오는 중...</div>';
   if (!pluginList.length) return '<div class="__kw_lbl">등록된 확장이 없습니다</div>';
   companionListen();
-  const list = (() => { // 채널 구성이 있으면 그 목록만 (없으면 전역)
+  const list = (() => { // 채널 구성이 있으면 그 목록만 (없음·off 제외, 없으면 전역)
     try {
       const cp = channelPlugins();
-      if (cp) return pluginList.filter((p) => p && p.id && (p.id in cp));
+      if (cp) return pluginList.filter((p) => p && p.id && (p.id in cp) && cp[p.id].on !== false);
     } catch (e) {}
     return pluginList;
   })();
