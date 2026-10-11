@@ -1,6 +1,6 @@
 {
   "source": "https://www.kr.playblackdesert.com/ko-KR/Adventure?searchType=2&checkSearchText=False&searchKeyword=",
-  "updatedAt": 1791674366411,
+  "updatedAt": 1791680812696,
   "families": [
     {
       "family": "비류라미",
@@ -201,7 +201,184 @@
           "main": false
         }
       ],
-      "fetchedAt": 1791674366411
+      "fetchedAt": 1791680811525
+    },
+    {
+      "family": "미리내ES",
+      "profileTarget": "tbXSK7e39Sb3U3yPi7UDjidAjczsjJQTosPpsmETX%2bnR3tgJemO5B%2bdXeuY6mKJArF5iBOkHfxiBft1atPF5Mi74SY4fbuF8ajaN%2fHOvz0yn2Kk4YhgPgSA30UAnErBF12AgbuLaXbzZ6mmyU0NVmKfsFmahM7RDvhj4OozQkEsm79bgQbUdApMUIVppopyw",
+      "created": "2023.03.25",
+      "guild": null,
+      "characters": [
+        {
+          "name": "하연E",
+          "class": "커세어",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "시오RE",
+          "class": "매구",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "혜인E",
+          "class": "란",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "일리YA",
+          "class": "드라카니아",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "주연이ya",
+          "class": "샤이",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "리나ya",
+          "class": "위치",
+          "level": null,
+          "main": true
+        },
+        {
+          "name": "칼디ya",
+          "class": "자이언트",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "시엔ni",
+          "class": "우사",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "미요ri",
+          "class": "노바",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "아힌E",
+          "class": "스칼라",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "루드RE",
+          "class": "도사",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "유나ri",
+          "class": "매화",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "아리RE",
+          "class": "데드아이",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "루니NE",
+          "class": "샤이",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "시라NE",
+          "class": "레인저",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "시연은연유연",
+          "class": "레인저",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "진혁E",
+          "class": "오공",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "미래NE",
+          "class": "위치",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "진우ya",
+          "class": "아처",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "루리RE",
+          "class": "세라핌",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "서아YA",
+          "class": "레인저",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "우혁E",
+          "class": "위자드",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "주은E",
+          "class": "미스틱",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "유은E",
+          "class": "발키리",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "주하민",
+          "class": "에이전트",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "카이T",
+          "class": "워리어",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "민우ya",
+          "class": "닌자",
+          "level": null,
+          "main": false
+        },
+        {
+          "name": "시린E",
+          "class": "다크나이트",
+          "level": null,
+          "main": false
+        }
+      ],
+      "fetchedAt": 1791680812696
     }
   ]
 }
