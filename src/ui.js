@@ -837,13 +837,13 @@ function extListHtml() {
   return list.map((p) => {
     const blocked = !!(p.noOwner && isOwner()); // 방장은 이 확장을 켤 수 없다
     const note = blocked ? ' <span style="color:#ffd400">(방장은 사용할 수 없음)</span>' : (p.desc ? ` <span style="color:#888">${escapeHtml(p.desc)}</span>` : '');
-    const optBtn = pluginIsOn(p) && pluginHasOpts(p) ? ` <button class="__kw_ic __kw_popen" data-id="${escapeHtml(p.id)}" title="옵션" style="color:#ccc;padding:3px">${IC.sliders}</button>` : '';
+    const optBtn = pluginIsOn(p) && pluginHasOpts(p) ? ` <button class="__kw_ic __kw_popen" data-id="${escapeHtml(p.id)}" title="옵션" style="color:#ccc;padding:3px;float:right">${IC.sliders}</button>` : '';
     // 동반 필요 확장은 브릿지 확인 전에는 켤 수 없음 (이미 켜져 있으면 끌 수만 있음)
     const needComp = !blocked && p.companion;
     const compKnown = needComp && p.companion.ready && __kwCompanions[p.companion.ready];
     const canChange = !needComp || compKnown || pluginIsOn(p);
     const compHtml = needComp ? companionHtml(p) : '';
-    return `<div class="__kw_lbl"><label style="cursor:${blocked || !canChange ? 'default' : 'pointer'}${blocked || !canChange ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" data-companion-need="${needComp ? escapeHtml(p.id) : ''}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked || !canChange ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${note}</div>${needComp ? `<div class="__kw_lbl" data-compw="${escapeHtml(p.id)}" style="margin-top:2px;padding-left:22px">${compHtml}</div>` : ''}`;
+    return `<div class="__kw_lbl"><label style="cursor:${blocked || !canChange ? 'default' : 'pointer'}${blocked || !canChange ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" data-companion-need="${needComp ? escapeHtml(p.id) : ''}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked || !canChange ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${note}</div>${needComp ? `<div class="__kw_lbl" data-compw="${escapeHtml(p.id)}" style="margin-top:2px;text-align:right">${compHtml}</div>` : ''}`;
   }).join('');
 }
 // ---------- 동반 미설치 안내 팝업 (방송 진입 시 1회) ----------
