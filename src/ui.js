@@ -773,7 +773,7 @@ function renderOptWin() {
     const ss = loadOptSize();
     if (ss) { w.style.width = Math.min(ss.w, window.innerWidth - 16) + 'px'; w.style.height = Math.min(ss.h, optHMax()) + 'px'; }
   } catch (e) {}
-  w.innerHTML = `<div id="__kw_optwin_mv" class="__kw_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</div><div style="display:flex;align-items:center;flex:none;min-height:26px;padding-right:26px;margin-bottom:0"><b style="display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>${escapeHtml(pluginDisplayName(p))} 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button><div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:8px -10px"></div>${p.companion ? `<div class="__kw_lbl" style="display:flex;align-items:center;gap:6px;margin-top:0;font-size:12px;color:#ddd;line-height:22px">플러그인 <span id="__kw_optwin_compv">${companionHtml(p, true)}</span><button class="__kw_ic" id="__kw_optwin_compcheck" title="플러그인 다시 확인" style="color:#ccc;padding:3px">${IC.refresh}</button></div>` : ''}<div id="__kw_optwin_body" style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin">${extOptHtml(p)}</div>`;
+  w.innerHTML = `<div id="__kw_optwin_mv" class="__kw_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</div><div style="display:flex;align-items:center;flex:none;min-height:26px;padding-right:26px;margin-bottom:0"><b style="display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>${escapeHtml(pluginDisplayName(p))} 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button><div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:8px -10px"></div>${p.companion ? `<div class="__kw_lbl" style="display:flex;align-items:center;gap:6px;margin-top:0;font-size:12px;color:#ddd;line-height:22px">플러그인 <span id="__kw_optwin_compv" style="margin-left:auto">${companionHtml(p, true)}</span><button class="__kw_ic" id="__kw_optwin_compcheck" title="플러그인 다시 확인" style="color:#ccc;padding:3px">${IC.refresh}</button></div>` : ''}<div id="__kw_optwin_body" style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin">${extOptHtml(p)}</div>`;
   if (!old) document.body.appendChild(w);
   try { // 옵션 창 폭이 넓어서 설정 창 오른쪽에 다 들어가지 않으면 화면 가운데로 (저장 위치가 없을 때만)
     if (!loadOptPos()) {
@@ -961,7 +961,7 @@ function companionHtml(p, noRemove) {
   if (v && (!need || cmpVersions(v, need) >= 0)) {
     const m = pluginMetaOf(p.id);
     const label = (m && m.name) ? m.name + (m.version ? ' v' + m.version : '') : pluginDisplayName(p);
-    return `<span style="color:#888">${escapeHtml(label)} + 브릿지 v${escapeHtml(v)}</span>` + (noRemove ? '' : ` <button class="__kw_ic" data-companion-remove="${escapeHtml(p.id)}" title="브릿지 삭제" style="color:#ff7b7b;padding:3px">${IC.trash}</button>`);
+    return `<span style="color:#888">${escapeHtml(label)} + chzzk_bridge v${escapeHtml(v)}</span>` + (noRemove ? '' : ` <button class="__kw_ic" data-companion-remove="${escapeHtml(p.id)}" title="브릿지 삭제" style="color:#ff7b7b;padding:3px">${IC.trash}</button>`);
   }
   if (v) { const un = (c.ready && __kwCompanionNames[c.ready]) || c.label || '동반 스크립트'; return `<span style="color:#ffd400">${escapeHtml(un)} v${escapeHtml(v)} → v${escapeHtml(need)}</span> <button class="__kw_upbtn" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 업그레이드 (설치 후 새로고침)">브릿지 업그레이드</button>`; }
   companionPing(p);
@@ -1090,7 +1090,7 @@ function bindCompanionInstall(root) {
       b.onclick = () => {
         showOptHelp({
           title: '브릿지 삭제 방법',
-          text: 'CHZZK bridge를 지우려면 아래 순서대로 하세요.\n\n① 브라우저 오른쪽 위 Tampermonkey 아이콘 클릭\n② 대시보드 열기\n③ 목록에서 CHZZK bridge 찾기\n④ 오른쪽 휴지통 클릭 후 삭제 확인\n⑤ 방송 페이지 새로고침(F5)\n\n이렇게 동작해요\n• 지우면 검은사막 확장을 다시 켤 수 없습니다.\n• 먼저 확장을 끄고 지우는 것을 권장합니다.',
+          text: 'chzzk_bridge를 지우려면 아래 순서대로 하세요.\n\n① 브라우저 오른쪽 위 Tampermonkey 아이콘 클릭\n② 대시보드 열기\n③ 목록에서 chzzk_bridge 찾기\n④ 오른쪽 휴지통 클릭 후 삭제 확인\n⑤ 방송 페이지 새로고침(F5)\n\n이렇게 동작해요\n• 지우면 검은사막 확장을 다시 켤 수 없습니다.\n• 먼저 확장을 끄고 지우는 것을 권장합니다.',
         });
       };
     });

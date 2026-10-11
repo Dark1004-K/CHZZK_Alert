@@ -697,7 +697,7 @@
       famQuery = qi ? qi.value : '';
       try { localStorage.setItem(LS_FAMQ, famQuery); } catch (er) {}
       famSig = null;
-      if (!famQuery.trim()) { famResQ = ''; if (live && live.kind === 'fam') { live = null; liveRev++; } removeFamRes(); renderFamily(); return; }
+      if (!famQuery.trim()) { famResQ = ''; liveFam = null; liveFamRev++; removeFamRes(); renderFamily(); return; }
       famResQ = famQuery;
       famResSig = null;
       updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
@@ -711,7 +711,7 @@
     const goGuild = () => {
       guildQuery = gi ? gi.value : '';
       try { localStorage.setItem(LS_GUILDQ, guildQuery); } catch (er) {}
-      if (!guildQuery.trim()) { guildResQ = ''; if (live && live.kind === 'guild') { live = null; liveRev++; } removeGuildRes(); return; }
+      if (!guildQuery.trim()) { guildResQ = ''; liveGuild = null; liveGuildRev++; removeGuildRes(); return; }
       guildResQ = guildQuery;
       guildResSig = null;
       updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
@@ -892,8 +892,8 @@
     }
     return { created, master, members, siege, memberList };
   }
-  let liveRev = 0;
-  let live = null; // { kind:'fam'|'guild', q, phase:'loading'|'ok'|'miss', data }
+  let liveFamRev = 0, liveGuildRev = 0;
+  let liveFam = null, liveGuild = null; // { kind, q, phase:'loading'|'ok'|'miss', data } — 가문·길드 독립 (공유 시 한쪽 검색이 다른 쪽 결과를 덮음)
   const liveCache = {}; // "kind:Q" -> { t, data }
   function liveCached(kind, q) {
     try {
@@ -936,36 +936,41 @@
   function startLive(kind, q) {
     const upd = kind === 'guild' ? updateGuildRes : updateFamRes;
     const ren = kind === 'guild' ? renderGuildRes : renderFamRes;
+    const isGuild = kind === 'guild';
+    const getLive = () => (isGuild ? liveGuild : liveFam);
+    const setLive = (v) => { if (isGuild) liveGuild = v; else liveFam = v; };
+    const bump = () => { if (isGuild) liveGuildRev++; else liveFamRev++; };
     const hit = liveCached(kind, q);
-    if (hit) { live = { kind, q, phase: 'ok', data: hit }; }
+    if (hit) { setLive({ kind, q, phase: 'ok', data: hit }); }
     else {
-      const cur = (live = { kind, q, phase: 'loading', data: null });
-      const run = kind === 'guild' ? searchLiveGuild(q) : searchLiveFam(q);
+      const cur = { kind, q, phase: 'loading', data: null };
+      setLive(cur);
+      const run = isGuild ? searchLiveGuild(q) : searchLiveFam(q);
       run.then((data) => {
-        if (live !== cur) return; // 다른 검색으로 넘어감
+        if (getLive() !== cur) return; // 같은 종류의 다른 검색으로 넘어감
         if (data && !data.miss) {
-          live = { kind, q, phase: 'ok', data };
+          setLive({ kind, q, phase: 'ok', data });
           try { liveCache[kind + ':' + q] = { t: Date.now(), data }; } catch (e) {}
         } else {
-          live = { kind, q, phase: 'miss', data: null };
+          setLive({ kind, q, phase: 'miss', data: null });
         }
-        liveRev++;
-        if (kind === 'guild') guildResSig = null; else famResSig = null;
+        bump();
+        if (isGuild) guildResSig = null; else famResSig = null;
         try { ren(); } catch (e2) {}
       });
     }
-    liveRev++;
+    bump();
     upd(Date.now());
   }
   function renderFamRes() {
     if (!famResEl || !famResEl.isConnected) return;
     const q = famResQ;
-    const lv = (live && live.kind === 'fam' && live.q === q) ? live : null;
+    const lv = (liveFam && liveFam.q === q) ? liveFam : null;
     const bridgeOn = !!(KW.bridgeReady && KW.bridgeReady());
     let f = (lv && lv.phase === 'ok' && lv.data && !lv.data.miss) ? lv.data : null;
     const liveOn = !!f;
     const n = f ? (f.characters || []).length : 0;
-    const sig = ['fam', q, f ? f.family : '', n, lv ? lv.phase : '-', liveRev, bridgeOn ? 'b' : '-'].join('|');
+    const sig = ['fam', q, f ? f.family : '', n, lv ? lv.phase : '-', liveFamRev, bridgeOn ? 'b' : '-'].join('|');
     if (sig === famResSig) return;
     famResSig = sig;
     let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + (f ? esc(f.family) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(q || '검색 결과')) + '</b></div>' +
@@ -973,7 +978,7 @@
       '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' +
       (liveOn ? '<div style="font-size:10px;color:#7dffb3;margin-top:4px">● 실시간 검색 결과</div>' : '') +
       '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
-    if (!bridgeOn) h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px;line-height:1.5">동반 브릿지(CHZZK bridge)가 필요합니다.<br>설치 후 방송 페이지를 새로고침하세요.</div>';
+    if (!bridgeOn) h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px;line-height:1.5">동반 브릿지(chzzk_bridge)가 필요합니다.<br>설치 후 방송 페이지를 새로고침하세요.</div>';
     else if (lv && lv.phase === 'loading') h += '<div style="font-size:11px;color:#aaa;margin-top:6px">실시간 검색 중...</div>';
     else if (f) {
       h += '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#888"><span>가문생성일</span><span>' + esc(f.created || '') + '</span></div>' +
@@ -991,7 +996,7 @@
     const fx = famResEl.querySelector('#__kw_bdo_family_r_x');
     if (fx) fx.onclick = () => {
       famResQ = '';
-      if (live && live.kind === 'fam') { live = null; liveRev++; }
+      liveFam = null; liveFamRev++;
       famQuery = '';
       try { localStorage.setItem(LS_FAMQ, ''); } catch (er) {}
       try {
@@ -1093,12 +1098,12 @@
   function renderGuildRes() {
     if (!guildResEl || !guildResEl.isConnected) return;
     const q = guildResQ;
-    const lv = (live && live.kind === 'guild' && live.q === q) ? live : null;
+    const lv = (liveGuild && liveGuild.q === q) ? liveGuild : null;
     const bridgeOn = !!(KW.bridgeReady && KW.bridgeReady());
     let f = (lv && lv.phase === 'ok' && lv.data && !lv.data.miss) ? lv.data : null;
     const liveOn = !!f;
     const n = f ? (f.memberList || []).length : 0;
-    const sig = ['guild', q, f ? f.guild : '', n, lv ? lv.phase : '-', liveRev, bridgeOn ? 'b' : '-'].join('|');
+    const sig = ['guild', q, f ? f.guild : '', n, f && f.siege ? f.siege : '', lv ? lv.phase : '-', liveGuildRev, bridgeOn ? 'b' : '-'].join('|');
     if (sig === guildResSig) return;
     guildResSig = sig;
     let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_USERS, '#ff7ab8') + (f ? esc(f.guild) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(q || '검색 결과')) + '</b></div>' +
@@ -1106,11 +1111,12 @@
       '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' +
       (liveOn ? '<div style="font-size:10px;color:#7dffb3;margin-top:4px">● 실시간 검색 결과</div>' : '') +
       '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
-    if (!bridgeOn) h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px;line-height:1.5">동반 브릿지(CHZZK bridge)가 필요합니다.<br>설치 후 방송 페이지를 새로고침하세요.</div>';
+    if (!bridgeOn) h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px;line-height:1.5">동반 브릿지(chzzk_bridge)가 필요합니다.<br>설치 후 방송 페이지를 새로고침하세요.</div>';
     else if (lv && lv.phase === 'loading') h += '<div style="font-size:11px;color:#aaa;margin-top:6px">실시간 검색 중...</div>';
     else if (f) {
       h += '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#888"><span>길드생성일</span><span>' + esc(f.created || '') + '</span></div>' +
-        '<div style="margin-top:2px;font-size:11px;color:#ddd">대장 ' + esc(f.master || '?') + (f.members ? ' · ' + f.members + '명' : '') + '</div>';
+        '<div style="margin-top:2px;font-size:11px;color:#ddd">대장 ' + esc(f.master || '?') + (f.members ? ' · ' + f.members + '명' : '') + '</div>' +
+        (f.siege ? '<div style="margin-top:2px;font-size:11px;color:#ddd">점령현황 ' + esc(f.siege) + '</div>' : '');
       (f.memberList || []).forEach((m) => {
         h += '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.12)">' +
           '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(m.family || '?') + '</b>' +
@@ -1123,7 +1129,7 @@
     const gx = guildResEl.querySelector('#__kw_bdo_guild_r_x');
     if (gx) gx.onclick = () => {
       guildResQ = '';
-      if (live && live.kind === 'guild') { live = null; liveRev++; }
+      liveGuild = null; liveGuildRev++;
       guildQuery = '';
       try { localStorage.setItem(LS_GUILDQ, ''); } catch (er) {}
       try {
