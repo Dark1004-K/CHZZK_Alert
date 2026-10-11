@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         bdo-blackdesert
 // @namespace    https://chzzk.naver.com/
-// @version      1.0.0
+// @version      1.0.1
 // @description  검은사막 공식 홈페이지 검색을 GM_xmlhttpRequest로 호출해 CORS 없이 치지직 페이지에 전달합니다. 본체(CHZZK 채팅 호출 알림)의 동반 스크립트입니다.
 // @author       DarkAngel
 // @license      Proprietary - All rights reserved
@@ -24,8 +24,20 @@
 // 파서 정본: scripts/crawl-adventurers.js, scripts/crawl-guilds.js (이 파일과 동기화 유지)
 (function () {
   'use strict';
-  const VERSION = '1.0.0';
-  const BASE = 'https://www.kr.playblackdesert.com';
+  const VERSION = '1.0.1';
+  // 호출 측(플러그인)이 params.base 로 대상 사이트를 지정할 수 있다.
+  // 반드시 아래 허용 목록 안에 있어야 하며, 새 사이트 추가時は @connect 도 함께 추가해야 한다.
+  const ALLOWED_BASES = [
+    'https://www.kr.playblackdesert.com',
+  ];
+  const DEFAULT_BASE = ALLOWED_BASES[0];
+  function pickBase(req) {
+    try {
+      const b = String(req || '').replace(/\/+$/, '');
+      if (ALLOWED_BASES.includes(b)) return b;
+    } catch (e) {}
+    return DEFAULT_BASE;
+  }
   const TIMEOUT = 15000;
 
   const decode = (s) => String(s)
@@ -159,37 +171,38 @@
   }
 
   const api = {
-    async famSearch(keyword) {
-      const html = await guarded(BASE + '/ko-KR/Adventure?searchType=2&checkSearchText=False&searchKeyword=' + encodeURIComponent(keyword));
+    async famSearch(base, keyword) {
+      const html = await guarded(base + '/ko-KR/Adventure?searchType=2&checkSearchText=False&searchKeyword=' + encodeURIComponent(keyword));
       return adventurerRows(html).filter((r) => r.family === keyword);
     },
-    async charSearch(keyword) {
-      const html = await guarded(BASE + '/ko-KR/Adventure?searchType=1&checkSearchText=False&searchKeyword=' + encodeURIComponent(keyword));
+    async charSearch(base, keyword) {
+      const html = await guarded(base + '/ko-KR/Adventure?searchType=1&checkSearchText=False&searchKeyword=' + encodeURIComponent(keyword));
       return adventurerRows(html);
     },
-    async famProfile(target) {
-      const html = await guarded(BASE + '/Adventure/Profile?profileTarget=' + target);
+    async famProfile(base, target) {
+      const html = await guarded(base + '/Adventure/Profile?profileTarget=' + target);
       return parseFamilyProfile(html);
     },
-    async guildSearch(keyword, page) {
-      const html = await guarded(BASE + '/ko-KR/Adventure/Guild?searchText=' + encodeURIComponent(keyword) + '&page=' + (page || 1));
+    async guildSearch(base, keyword, page) {
+      const html = await guarded(base + '/ko-KR/Adventure/Guild?searchText=' + encodeURIComponent(keyword) + '&page=' + (page || 1));
       return guildRows(html).filter((r) => r.guild && r.guild.includes(keyword));
     },
-    async guildProfile(guildName) {
+    async guildProfile(base, guildName) {
       const params = 'guildName=' + encodeURIComponent(guildName) + '&region=KR';
-      const html = await guarded(BASE + '/Adventure/Guild/GuildProfile?' + params);
+      const html = await guarded(base + '/Adventure/Guild/GuildProfile?' + params);
       return parseGuildProfile(html);
     },
   };
 
   async function handle(kind, params) {
     params = params || {};
+    const base = pickBase(params.base);
     switch (kind) {
-      case 'famSearch': return api.famSearch(params.keyword || '');
-      case 'charSearch': return api.charSearch(params.keyword || '');
-      case 'famProfile': return api.famProfile(params.target || '');
-      case 'guildSearch': return api.guildSearch(params.keyword || '', params.page || 1);
-      case 'guildProfile': return api.guildProfile(params.guildName || '');
+      case 'famSearch': return api.famSearch(base, params.keyword || '');
+      case 'charSearch': return api.charSearch(base, params.keyword || '');
+      case 'famProfile': return api.famProfile(base, params.target || '');
+      case 'guildSearch': return api.guildSearch(base, params.keyword || '', params.page || 1);
+      case 'guildProfile': return api.guildProfile(base, params.guildName || '');
       default: throw { error: 'unknown kind: ' + kind };
     }
   }
@@ -221,13 +234,13 @@
   function readyDetail() { return { version: VERSION, name: scriptName() }; }
   document.addEventListener('bdo-search-ping', () => emit('bdo-search-ready', readyDetail()));
 
-  // 콘솔 테스트용 직접 호출
+  // 콘솔 테스트용 직접 호출 (base 생략 시 기본 사이트)
   const bdoSearch = {
     version: VERSION,
-    searchAdventurer: (keyword, searchType) => api[searchType === 1 ? 'charSearch' : 'famSearch'](keyword),
-    searchGuild: (keyword, page) => api.guildSearch(keyword, page),
-    getFamily: (target) => api.famProfile(target),
-    getGuild: (guildName) => api.guildProfile(guildName),
+    searchAdventurer: (keyword, searchType, base) => api[searchType === 1 ? 'charSearch' : 'famSearch'](base || DEFAULT_BASE, keyword),
+    searchGuild: (keyword, page, base) => api.guildSearch(base || DEFAULT_BASE, keyword, page),
+    getFamily: (target, base) => api.famProfile(base || DEFAULT_BASE, target),
+    getGuild: (guildName, base) => api.guildProfile(base || DEFAULT_BASE, guildName),
   };
   try { window.bdoSearch = bdoSearch; } catch (e) {}
   emit('bdo-search-ready', readyDetail());
