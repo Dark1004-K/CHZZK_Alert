@@ -21,7 +21,7 @@
 //     - 응답: 'bdo-search-res' { id, ok, data?, error?, maintenance? }
 //  3. 준비 신호: 'bdo-search-ready' { version, name }. 본체가 'bdo-search-ping'을 보내면 다시 응답.
 //  4. 콘솔 테스트: window.bdoSearch.searchGuild('미리내') 등.
-// 파서 정본: scripts/crawl-adventurers.js, scripts/crawl-guilds.js (이 파일과 동기화 유지)
+// 파싱은 호출 측(플러그인 blackdesert.js)이 담당. 브릿지는 fetch 전용.
 (function () {
   'use strict';
   const VERSION = '1.1.1';
@@ -86,7 +86,7 @@
     return html;
   }
 
-  // --- 가문/캐릭터 검색 행 (정확히 일치 + 목록). 파서 정본: scripts/crawl-adventurers.js
+  // --- 가문/캐릭터 검색 행 (정확히 일치 + 목록). 파싱은 플러그인이 담당
   function adventurerRows(html) {
     const out = [];
     const re = /<a href="([^"]*?Profile\?profileTarget=([^"&]+))"[^>]*>([^<]+)<\/a>/g;
@@ -97,7 +97,7 @@
     return out;
   }
 
-  // --- 가문 프로필. 파서 정본: scripts/crawl-adventurers.js
+  // --- 가문 프로필. 파싱은 플러그인이 담당
   function lineList(html, title) {
     const re = new RegExp('<span class="title">' + title + '<\\/span>([\\s\\S]*?)<\\/li>');
     const m = re.exec(html);
@@ -126,7 +126,7 @@
     return { created, guild, characters };
   }
 
-  // --- 길드 검색 행. 파서 정본: scripts/crawl-guilds.js
+  // --- 길드 검색 행. 파싱은 플러그인이 담당
   function guildRows(html) {
     const out = [];
     const liRe = /<li>([\s\S]*?)<\/li>/g;
@@ -143,7 +143,7 @@
     return out;
   }
 
-  // --- 길드 프로필. 파서 정본: scripts/crawl-guilds.js
+  // --- 길드 프로필. 파싱은 플러그인이 담당
   function parseGuildProfile(html) {
     const created = lineList(html, '길드생성일');
     let master = null;

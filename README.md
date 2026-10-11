@@ -288,7 +288,7 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
   * 보라색 **"쿠폰 모아보기" 창**: 검은사막 공식 "[GM노트] 쿠폰 모두 모아보기" 글의 쿠폰(이름, 코드, 보상, 유효 기간)을 보여줍니다. 쿠폰 이름, 코드, **만료일**만 보여주고, 코드 옆 **복사 아이콘**을 누르면 복사됩니다. 기간이 지난 쿠폰은 자동으로 숨깁니다.
     * 앱이 켜질 때 한 번 불러오고, **1시간마다 자동으로** 다시 불러옵니다. 창의 **새로고침(↻)** 으로 바로 불러올 수도 있습니다. ▾/▸ 로 접고 펼 수 있습니다.
     * 검은사막 사이트는 치지직 페이지에서 직접 읽을 수 없어서, 저장소의 `coupons.json`을 불러옵니다. 이 파일은 `scripts/crawl-coupons.js`가 해당 글을 읽어 갱신합니다(GitHub Actions가 1시간마다 실행, 부록 D 참고). 그래서 새 쿠폰이 반영되기까지 시간이 걸릴 수 있습니다.
-  * 분홍색 **"가문검색" 창**: 입력칸에 가문명·길드명을 쓰고 검색하면 오른쪽 별도 창에 목록이 나옵니다. 가문: 캐릭터 목록(이름 · 직업 · 레벨), 길드: 길드원 목록(가문명 · 직위). 레벨 비공개 캐릭터는 `비공개`로 표시됩니다. 미리 등록된 가문·길드만 나오고(`data/adventure-targets.json`, `data/guild-targets.json`), 저장소의 `adventurers.json`·`guilds.json`을 1시간마다 받아옵니다. 없는 경우 GitHub Issues로 등록 요청하세요.
+  * 분홍색 **"가문검색" 창**: 입력칸에 가문명·길드명을 쓰고 검색하면 오른쪽 별도 창에 목록이 나옵니다. 가문: 캐릭터 목록(이름 · 직업 · 레벨), 길드: 길드원 목록(가문명 · 직위). 동반 브릿지(CHZZK bridge, 실시간 검색용)를 설치해야 동작합니다. 브릿지가 없으면 결과창에 안내가 나옵니다.
   * 시간표는 게임 공식 위키(<https://www.kr.playblackdesert.com/ko-kr/Wiki?wikiNo=167>)의 이미지를 보고 옮겨 적은 값이고, 저장소의 `bosses.json`에서 **6시간마다** 받아옵니다(받지 못하면 코드에 들어 있는 기본값 사용). 그래서 시간표가 바뀌어도 앱 업데이트 없이 파일만 고치면 반영됩니다.
     위키의 시간표는 글자가 아니라 이미지라서 자동으로 읽을 수 없습니다. 대신 **매주 수요일 18:00(한국시간)** 에 GitHub이 이미지가 바뀌었는지 확인하고, 바뀌었으면 새 이미지를 저장한 뒤 Issue로 알려 줍니다. 그러면 이미지를 보고 `bosses.json`을 고칩니다.
 * 사용자 스크립트 허용(1단계 2번)이 꺼져 있으면 확장은 동작하지 않습니다.
@@ -439,13 +439,13 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
 
 ## 부록 E. 실시간 검색 동반 스크립트 (검은사막 가문·길드)
 
-* `bdo-search.user.js`를 Tampermonkey에 **추가로 설치**하면 검은사막 공식 홈페이지 검색을 브라우저에서 직접 호출합니다.
+* `chzzk_bridge.user.js`를 Tampermonkey에 **추가로 설치**하면 검은사막 공식 홈페이지 검색을 브라우저에서 직접 호출합니다.
   👉 [동반 스크립트 설치 링크](https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/chzzk_bridge.user.js)
   👉 베타 사용자는 [동반 베타 설치 링크](https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_bridge.beta.user.js)를 쓰세요.
 * 본체(`@grant none`)는 CORS 때문에 검은사막 사이트를 직접 읽지 못해서, 권한(`GM_xmlhttpRequest`)이 있는 이 동반 스크립트가 대신 읽어다 줍니다. 본체 호출 알림에는 영향이 없습니다.
-* 지원하는 검색: 가문명·캐릭터명·가문 프로필·길드명·길드 프로필 + 범용 `fetch`(허용 목록 내 URL). 파싱은 호출 측(플러그인)이 담당. 점검 중이면 `maintenance`로 응답합니다.
+* 지원하는 검색: 가문명·캐릭터명·가문 프로필·길드명·길드 프로필 + 범용 `fetch`(허용 목록 내 URL). HTML 읽고 보여주는 규칙(파싱)은 검은사막 플러그인이 가지고 있고, 브릿지는 읽기만 대신합니다. 점검 중이면 `maintenance`로 응답합니다.
 * 콘솔에서 바로 테스트할 수 있습니다: `window.bdoSearch.searchGuild("미리내")`
-* 파서(HTML 읽기 규칙)는 `scripts/crawl-adventurers.js`·`scripts/crawl-guilds.js`와 동일합니다. 사이트 구조가 바뀌면 양쪽을 함께 고쳐야 합니다.
+* 파싱 규칙이 바뀌면 검은사막 플러그인(`plugins/blackdesert.js`)만 고치면 됩니다. 브릿지는 `fetch`로 읽기만 대신합니다.
 * 역할 분담 (원칙):
   1. 우두머리 시간표·쿠폰 등 주기가 넓은 데이터 수집은 GitHub Actions.
   2. 브릿지는 실시간 검색에만 사용.
