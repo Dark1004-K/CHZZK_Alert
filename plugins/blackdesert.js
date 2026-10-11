@@ -707,7 +707,7 @@
     if (!famEl || !famEl.isConnected) {
       famEl = document.createElement('div');
       famEl.id = '__kw_bdo_family';
-      famEl.style.cssText = 'position:relative;width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible';
+      famEl.style.cssText = 'position:relative;width:fit-content;max-width:100%;align-self:flex-start;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;min-width:225px';
       famSig = null;
       stack.appendChild(famEl);
     }
