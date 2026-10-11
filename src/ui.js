@@ -1263,7 +1263,7 @@ function renderSettings() {
           <div class="__kw_lbl">프로그램</div>
           <div><b>CHZZK Alert</b></div>
           <!-- [BETA-TEST-ONLY:start] -->
-          <div style="margin-top:4px"><button class="__kw_b" id="__kw_t_drops" style="background:#ff9f1a;color:#000">드롭스 테스트</button> <button class="__kw_b" id="__kw_t_boss" style="background:#ff9f1a;color:#000">보스 테스트</button> <button class="__kw_b" id="__kw_t_coupon" style="background:#ff9f1a;color:#000">쿠폰 테스트</button></div>
+          <div style="margin-top:4px"><button class="__kw_b" id="__kw_t_drops" style="background:#ff9f1a;color:#000">드롭스 테스트</button> <button class="__kw_b" id="__kw_t_boss" style="background:#ff9f1a;color:#000">보스 테스트</button> <button class="__kw_b" id="__kw_t_coupon" style="background:#ff9f1a;color:#000">쿠폰 테스트</button> <button class="__kw_b" id="__kw_t_market" style="background:#ff9f1a;color:#000">거래소 테스트</button></div>
           <div id="__kw_t_msg" class="__kw_lbl"></div>
           <!-- [BETA-TEST-ONLY:end] -->
           <div style="display:flex;align-items:flex-start;gap:5px;margin-top:8px;line-height:18px"><span class="__kw_lbl" style="margin:0;width:5em;flex:none;line-height:18px">제작자</span><b>비류라미</b></div>
@@ -1494,6 +1494,10 @@ function renderSettings() {
   const tCoupon = setPanel.querySelector('#__kw_t_coupon');
   if (tCoupon) tCoupon.onclick = () => {
     tSay(typeof window.__kwBdoCouponTest === 'function' ? window.__kwBdoCouponTest() : '검은사막 확장이 켜져 있어야 합니다 (설정 > 확장)');
+  };
+  const tMarket = setPanel.querySelector('#__kw_t_market');
+  if (tMarket) tMarket.onclick = () => {
+    tSay(typeof window.__kwBdoMarketTest === 'function' ? window.__kwBdoMarketTest() : '검은사막 확장이 켜져 있어야 합니다 (설정 > 확장)');
   };
   // [BETA-TEST-ONLY:end]
   const updateCheckBtn = setPanel.querySelector('#__kw_update_check');

@@ -1093,16 +1093,20 @@
     }
     return out;
   }
-  function parseCodexDetail(html) { // bdocodex 상세: 스탯·특성·설명·효과 (ID·구입/판매/수리비 제외)
+  function parseCodexDetail(html) { // bdocodex 상세: 스탯·특성·설명·효과 (ID·구입/판매/수리비·강화 시뮬레이터 제외)
     html = String(html || '');
     const card = html.split('<div class="addon_info')[0];
     let icon = '';
     const im = /<td class="icon_cell"><img src="([^"]+)"/.exec(card);
     if (im) icon = im[1].charAt(0) === '/' ? CODEX_BASE + im[1] : im[1];
+    let eng = '';
+    const em = /영어 이름:\s*<span[^>]*><b>([^<]+)<\/b>/.exec(card);
+    if (em) eng = decHtml(em[1]);
     const stats = [];
     const tm = /<td class="titles_cell">([\s\S]*?)<\/td>/.exec(card);
     if (tm) {
-      const t = tm[1].replace(/<span class="hide_me">/g, '').replace(/<\/span>/g, '');
+      let t = tm[1];
+      for (let k = 0; k < 5 && /<span class=" ?hide_me">/.test(t); k++) t = t.replace(/<span class=" ?hide_me">[\s\S]*?<\/span>/, ''); // 숨김 스탯(0 표시)은 제외
       t.split(/<br\s*\/?>/).forEach((ln) => { const s = decHtml(ln); if (s) stats.push(s); });
     }
     const flags = [];
@@ -1110,10 +1114,14 @@
     const effects = [];
     let bodyHtml = ''; // 본문 td (장비 페이지는 <tr>이 중첩되어 있어 가격 블록이 있는 쪽을 고름)
     try {
+      let work = card;
+      work = work.replace(/<div id="enchant_item_block"[\s\S]*?<\/div>/, ''); // 강화 재료 줄
+      work = work.replace(/<div id="pe_block"[\s\S]*?<div id="cron_stones"[\s\S]*?<\/div>\s*<\/div>/, ''); // 퍼펙트·크론석 시뮬레이터
+      work = work.replace(/일반 강화:/, ''); // 시뮬레이터 제목 잔재
       const bodies = [];
       const bre = /<tr><td colspan="2">([\s\S]*?)<\/td><\/tr>/g;
       let bmx;
-      while ((bmx = bre.exec(card))) bodies.push(bmx[1]);
+      while ((bmx = bre.exec(work))) bodies.push(bmx[1]);
       for (const b of bodies) { if (/가격을 구입/.test(b)) { bodyHtml = b; break; } }
       if (!bodyHtml && bodies.length) bodyHtml = bodies[bodies.length - 1];
     } catch (e) {}
@@ -1135,7 +1143,7 @@
         sg.split(/<br\s*\/?>/).forEach((ln) => { const s = decHtml(ln); if (s) flags.push(s); });
       }
     }
-    return { icon, stats, flags, desc, effects };
+    return { icon, eng, stats, flags, desc, effects };
   }
   const selCache = {}; // [itemId] -> { t, data } 상세 캐시
   function fetchCodexDetail(id) {
@@ -1253,7 +1261,8 @@
     let h = '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
       (icon ? '<img loading="lazy" src="' + esc(icon) + '" width="34" height="34" style="flex:none;border-radius:8px;background:rgba(255,255,255,.06)" onerror="__kwNoImg(this)">' : '') +
       '<b style="font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + gc + '">' + esc(nm) + '</b>' +
-      '<button class="__kw_ic" data-ext-open="' + esc(href) + '" title="bdocodex 페이지 열기" style="color:#00ffa3;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button></div>';
+      '<button class="__kw_ic" data-ext-open="' + esc(href) + '" title="bdocodex 페이지 열기" style="color:#00ffa3;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button></div>' +
+      ((d.eng) ? '<div style="font-size:11px;color:#888;margin-top:2px">영어 이름: ' + esc(d.eng) + '</div>' : '');
     (d.stats || []).forEach((s, i) => {
       h += '<div style="font-size:11px;margin-top:2px;color:' + (i === 0 ? '#fff;font-weight:bold' : '#888') + '">' + esc(s) + '</div>';
     });
@@ -1473,6 +1482,58 @@
 
   // (구 종류별 결과창 3개는 단일 결과창 renderRes/updateRes로 통합됨)
 
+  // [BETA-TEST-ONLY:start]
+  // 거래소 연동 시험 (베타 전용 — 떼려면 이 블록 삭제): 로그인 팝업 → 토큰 추출 → 시세 조회
+  const TRADE_BASE = 'https://trade.kr.playblackdesert.com';
+  function marketCall(kind, params) {
+    const p = Object.assign({ base: TRADE_BASE }, params || {});
+    try {
+      const r = KW.bridge(kind, p, 15000);
+      if (r && typeof r.then === 'function') return r.catch(() => ({ ok: false, error: 'exception' }));
+    } catch (e) {}
+    return Promise.resolve({ ok: false, error: '호출 실패' });
+  }
+  function marketFindToken(html) {
+    const m = /name="__RequestVerificationToken"[^>]*value="([^"]+)"/.exec(String(html || ''));
+    return m ? m[1] : null;
+  }
+  function marketTestPoll(key, left) {
+    const pages = [TRADE_BASE + '/', TRADE_BASE + '/Home/list'];
+    const step = (async () => {
+      try {
+        for (const u of pages) {
+          const r = await marketCall('fetch', { url: u });
+          const t = (r && r.ok && r.data && r.data.html) ? marketFindToken(r.data.html) : null;
+          if (t) {
+            const body = '__RequestVerificationToken=' + encodeURIComponent(t) + '&mainKey=' + encodeURIComponent(key) + '&usingCleint=0';
+            const pr = await marketCall('postForm', { url: TRADE_BASE + '/Home/GetWorldMarketSubList', body });
+            const txt = (pr && pr.ok && pr.data) ? String(pr.data.text || '') : '';
+            let summary = '토큰 찾음. 응답 ' + txt.length + '자';
+            try {
+              const j = JSON.parse(txt);
+              summary += ' / resultCode=' + j.resultCode + ' ' + (j.resultMsg || '');
+              if (Number(j.resultCode) === 0) summary += ' 성공!';
+            } catch (e) { summary += ' (JSON 아님: ' + txt.slice(0, 80) + ')'; }
+            try { if (typeof KW.toast === 'function') KW.toast('거래소 테스트', summary); } catch (e) {}
+            try { window.__kwBdoMarketLast = { key, response: txt.slice(0, 2000) }; } catch (e) {}
+            return;
+          }
+        }
+        if (left > 0) setTimeout(() => marketTestPoll(key, left - 1), 3000);
+        else { try { if (typeof KW.toast === 'function') KW.toast('거래소 테스트', '토큰을 못 찾았습니다. 로그인 상태를 확인하세요.'); } catch (e) {} }
+      } catch (e) {}
+    })();
+    return step;
+  }
+  if (KW.beta) { // 정식 앱에서는 테스트 후크를 만들지 않는다
+    window.__kwBdoMarketTest = (mainKey) => {
+      const key = String(mainKey || '4998');
+      try { window.open(TRADE_BASE + '/', '_blank'); } catch (e) {}
+      marketTestPoll(key, 30);
+      return '거래소 로그인 창을 열었습니다. 로그인 후 자동으로 조회합니다.';
+    };
+  }
+  // [BETA-TEST-ONLY:end]
   function tick() {
     try {
       if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); removeRes(); return; }

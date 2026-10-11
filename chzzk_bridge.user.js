@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         chzzk_bridge
 // @namespace    https://chzzk.naver.com/
-// @version      1.1.5
+// @version      1.1.6
 // @description  검은사막 공식 홈페이지 검색을 GM_xmlhttpRequest로 호출해 CORS 없이 치지직 페이지에 전달합니다. 본체(CHZZK 채팅 호출 알림)의 동반 스크립트입니다.
 // @author       DarkAngel
 // @license      Proprietary - All rights reserved
@@ -9,6 +9,7 @@
 // @grant        GM_xmlhttpRequest
 // @connect      www.kr.playblackdesert.com
 // @connect      bdocodex.com
+// @connect      trade.kr.playblackdesert.com
 // @run-at       document-idle
 // @downloadURL  https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/chzzk_bridge.user.js
 // @updateURL    https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/chzzk_bridge.user.js
@@ -25,12 +26,13 @@
 // 파싱은 호출 측(플러그인 blackdesert.js)이 담당. 브릿지는 fetch 전용.
 (function () {
   'use strict';
-  const VERSION = '1.1.5';
+  const VERSION = '1.1.6';
   // 호출 측(플러그인)이 params.base 로 대상 사이트를 지정할 수 있다.
   // 반드시 아래 허용 목록 안에 있어야 하며, 새 사이트 추가時は @connect 도 함께 추가해야 한다.
   const ALLOWED_BASES = [
     'https://www.kr.playblackdesert.com',
     'https://bdocodex.com', // 아이템 검색
+    'https://trade.kr.playblackdesert.com', // 거래소 시험 (베타 전용)
   ];
   const DEFAULT_BASE = ALLOWED_BASES[0];
   function pickBase(req) {
@@ -51,6 +53,25 @@
     .replace(/\s+/g, ' ')
     .trim();
 
+  function postForm(url, body) { // 거래소용 urlencoded POST (호출 측이 파싱 담당)
+    return new Promise((resolve, reject) => {
+      try {
+        GM_xmlhttpRequest({
+          method: 'POST',
+          url,
+          data: body,
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+          timeout: TIMEOUT,
+          onload: (res) => {
+            if (res.status === 200) return resolve(res.responseText);
+            reject({ maintenance: res.status === 503 || res.status >= 500, error: 'HTTP ' + res.status });
+          },
+          onerror: () => reject({ error: 'network' }),
+          ontimeout: () => reject({ error: 'timeout' }),
+        });
+      } catch (e) { reject({ error: String((e && e.message) || e) }); }
+    });
+  }
   function xhr(url) {
     return new Promise((resolve, reject) => {
       try {
@@ -206,6 +227,12 @@
         const url = String(params.url || '');
         if (!url.startsWith(base + '/')) throw { error: 'not allowed' };
         return { html: await guarded(url) };
+      }
+      // 거래소용 urlencoded POST. 파싱은 호출 측이 담당.
+      case 'postForm': {
+        const url = String(params.url || '');
+        if (!url.startsWith(base + '/')) throw { error: 'not allowed' };
+        return { text: await postForm(url, String(params.body || '')) };
       }
       // 아래 구 종류는 구버전 플러그인 호환용 (신규는 fetch 사용)
       case 'famSearch': return api.famSearch(base, params.keyword || '');
