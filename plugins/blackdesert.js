@@ -1062,7 +1062,21 @@
     else {
       const cur = { kind, q, phase: 'loading', data: null };
       setLive(cur);
-      const run = isGuild ? searchLiveGuild(q) : isItem ? searchLiveItem(q) : searchLiveFam(q);
+      // 안전망: 20초 안에 응답이 없으면 miss로 확정 (무한 로딩 방지)
+      try {
+        setTimeout(() => {
+          try {
+            if (getLive() !== cur) return;
+            setLive({ kind, q, phase: 'miss', data: { miss: true, timeout: true } });
+            bump(); resSig = null; renderRes();
+          } catch (e) {}
+        }, 20000);
+      } catch (e) {}
+      let run = null;
+      try { run = isGuild ? searchLiveGuild(q) : isItem ? searchLiveItem(q) : searchLiveFam(q); } catch (e) { run = null; }
+      if (!run || typeof run.then !== 'function') {
+        setLive({ kind, q, phase: 'miss', data: { miss: true, timeout: true } });
+      } else {
       run.then((data) => {
         if (getLive() !== cur) return; // 같은 종류의 다른 검색으로 넘어감
         if (data && !data.miss) {
@@ -1075,6 +1089,7 @@
         resSig = null;
         try { ren(); } catch (e2) {}
       });
+      }
     }
     bump();
     upd(Date.now());
@@ -1152,6 +1167,7 @@
       liveTag = !!fG;
       if (!bridgeOn) body = needBridge;
       else if (lvG && lvG.phase === 'loading') body = loading;
+      else if (lvG && lvG.phase === 'miss' && lvG.data && lvG.data.timeout) body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">응답이 없습니다(시간 초과).<br>브릿지를 최신으로 업데이트하세요.</div>';
       else if (fG) {
         body = '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#888"><span>길드생성일</span><span>' + esc(fG.created || '') + '</span></div>' +
           '<div style="margin-top:2px;font-size:11px;color:#ddd">대장 ' + esc(fG.master || '?') + (fG.members ? ' · ' + fG.members + '명' : '') + '</div>' +
@@ -1168,6 +1184,7 @@
       liveTag = !!fI;
       if (!bridgeOn) body = needBridge;
       else if (lvI && lvI.phase === 'loading') body = loading;
+      else if (lvI && lvI.phase === 'miss' && lvI.data && lvI.data.timeout) body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">응답이 없습니다(시간 초과).<br>브릿지를 최신으로 업데이트하세요.</div>';
       else if (fI) {
         fI.slice(0, ITEM_SHOW_MAX).forEach((it) => {
           const gc = (it.grade != null && CODEX_GRADE[it.grade]) ? CODEX_GRADE[it.grade] : '#fff';
@@ -1183,6 +1200,7 @@
       liveTag = !!fF;
       if (!bridgeOn) body = needBridge;
       else if (lvF && lvF.phase === 'loading') body = loading;
+      else if (lvF && lvF.phase === 'miss' && lvF.data && lvF.data.timeout) body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">응답이 없습니다(시간 초과).<br>브릿지를 최신으로 업데이트하세요.</div>';
       else if (fF) {
         body = '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#888"><span>가문생성일</span><span>' + esc(fF.created || '') + '</span></div>' +
           (fF.guild ? '<div style="margin-top:2px;font-size:11px;color:#ff7ab8">' + esc(fF.guild) + '</div>' : '');
