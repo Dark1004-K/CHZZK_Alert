@@ -839,8 +839,105 @@
       }
     } catch (e2) {}
   }
-  // ---------- 실시간 검색 (동반 브릿지, JSON 폴백) ----------
-  // 동반이 있으면 실시간 우선(로딩 표시), 실패·미설치면 크롤 JSON. 성공분은 1시간 메모리 캐시.
+  // ---------- 실시간 검색 (동반 브릿지 fetch + 플러그인 파싱, JSON 폴백) ----------
+  // 파싱 정본: scripts/crawl-adventurers.js, scripts/crawl-guilds.js (동반은 fetch 전용)
+  const BDO_BASE = 'https://www.kr.playblackdesert.com';
+  let bdoMaint = false, bdoMaintTold = false;
+  const decHtml = (s) => String(s)
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;|&#160;/g, ' ')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+  function bdoFetch(url, timeoutMs) {
+    if (!KW.bridgeReady || !KW.bridgeReady()) return Promise.resolve(null);
+    return KW.bridge('fetch', { url }, timeoutMs || 12000).then((r) => {
+      if (!r || !r.ok || !r.data || typeof r.data.html !== 'string') {
+        if (r && r.maintenance) {
+          bdoMaint = true;
+          if (!bdoMaintTold) { bdoMaintTold = true; try { KW.toast('검은사막 검색', '점검중입니다'); } catch (e) {} }
+        }
+        return null;
+      }
+      bdoMaint = false;
+      return r.data.html;
+    }).catch(() => null);
+  }
+  function famRowsOf(html) {
+    const out = [];
+    const re = /<a href="([^"]*?Profile\?profileTarget=([^"&]+))"[^>]*>([^<]+)<\/a>/g;
+    let m;
+    while ((m = re.exec(html))) out.push({ family: decHtml(m[3]), profileTarget: decHtml(m[2]) });
+    return out;
+  }
+  function lineListOf(html, title) {
+    const re = new RegExp('<span class="title">' + title + '<\\/span>([\\s\\S]*?)<\\/li>');
+    const m = re.exec(html);
+    if (!m) return null;
+    if (/<em class="lock">/.test(m[1])) return null;
+    const t = decHtml(m[1]);
+    return t || null;
+  }
+  function parseFamHtml(html) {
+    const created = lineListOf(html, '가문생성일');
+    const guild = lineListOf(html, '가입길드');
+    const characters = [];
+    const liRe = /<p class="character_name">([\s\S]*?)<\/p>\s*<p class="character_info">([\s\S]*?)<\/p>/g;
+    let m;
+    while ((m = liRe.exec(html))) {
+      const main = /대표캐릭터/.test(m[1]);
+      const name = decHtml(m[1].replace(/대표캐릭터/g, ''));
+      if (!name) continue;
+      const cm = /<em>([^<>]+)<\/em>/.exec(m[2]);
+      let level = null;
+      const lm = /Lv(?:<em class="lock">[^<]*<\/em>|(\d+))/.exec(m[2]);
+      if (lm && lm[1]) level = parseInt(lm[1], 10);
+      characters.push({ name, class: cm ? decHtml(cm[1]) : '', level, main });
+    }
+    return { created, guild, characters };
+  }
+  function guildRowsOf(html) {
+    const out = [];
+    const liRe = /<li>([\s\S]*?)<\/li>/g;
+    let m;
+    while ((m = liRe.exec(html))) {
+      const block = m[1];
+      const lm = /<a href="\/Adventure\/Guild\/GuildProfile\?[^"]*"[^>]*>([^<]+)<\/a>/.exec(block);
+      if (!lm) continue;
+      const mm = /<div class="guild_info">[\s\S]*?<a[^>]*>([^<]+)<\/a>/.exec(block);
+      const dm = /<div class="date[^"]*">([^<]*)<\/div>/.exec(block);
+      const cm = /<div class="member">([^<]*)<\/div>/.exec(block);
+      out.push({ guild: decHtml(lm[1]), master: mm ? decHtml(mm[1]) : '', created: dm ? decHtml(dm[1]) : '', members: cm ? decHtml(cm[1]) : '' });
+    }
+    return out;
+  }
+  function parseGuildHtml(html) {
+    const created = lineListOf(html, '길드생성일');
+    let master = null;
+    const mm = /<span class="title">대장<\/span>[\s\S]*?<a[^>]*>([^<]+)<\/a>/.exec(html);
+    if (mm) master = decHtml(mm[1]);
+    let members = null;
+    const cm = /<span class="title">인원<\/span>[\s\S]*?<em>(\d+)<\/em>\s*명/.exec(html);
+    if (cm) members = parseInt(cm[1], 10);
+    let siege = null;
+    const sm = /점령현황<\/span>([\s\S]{0,300})/.exec(html);
+    if (sm) siege = decHtml(sm[1]) || null;
+    const boxIdx = html.indexOf('구성원</h3>');
+    const box = boxIdx >= 0 ? html.slice(boxIdx) : html;
+    const memberList = [];
+    const seen = {};
+    const re = /<a href="[^"]*Profile\?profileTarget=([^"&]+)"[^>]*>([^<]+)<\/a>/g;
+    let m;
+    while ((m = re.exec(box))) {
+      const family = decHtml(m[2]);
+      if (!family || seen[family]) continue;
+      seen[family] = 1;
+      memberList.push({ family, profileTarget: decHtml(m[1]), role: master && family === master ? '대장' : '' });
+    }
+    return { created, master, members, siege, memberList };
+  }
   let liveRev = 0;
   let live = null; // { kind:'fam'|'guild', q, phase:'loading'|'ok'|'miss', data }
   const liveCache = {}; // "kind:Q" -> { t, data }
@@ -853,25 +950,32 @@
   }
   function searchLiveFam(q) {
     if (!KW.bridgeReady || !KW.bridgeReady()) return Promise.resolve(null);
-    return KW.bridge('famSearch', { keyword: q }, 8000).then((r) => {
-      if (!r || !r.ok || !Array.isArray(r.data)) return null;
-      const row = r.data.find((x) => x && x.family === q) || null;
+    const su = BDO_BASE + '/ko-KR/Adventure?searchType=2&checkSearchText=False&searchKeyword=' + encodeURIComponent(q);
+    return bdoFetch(su, 12000).then((html) => {
+      if (!html) return null;
+      const row = famRowsOf(html).find((x) => x && x.family === q) || null;
       if (!row || !row.profileTarget) return { miss: true };
-      return KW.bridge('famProfile', { target: row.profileTarget }, 10000).then((p) => {
-        if (!p || !p.ok || !p.data || !Array.isArray(p.data.characters)) return null;
-        return { family: row.family, created: p.data.created || null, guild: p.data.guild || null, characters: p.data.characters };
+      return bdoFetch(BDO_BASE + '/Adventure/Profile?profileTarget=' + row.profileTarget, 12000).then((ph) => {
+        if (!ph) return null;
+        const p = parseFamHtml(ph);
+        if (!p.characters.length) return null;
+        return { family: row.family, created: p.created, guild: p.guild, characters: p.characters };
       });
     }).catch(() => null);
   }
   function searchLiveGuild(q) {
     if (!KW.bridgeReady || !KW.bridgeReady()) return Promise.resolve(null);
-    return KW.bridge('guildSearch', { keyword: q, page: 1 }, 8000).then((r) => {
-      if (!r || !r.ok || !Array.isArray(r.data)) return null;
-      const row = r.data.find((x) => x && x.guild === q) || null;
+    const su = BDO_BASE + '/ko-KR/Adventure/Guild?searchText=' + encodeURIComponent(q) + '&page=1';
+    return bdoFetch(su, 12000).then((html) => {
+      if (!html) return null;
+      const row = guildRowsOf(html).find((x) => x && x.guild === q) || null;
       if (!row) return { miss: true };
-      return KW.bridge('guildProfile', { guildName: row.guild }, 10000).then((p) => {
-        if (!p || !p.ok || !p.data || !Array.isArray(p.data.memberList)) return null;
-        return { guild: row.guild, created: p.data.created || null, master: p.data.master || row.master || null, members: (p.data.members != null ? p.data.members : (row.members || null)), siege: p.data.siege || null, memberList: p.data.memberList };
+      const params = 'guildName=' + encodeURIComponent(row.guild) + '&region=KR';
+      return bdoFetch(BDO_BASE + '/Adventure/Guild/GuildProfile?' + params, 12000).then((ph) => {
+        if (!ph) return null;
+        const p = parseGuildHtml(ph);
+        if (!p.memberList.length) return null;
+        return { guild: row.guild, created: p.created, master: p.master || row.master || null, members: (p.members != null ? p.members : (parseInt(row.members, 10) || null)), siege: p.siege, memberList: p.memberList };
       });
     }).catch(() => null);
   }

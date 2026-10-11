@@ -443,7 +443,7 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
   👉 [동반 스크립트 설치 링크](https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/bdo-search.user.js)
   👉 베타 사용자는 [동반 베타 설치 링크](https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/bdo-search.beta.user.js)를 쓰세요.
 * 본체(`@grant none`)는 CORS 때문에 검은사막 사이트를 직접 읽지 못해서, 권한(`GM_xmlhttpRequest`)이 있는 이 동반 스크립트가 대신 읽어다 줍니다. 본체 호출 알림에는 영향이 없습니다.
-* 지원하는 검색: 가문명(`famSearch`)·캐릭터명(`charSearch`)·가문 프로필·길드명·길드 프로필. 점검 중이면 `maintenance`로 응답합니다.
+* 지원하는 검색: 가문명·캐릭터명·가문 프로필·길드명·길드 프로필 + 범용 `fetch`(허용 목록 내 URL). 파싱은 호출 측(플러그인)이 담당. 점검 중이면 `maintenance`로 응답합니다.
 * 콘솔에서 바로 테스트할 수 있습니다: `window.bdoSearch.searchGuild("미리내")`
 * 파서(HTML 읽기 규칙)는 `scripts/crawl-adventurers.js`·`scripts/crawl-guilds.js`와 동일합니다. 사이트 구조가 바뀌면 양쪽을 함께 고쳐야 합니다.
 * 콘솔 로그(`[KW-BETA]`) 등 진단 정보는 베타에만 있습니다.

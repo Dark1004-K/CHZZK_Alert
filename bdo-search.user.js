@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         bdo-blackdesert
 // @namespace    https://chzzk.naver.com/
-// @version      1.0.1
+// @version      1.1.0
 // @description  검은사막 공식 홈페이지 검색을 GM_xmlhttpRequest로 호출해 CORS 없이 치지직 페이지에 전달합니다. 본체(CHZZK 채팅 호출 알림)의 동반 스크립트입니다.
 // @author       DarkAngel
 // @license      Proprietary - All rights reserved
@@ -24,7 +24,7 @@
 // 파서 정본: scripts/crawl-adventurers.js, scripts/crawl-guilds.js (이 파일과 동기화 유지)
 (function () {
   'use strict';
-  const VERSION = '1.0.1';
+  const VERSION = '1.1.0';
   // 호출 측(플러그인)이 params.base 로 대상 사이트를 지정할 수 있다.
   // 반드시 아래 허용 목록 안에 있어야 하며, 새 사이트 추가時は @connect 도 함께 추가해야 한다.
   const ALLOWED_BASES = [
@@ -198,6 +198,14 @@
     params = params || {};
     const base = pickBase(params.base);
     switch (kind) {
+      // CORS 우회 fetch 전용. 파싱은 호출 측(플러그인)이 담당.
+      // url은 반드시 base로 시작해야 한다 (오픈 프록시 방지).
+      case 'fetch': {
+        const url = String(params.url || '');
+        if (!url.startsWith(base + '/')) throw { error: 'not allowed' };
+        return { html: await guarded(url) };
+      }
+      // 아래 구 종류는 구버전 플러그인 호환용 (신규는 fetch 사용)
       case 'famSearch': return api.famSearch(base, params.keyword || '');
       case 'charSearch': return api.charSearch(base, params.keyword || '');
       case 'famProfile': return api.famProfile(base, params.target || '');
