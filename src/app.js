@@ -92,8 +92,19 @@ function pluginStateMap() {
 }
 function pluginIsOn(p) {
   if (p.noOwner && isOwner()) return false; // 방장이면 항상 꺼짐 (사용자 선택보다 우선)
+  const cp = channelPlugins(); // 현재 채널의 플러그인 구성 (없으면 전역 동작)
+  if (cp && !(p.id in cp)) return false; // 채널 목록에 없으면 미제공
   const m = pluginStateMap();
-  return p.id in m ? !!m[p.id] : p.on !== false;
+  if (p.id in m) return !!m[p.id]; // 사용자 선택 우선
+  if (cp && cp[p.id] && typeof cp[p.id].on === 'boolean') return !!cp[p.id].on; // 채널 기본값
+  return p.on !== false;
+}
+// 현재 채널의 플러그인 구성 ({ [id]: { on?, options? } } 또는 null). 없으면 전역 동작.
+function channelPlugins() {
+  try {
+    const p = allowEntry && allowEntry.plugins;
+    return (p && typeof p === 'object') ? p : null;
+  } catch (e) { return null; }
 }
 function pluginIdIsOn(id) {
   const p = (pluginList || []).find((x) => x && x.id === id);
@@ -110,7 +121,9 @@ function pluginOptDef(id, key) {
 }
 function pluginOptGet(id, key) {
   const m = pluginOptMap();
-  if (m[id] && key in m[id]) return m[id][key];
+  if (m[id] && key in m[id]) return m[id][key]; // 사용자 선택 우선
+  const cp = channelPlugins();
+  if (cp && cp[id] && cp[id].options && key in cp[id].options) return cp[id].options[key]; // 채널 기본값
   const d = pluginOptDef(id, key);
   return d ? d.default : undefined;
 }

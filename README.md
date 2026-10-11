@@ -394,6 +394,7 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
 ## 부록 C. 확장(플러그인) 만들기
 
 * `plugins.json`에 등록된 확장을 방송 진입 시 자동으로 불러옵니다. 사용자는 설정 > **확장**에서 켜고 끕니다.
+* 채널 항목(`allowlist.json`)에 `plugins`가 있으면 그 목록·기본값(`on`, `options`)으로 확장 메뉴를 구성합니다. 우선순위는 사용자 선택 > 채널 > 매니페스트입니다. `plugins`가 없는 채널은 전역 동작합니다.
 * 만들기
   1. `plugins/` 아래에 `.js` 파일을 추가합니다. 이벤트를 받으려면 `window.__KW.on('hit', ({nick, text, kw}) => {...})`.
      * 이벤트: `hit`(호출), `drops`(드롭스 시간 충족), `ext:이름`(확장끼리 주고받는 이벤트, `window.__KW.emit('이름', 데이터)`)

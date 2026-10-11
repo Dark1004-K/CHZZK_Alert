@@ -534,16 +534,30 @@ function noteDenied(cid, msg) {
     teardownUi();
   }, TOAST_MS);
 }
-// 항목 정규화: "id" 문자열 또는 {id, name, discord, home, expires} 객체
+// 항목 정규화: "id" 문자열 또는 {id, name, discord, home, expires, plugins} 객체
 const normEntry = (e) => {
-  if (typeof e === 'string') return { id: e, name: '', discord: '', home: '', expires: '' };
+  if (typeof e === 'string') return { id: e, name: '', discord: '', home: '', expires: '', plugins: null };
   if (e && typeof e === 'object') {
+    let plugins = null; // { [pluginId]: { on?: bool, options?: { [key]: value } } }
+    try {
+      if (e.plugins && typeof e.plugins === 'object' && !Array.isArray(e.plugins)) {
+        plugins = {};
+        for (const k of Object.keys(e.plugins)) {
+          const v = e.plugins[k] || {};
+          const o = {};
+          if (typeof v.on === 'boolean') o.on = v.on;
+          if (v.options && typeof v.options === 'object' && !Array.isArray(v.options)) o.options = { ...v.options };
+          plugins[String(k)] = o;
+        }
+      }
+    } catch (err) {}
     return {
       id: String(e.id || ''),
       name: String(e.name || ''),
       discord: String(e.discord || ''),
       home: String(e.home || ''),
       expires: String(e.expires || '').trim(), // 만료일 "YYYY-MM-DD" (한국시간 그날 끝까지). 비어 있거나 없으면 무기한
+      plugins,
     };
   }
   return null;
@@ -602,6 +616,8 @@ function judgeAllow(entries, cid, silent, tag) {
   if (ok) noteExpiryWarn(ex); else allowExpiry = null;
   if (!silent) dlog(tag + ':' + why, cid);
   if (!ok) noteDenied(cid, denyMsg);
+  try { if (typeof syncPlugins === 'function') syncPlugins(); } catch (e2) {} // 채널별 플러그인 구성 반영
+  try { if (typeof refreshSettingsIfOpen === 'function') refreshSettingsIfOpen(); } catch (e3) {}
   return ok;
 }
 function refreshAllowlist(silent, done) {

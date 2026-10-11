@@ -815,7 +815,15 @@ function extListHtml() {
   if (pluginList === null) return '<div class="__kw_lbl">목록을 불러오는 중...</div>';
   if (!pluginList.length) return '<div class="__kw_lbl">등록된 확장이 없습니다</div>';
   companionListen();
-  return pluginList.map((p) => {
+  const list = (() => { // 채널 구성이 있으면 그 목록만 (없으면 전역)
+    try {
+      const cp = channelPlugins();
+      if (cp) return pluginList.filter((p) => p && p.id && (p.id in cp));
+    } catch (e) {}
+    return pluginList;
+  })();
+  if (!list.length) return '<div class="__kw_lbl">등록된 확장이 없습니다</div>';
+  return list.map((p) => {
     const blocked = !!(p.noOwner && isOwner()); // 방장은 이 확장을 켤 수 없다
     const note = blocked ? ' <span style="color:#ffd400">(방장은 사용할 수 없음)</span>' : (p.desc ? ` <span style="color:#888">${escapeHtml(p.desc)}</span>` : '');
     const optBtn = pluginIsOn(p) && pluginHasOpts(p) ? ` <button class="__kw_ic __kw_popen" data-id="${escapeHtml(p.id)}" title="옵션" style="color:#ccc;padding:3px">${IC.sliders}</button>` : '';
