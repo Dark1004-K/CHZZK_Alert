@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         bdo-blackdesert
 // @namespace    https://chzzk.naver.com/
-// @version      1.1
+// @version      1.0.0
 // @description  검은사막 공식 홈페이지 검색을 GM_xmlhttpRequest로 호출해 CORS 없이 치지직 페이지에 전달합니다. 본체(CHZZK 채팅 호출 알림)의 동반 스크립트입니다.
 // @author       DarkAngel
 // @license      Proprietary - All rights reserved
@@ -24,7 +24,7 @@
 // 파서 정본: scripts/crawl-adventurers.js, scripts/crawl-guilds.js (이 파일과 동기화 유지)
 (function () {
   'use strict';
-  const VERSION = '1.2';
+  const VERSION = '1.0.0';
   const BASE = 'https://www.kr.playblackdesert.com';
   const TIMEOUT = 15000;
 
