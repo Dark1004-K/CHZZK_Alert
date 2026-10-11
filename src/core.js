@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.4.0-beta090';
+const SCRIPT_VERSION = '3.4.0-beta091';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -396,6 +396,7 @@ function ensureStyle() {
 .__kw_ic:hover{background:rgba(255,255,255,.12)}
 .__kw_ic:disabled{opacity:.3;cursor:default;background:transparent}
 .__kw_ic svg{width:16px;height:16px;display:block}
+#__kw_optwin_compv{display:inline-flex;align-items:center;min-height:22px}
 .__kw_ti{display:inline-flex;align-items:center;flex:none}
 .__kw_ti svg{width:14px;height:14px;display:block}
 #__kw_snd_test{padding:4px}

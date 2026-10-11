@@ -772,7 +772,7 @@ function renderOptWin() {
     const ss = loadOptSize();
     if (ss) { w.style.width = Math.min(ss.w, window.innerWidth - 16) + 'px'; w.style.height = Math.min(ss.h, optHMax()) + 'px'; }
   } catch (e) {}
-  w.innerHTML = `<div id="__kw_optwin_mv" class="__kw_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</div><div style="display:flex;align-items:center;flex:none;min-height:26px;padding-right:26px;margin-bottom:0"><b style="display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>${escapeHtml(pluginDisplayName(p))} 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button><div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:8px -10px"></div>${p.companion ? `<div class="__kw_lbl" style="display:flex;align-items:center;gap:6px;margin-top:0">플러그인 <span id="__kw_optwin_compv">${companionHtml(p)}</span><button class="__kw_ic" id="__kw_optwin_compcheck" title="플러그인 다시 확인" style="color:#ccc;padding:3px">${IC.refresh}</button></div>` : ''}<div id="__kw_optwin_body" style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin">${extOptHtml(p)}</div>`;
+  w.innerHTML = `<div id="__kw_optwin_mv" class="__kw_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</div><div style="display:flex;align-items:center;flex:none;min-height:26px;padding-right:26px;margin-bottom:0"><b style="display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>${escapeHtml(pluginDisplayName(p))} 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button><div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:8px -10px"></div>${p.companion ? `<div class="__kw_lbl" style="display:flex;align-items:center;gap:6px;margin-top:0;font-size:12px;color:#ddd">플러그인 <span id="__kw_optwin_compv">${companionHtml(p, true)}</span><button class="__kw_ic" id="__kw_optwin_compcheck" title="플러그인 다시 확인" style="color:#ccc;padding:3px">${IC.refresh}</button></div>` : ''}<div id="__kw_optwin_body" style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin">${extOptHtml(p)}</div>`;
   if (!old) document.body.appendChild(w);
   try { // 옵션 창 폭이 넓어서 설정 창 오른쪽에 다 들어가지 않으면 화면 가운데로 (저장 위치가 없을 때만)
     if (!loadOptPos()) {
@@ -785,11 +785,11 @@ function renderOptWin() {
   bindCompanionInstall(w);
   const cc = w.querySelector('#__kw_optwin_compcheck');
   if (cc) cc.onclick = () => {
-    companionPing(p);
+    companionPing(p, true); // 수동 확인은 스로틀 무시
     setTimeout(() => {
       try {
         const v = w.querySelector('#__kw_optwin_compv');
-        if (v && v.isConnected) { v.innerHTML = companionHtml(p); bindCompanionInstall(w); }
+        if (v && v.isConnected) { v.innerHTML = companionHtml(p, true); bindCompanionInstall(w); }
       } catch (e) {}
     }, 1700);
   };
@@ -942,7 +942,7 @@ function companionListen() {
 function companionOf(id) {
   try { return (pluginList || []).find((x) => x && x.id === id) || null; } catch (e) { return null; }
 }
-function companionHtml(p) {
+function companionHtml(p, noRemove) {
   const c = p && p.companion;
   if (!c) return '';
   const v = c.ready && __kwCompanions[c.ready];
@@ -950,7 +950,7 @@ function companionHtml(p) {
   if (v && (!need || cmpVersions(v, need) >= 0)) {
     const m = pluginMetaOf(p.id);
     const label = (m && m.name) ? m.name + (m.version ? ' v' + m.version : '') : pluginDisplayName(p);
-    return `<span style="color:#888">${escapeHtml(label)}</span> <button class="__kw_ic" data-companion-remove="${escapeHtml(p.id)}" title="브릿지 삭제" style="color:#ff7b7b;padding:3px">${IC.trash}</button>`;
+    return `<span style="color:#888">${escapeHtml(label)}</span>` + (noRemove ? '' : ` <button class="__kw_ic" data-companion-remove="${escapeHtml(p.id)}" title="브릿지 삭제" style="color:#ff7b7b;padding:3px">${IC.trash}</button>`);
   }
   if (v) { const un = (c.ready && __kwCompanionNames[c.ready]) || c.label || '동반 스크립트'; return `<span style="color:#ffd400">${escapeHtml(un)} v${escapeHtml(v)} → v${escapeHtml(need)}</span> <button class="__kw_upbtn" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 업그레이드 (설치 후 새로고침)">브릿지 업그레이드</button>`; }
   companionPing(p);
@@ -969,11 +969,11 @@ function cmpVersions(a, b) {
   }
   return 0;
 }
-function companionPing(p) {
+function companionPing(p, force) {
   const c = p && p.companion;
   if (!c || !c.ping) return;
   const now = Date.now();
-  if (now - (__kwCompanionPingAt[p.id] || 0) < 10000) return; // 렌더 반복 ping 폭주 방지
+  if (!force && now - (__kwCompanionPingAt[p.id] || 0) < 10000) return; // 렌더 반복 ping 폭주 방지 (수동 확인은 강제)
   __kwCompanionPingAt[p.id] = now;
   try { document.dispatchEvent(new CustomEvent(c.ping, {})); } catch (e) {}
   setTimeout(() => { try { paintCompanions(); } catch (e2) {} }, 1600);
@@ -1015,7 +1015,7 @@ function paintCompanions() {
       const ov = ow && ow.querySelector('#__kw_optwin_compv');
       if (ov && optWinId) {
         const op = companionOf(optWinId);
-        if (op && op.companion) { ov.innerHTML = companionHtml(op); bindCompanionInstall(ow); }
+        if (op && op.companion) { ov.innerHTML = companionHtml(op, true); bindCompanionInstall(ow); }
       }
     } catch (e4) {}
     // 동반 확인되면 체크박스 잠금 해제 (이미 켜져 있으면 원래부터 변경 가능)
