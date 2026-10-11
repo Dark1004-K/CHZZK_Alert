@@ -1,6 +1,6 @@
 {
   "source": "https://www.kr.playblackdesert.com/ko-KR/Adventure?searchType=2&checkSearchText=False&searchKeyword=",
-  "updatedAt": 1791680812696,
+  "updatedAt": 1791684770844,
   "families": [
     {
       "family": "비류라미",
@@ -201,7 +201,7 @@
           "main": false
         }
       ],
-      "fetchedAt": 1791680811525
+      "fetchedAt": 1791684769100
     },
     {
       "family": "미리내ES",
@@ -378,7 +378,7 @@
           "main": false
         }
       ],
-      "fetchedAt": 1791680812696
+      "fetchedAt": 1791684770844
     }
   ]
 }
