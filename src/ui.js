@@ -42,6 +42,21 @@ function applyOpacity() {
   try { if (stackEl) stackEl.style.opacity = String((100 - getTransparency()) / 100); } catch (e) {}
   try { const ow = document.getElementById('__kw_optwin'); if (ow) ow.style.opacity = String((100 - getTransparency()) / 100); } catch (e) {}
 }
+// 입력창에 포커스가 있으면 투명을 잠시 해제 (뒤 화면이 비쳐 글자가 겹쳐 보이는 것 방지). 포커스가 나가면 복구.
+try {
+  document.addEventListener('focusin', (e) => {
+    try {
+      const t = e && e.target;
+      if (t && t.closest && t.closest('#__kw_stack,#__kw_optwin') && /^(INPUT|TEXTAREA)$/.test(t.tagName || '')) {
+        const st = document.getElementById('__kw_stack');
+        if (st) st.style.opacity = '1';
+        const ow = document.getElementById('__kw_optwin');
+        if (ow) ow.style.opacity = '1';
+      }
+    } catch (er) {}
+  });
+  document.addEventListener('focusout', () => { try { applyOpacity(); } catch (er) {} });
+} catch (e) {}
 function ensureStack() {
   if (stackEl && stackEl.isConnected) return stackEl;
   let ex = null;
