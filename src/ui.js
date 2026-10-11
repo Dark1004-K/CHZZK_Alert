@@ -848,9 +848,24 @@ function companionHtml(p) {
   const c = p && p.companion;
   if (!c) return '';
   const v = c.ready && __kwCompanions[c.ready];
-  if (v) return `<span style="color:#888">브릿지 v${escapeHtml(v)}</span>`;
+  const need = c.minVersion || '';
+  if (v && (!need || cmpVersions(v, need) >= 0)) return `<span style="color:#888">브릿지 v${escapeHtml(v)}</span>`;
+  if (v) return `<span style="color:#ffd400">브릿지 v${escapeHtml(v)} → v${escapeHtml(need)}</span> <button class="__kw_upbtn" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 업그레이드 (설치 후 새로고침)">브릿지 업그레이드</button>`;
   companionPing(p);
   return `<button class="__kw_upbtn" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 설치 (설치 후 새로고침)">브릿지 설치</button>`;
+}
+// 버전 비교: 구간별로 숫자면 숫자로, 아니면 문자열로 ("1.0" < "1.1")
+function cmpVersions(a, b) {
+  const pa = String(a || '').split('.'), pb = String(b || '').split('.');
+  const n = Math.max(pa.length, pb.length);
+  for (let i = 0; i < n; i++) {
+    const xa = pa[i] || '0', xb = pb[i] || '0';
+    if (xa === xb) continue;
+    const na = parseInt(xa, 10), nb = parseInt(xb, 10);
+    if (isFinite(na) && isFinite(nb) && na !== nb) return na < nb ? -1 : 1;
+    return xa < xb ? -1 : 1;
+  }
+  return 0;
 }
 function companionPing(p) {
   const c = p && p.companion;
