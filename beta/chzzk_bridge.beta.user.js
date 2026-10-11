@@ -9,8 +9,8 @@
 // @grant        GM_xmlhttpRequest
 // @connect      www.kr.playblackdesert.com
 // @run-at       document-idle
-// @downloadURL  https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/bdo-search.beta.user.js
-// @updateURL    https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/bdo-search.beta.user.js
+// @downloadURL  https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_bridge.beta.user.js
+// @updateURL    https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_bridge.beta.user.js
 // ==/UserScript==
 
 // 동반 스크립트 사용법:

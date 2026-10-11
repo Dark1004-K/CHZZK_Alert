@@ -124,8 +124,8 @@ function buildRelease(ver, doObfuscate) {
   manifest.plugins.forEach((p) => {
     p.url = replaceMust('플러그인 주소 ' + p.id, p.url, RAW + 'plugins/', RAW + 'release/plugins/');
     // 동반은 베타용(beta/)을 정식용(루트)으로 되돌림. 정식 파일에 beta/ 흔적이 남으면 아래 검증에서 실패함.
-    if (p.companion && typeof p.companion.url === 'string' && p.companion.url.includes('beta/bdo-search.beta.user.js')) {
-      p.companion.url = p.companion.url.split('beta/bdo-search.beta.user.js').join('bdo-search.user.js');
+    if (p.companion && typeof p.companion.url === 'string' && p.companion.url.includes('beta/chzzk_bridge.beta.user.js')) {
+      p.companion.url = p.companion.url.split('beta/chzzk_bridge.beta.user.js').join('chzzk_bridge.user.js');
     }
   });
 
