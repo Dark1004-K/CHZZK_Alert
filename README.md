@@ -446,4 +446,7 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
 * 지원하는 검색: 가문명·캐릭터명·가문 프로필·길드명·길드 프로필 + 범용 `fetch`(허용 목록 내 URL). 파싱은 호출 측(플러그인)이 담당. 점검 중이면 `maintenance`로 응답합니다.
 * 콘솔에서 바로 테스트할 수 있습니다: `window.bdoSearch.searchGuild("미리내")`
 * 파서(HTML 읽기 규칙)는 `scripts/crawl-adventurers.js`·`scripts/crawl-guilds.js`와 동일합니다. 사이트 구조가 바뀌면 양쪽을 함께 고쳐야 합니다.
+* 역할 분담 (원칙):
+  1. 우두머리 시간표·쿠폰 등 주기가 넓은 데이터 수집은 GitHub Actions.
+  2. 브릿지는 실시간 검색에만 사용.
 * 콘솔 로그(`[KW-BETA]`) 등 진단 정보는 베타에만 있습니다.
