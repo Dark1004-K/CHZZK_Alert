@@ -1264,7 +1264,11 @@
     (d.stats || []).forEach((s, i) => {
       h += '<div style="font-size:11px;margin-top:2px;color:' + (i === 0 ? '#fff;font-weight:bold' : '#888') + '">' + esc(s) + '</div>';
     });
+    let dropNextFlag = false; // "- 내구도" 같은 머리말 줄 + 뒤따르는 값 조각(100 / 100)을 함께 제외
     (d.flags || []).forEach((s) => {
+      if (/^\s*-\s*/.test(s)) { dropNextFlag = true; return; }
+      if (dropNextFlag && /^[\d\s\/xX]+$/.test(s)) { dropNextFlag = false; return; }
+      dropNextFlag = false;
       h += '<div style="font-size:11px;color:#ccc;margin-top:2px">· ' + esc(s) + '</div>';
     });
     if (d.desc) h += '<div style="margin-top:6px;font-size:11px;color:#ddd;line-height:1.55;white-space:pre-line">' + esc(d.desc) + '</div>';
