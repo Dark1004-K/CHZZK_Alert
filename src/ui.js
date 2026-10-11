@@ -931,6 +931,12 @@ function companionListen() {
       if (d.name) __kwCompanionNames['bdo-search-ready'] = String(d.name);
       paintCompanions();
     });
+    document.addEventListener('bdo-search-res', (e) => {
+      const d = e && e.detail;
+      if (!d || !d.id) return;
+      const fn = __kwBridgeWaiters[d.id];
+      if (fn) { delete __kwBridgeWaiters[d.id]; try { fn(d); } catch (err) {} }
+    });
   } catch (e) {}
 }
 function companionOf(id) {
@@ -971,6 +977,29 @@ function companionPing(p) {
   __kwCompanionPingAt[p.id] = now;
   try { document.dispatchEvent(new CustomEvent(c.ping, {})); } catch (e) {}
   setTimeout(() => { try { paintCompanions(); } catch (e2) {} }, 1600);
+}
+// ---------- 동반 브릿지 호출 (플러그인용): CustomEvent 요청·응답 + 타임아웃 ----------
+let __kwBridgeSeq = 0;
+const __kwBridgeWaiters = {}; // [id] -> resolve
+function bridgeCall(kind, params, timeoutMs) {
+  return new Promise((resolve) => {
+    const id = 'b' + (++__kwBridgeSeq) + '_' + Date.now();
+    let done = false;
+    const finish = (res) => {
+      if (done) return;
+      done = true;
+      try { clearTimeout(to); } catch (e) {}
+      delete __kwBridgeWaiters[id];
+      resolve(res);
+    };
+    const to = setTimeout(() => finish({ ok: false, error: 'timeout' }), timeoutMs || 8000);
+    __kwBridgeWaiters[id] = finish;
+    try { document.dispatchEvent(new CustomEvent('bdo-search-req', { detail: { id, kind, params: params || {} } })); }
+    catch (e) { finish({ ok: false, error: 'dispatch' }); }
+  });
+}
+function bridgeIsReady() {
+  try { return Object.keys(__kwCompanions).length > 0; } catch (e) { return false; }
 }
 function paintCompanions() {
   try {

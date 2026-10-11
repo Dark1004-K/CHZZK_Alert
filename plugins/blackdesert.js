@@ -739,12 +739,12 @@
       famQuery = qi ? qi.value : '';
       try { localStorage.setItem(LS_FAMQ, famQuery); } catch (er) {}
       famSig = null;
-      renderFamily();
-      if (!famQuery.trim()) { famResQ = ''; resKind = ''; removeFamRes(); return; }
+      if (!famQuery.trim()) { famResQ = ''; if (resKind === 'fam') resKind = ''; live = null; liveRev++; removeFamRes(); renderFamily(); return; }
       famResQ = famQuery;
       resKind = 'fam';
       famResSig = null;
-      updateFamRes(Date.now());
+      updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
+      startLive('fam', famQuery);
     };
     if (qi) qi.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
     if (qi) qi.addEventListener('input', () => { famQuery = qi.value; try { localStorage.setItem(LS_FAMQ, famQuery); } catch (er) {} });
@@ -754,11 +754,12 @@
     const goGuild = () => {
       guildQuery = gi ? gi.value : '';
       try { localStorage.setItem(LS_GUILDQ, guildQuery); } catch (er) {}
-      if (!guildQuery.trim()) { guildResQ = ''; if (resKind === 'guild') resKind = ''; removeFamRes(); return; }
+      if (!guildQuery.trim()) { guildResQ = ''; if (resKind === 'guild') resKind = ''; live = null; liveRev++; removeFamRes(); return; }
       guildResQ = guildQuery;
       resKind = 'guild';
       famResSig = null;
-      updateFamRes(Date.now());
+      updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
+      startLive('guild', guildQuery);
     };
     if (gi) gi.addEventListener('keydown', (e) => { if (e.key === 'Enter') goGuild(); });
     if (gi) gi.addEventListener('input', () => { guildQuery = gi.value; try { localStorage.setItem(LS_GUILDQ, guildQuery); } catch (er) {} });
@@ -842,13 +843,75 @@
       }
     } catch (e2) {}
   }
+  // ---------- 실시간 검색 (동반 브릿지, JSON 폴백) ----------
+  // 동반이 있으면 실시간 우선(로딩 표시), 실패·미설치면 크롤 JSON. 성공분은 1시간 메모리 캐시.
+  let liveRev = 0;
+  let live = null; // { kind:'fam'|'guild', q, phase:'loading'|'ok'|'miss', data }
+  const liveCache = {}; // "kind:Q" -> { t, data }
+  function liveCached(kind, q) {
+    try {
+      const c = liveCache[kind + ':' + q];
+      if (c && Date.now() - c.t < 3600000) return c.data;
+    } catch (e) {}
+    return null;
+  }
+  function searchLiveFam(q) {
+    if (!KW.bridgeReady || !KW.bridgeReady()) return Promise.resolve(null);
+    return KW.bridge('famSearch', { keyword: q }, 8000).then((r) => {
+      if (!r || !r.ok || !Array.isArray(r.data)) return null;
+      const row = r.data.find((x) => x && x.family === q) || null;
+      if (!row || !row.profileTarget) return { miss: true };
+      return KW.bridge('famProfile', { target: row.profileTarget }, 10000).then((p) => {
+        if (!p || !p.ok || !p.data || !Array.isArray(p.data.characters)) return null;
+        return { family: row.family, created: p.data.created || null, guild: p.data.guild || null, characters: p.data.characters };
+      });
+    }).catch(() => null);
+  }
+  function searchLiveGuild(q) {
+    if (!KW.bridgeReady || !KW.bridgeReady()) return Promise.resolve(null);
+    return KW.bridge('guildSearch', { keyword: q, page: 1 }, 8000).then((r) => {
+      if (!r || !r.ok || !Array.isArray(r.data)) return null;
+      const row = r.data.find((x) => x && x.guild === q) || null;
+      if (!row) return { miss: true };
+      return KW.bridge('guildProfile', { guildName: row.guild }, 10000).then((p) => {
+        if (!p || !p.ok || !p.data || !Array.isArray(p.data.memberList)) return null;
+        return { guild: row.guild, created: p.data.created || null, master: p.data.master || row.master || null, members: (p.data.members != null ? p.data.members : (row.members || null)), siege: p.data.siege || null, memberList: p.data.memberList };
+      });
+    }).catch(() => null);
+  }
+  function startLive(kind, q) {
+    const hit = liveCached(kind, q);
+    if (hit) { live = { kind, q, phase: 'ok', data: hit }; }
+    else {
+      const cur = (live = { kind, q, phase: 'loading', data: null });
+      const run = kind === 'guild' ? searchLiveGuild(q) : searchLiveFam(q);
+      run.then((data) => {
+        if (live !== cur) return; // 다른 검색으로 넘어감
+        if (data && !data.miss) {
+          live = { kind, q, phase: 'ok', data };
+          try { liveCache[kind + ':' + q] = { t: Date.now(), data }; } catch (e) {}
+        } else {
+          live = { kind, q, phase: 'miss', data: null }; // 실패·없음은 JSON 폴백으로
+        }
+        liveRev++;
+        famResSig = null;
+        try { renderFamRes(); } catch (e2) {}
+      });
+    }
+    liveRev++;
+    updateFamRes(Date.now());
+  }
   function renderFamRes() {
     if (!famResEl || !famResEl.isConnected) return;
     const isGuild = resKind === 'guild';
+    const K = isGuild ? 'guild' : 'fam';
     const q = isGuild ? guildResQ : famResQ;
-    const f = q ? (isGuild ? guildFind(q) : famFind(q)) : null;
+    const lv = (live && live.kind === K && live.q === q) ? live : null;
+    let f = q ? (isGuild ? guildFind(q) : famFind(q)) : null;
+    let liveOn = false;
+    if (lv && lv.phase === 'ok' && lv.data && !lv.data.miss) { f = lv.data; liveOn = true; } // 실시간 우선
     const n = f ? ((isGuild ? (f.memberList || []) : (f.characters || [])).length) : 0;
-    const sig = [resKind, isGuild ? guildState : famState, q, f ? (isGuild ? f.guild : f.family) : '', n, famFetchedAt, guildFetchedAt].join('|');
+    const sig = [resKind, isGuild ? guildState : famState, q, f ? (isGuild ? f.guild : f.family) : '', n, famFetchedAt, guildFetchedAt, lv ? lv.phase : '-', liveRev].join('|');
     if (sig === famResSig) return;
     famResSig = sig;
     const st = isGuild ? guildState : famState;
@@ -856,8 +919,10 @@
     let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(isGuild ? TI_USERS : TI_SEARCH, '#ff7ab8') + (f ? esc(isGuild ? f.guild : f.family) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(q || '검색 결과')) + '</b></div>' +
       xBtn('__kw_bdo_family_r_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
       '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' +
+      (liveOn ? '<div style="font-size:10px;color:#7dffb3;margin-top:4px">● 실시간 검색 결과</div>' : '') +
       '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
-    if (st === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">목록을 받지 못했습니다. 잠시 뒤 다시 시도하세요.</div>';
+    if (lv && lv.phase === 'loading') h += '<div style="font-size:11px;color:#aaa;margin-top:6px">실시간 검색 중...</div>';
+    else if (st === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">목록을 받지 못했습니다. 잠시 뒤 다시 시도하세요.</div>';
     else if (st === 'loading' || !dt) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
     else if (f && !isGuild) {
       h += '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#888"><span>가문생성일</span><span>' + esc(f.created || '') + '</span></div>' +
@@ -884,6 +949,7 @@
     const fx = famResEl.querySelector('#__kw_bdo_family_r_x');
     if (fx) fx.onclick = () => {
       famResQ = ''; guildResQ = ''; resKind = '';
+      live = null; liveRev++;
       famQuery = ''; guildQuery = '';
       try { localStorage.setItem(LS_FAMQ, ''); localStorage.setItem(LS_GUILDQ, ''); } catch (er) {}
       try {
