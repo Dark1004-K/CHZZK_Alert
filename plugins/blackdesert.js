@@ -10,6 +10,18 @@
   window.__kwBdoLoaded = true;
   try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.1' }); } catch (e) {}
   const ID = 'blackdesert';
+  // 이미지 로드 실패 시 "no" 박스로 교체 (onerror="__kwNoImg(this)"에서 호출)
+  try {
+    window.__kwNoImg = (el) => {
+      try {
+        const s = document.createElement('span');
+        s.textContent = 'no';
+        const w = (el && el.width) || 24, h = (el && el.height) || 24;
+        s.style.cssText = 'flex:none;width:' + w + 'px;height:' + h + 'px;border-radius:6px;background:rgba(255,255,255,.06);color:#777;font-size:10px;display:inline-flex;align-items:center;justify-content:center';
+        el.replaceWith(s);
+      } catch (e) {}
+    };
+  } catch (e) {}
   const D = (a) => ({ 0: a, 1: a, 2: a, 3: a, 4: a, 5: a, 6: a });
   // 시간(KST) -> { 요일(0=일 ... 6=토): [우두머리...] }
   const DEFAULT_SCHEDULE = [
@@ -1231,7 +1243,7 @@
         fI.forEach((it) => {
           const gc = (it.grade != null && CODEX_GRADE[it.grade]) ? CODEX_GRADE[it.grade] : '#fff';
           body += '<div class="__kw_item_row" data-item-href="' + esc(it.href || '') + '" title="bdocodex 페이지 열기" style="display:flex;align-items:center;gap:8px;margin-top:5px;padding:5px 4px 5px 0;border-top:1px solid rgba(255,255,255,.12);cursor:pointer">' +
-            (it.icon ? '<img loading="lazy" src="' + esc(it.icon) + '" width="24" height="24" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06)" onerror="this.style.display=\'none\'">' : '') +
+            (it.icon ? '<img loading="lazy" src="' + esc(it.icon) + '" width="24" height="24" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06)" onerror="__kwNoImg(this)">' : '<span style="flex:none;width:24px;height:24px;border-radius:6px;background:rgba(255,255,255,.06);color:#777;font-size:10px;display:inline-flex;align-items:center;justify-content:center">no</span>') +
             '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;color:' + gc + '">' + esc(it.name || '?') + '</b></div>';
         });
       } else body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>아이템명을 정확히 입력했는지 확인하세요.</div>';
