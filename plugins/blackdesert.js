@@ -682,8 +682,7 @@
   try { famQuery = localStorage.getItem(LS_FAMQ) || ''; } catch (e) {}
   let guildQuery = '';
   try { guildQuery = localStorage.getItem(LS_GUILDQ) || ''; } catch (e) {}
-  // 결과창: 마지막에 검색한 종류(resKind)만 보여준다
-  let resKind = '';
+  // 결과창: 가문·길드 각각 독립 (동시 표시 가능)
   const GUILD_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/guilds.json';
   let guildData = null; // 마지막으로 받은 guilds.json
   let guildState = 'idle'; // idle | loading | ok | err
@@ -739,9 +738,8 @@
       famQuery = qi ? qi.value : '';
       try { localStorage.setItem(LS_FAMQ, famQuery); } catch (er) {}
       famSig = null;
-      if (!famQuery.trim()) { famResQ = ''; if (resKind === 'fam') resKind = ''; live = null; liveRev++; removeFamRes(); renderFamily(); return; }
+      if (!famQuery.trim()) { famResQ = ''; if (live && live.kind === 'fam') { live = null; liveRev++; } removeFamRes(); renderFamily(); return; }
       famResQ = famQuery;
-      resKind = 'fam';
       famResSig = null;
       updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
       startLive('fam', famQuery);
@@ -754,10 +752,9 @@
     const goGuild = () => {
       guildQuery = gi ? gi.value : '';
       try { localStorage.setItem(LS_GUILDQ, guildQuery); } catch (er) {}
-      if (!guildQuery.trim()) { guildResQ = ''; if (resKind === 'guild') resKind = ''; live = null; liveRev++; removeFamRes(); return; }
+      if (!guildQuery.trim()) { guildResQ = ''; if (live && live.kind === 'guild') { live = null; liveRev++; } removeGuildRes(); return; }
       guildResQ = guildQuery;
-      resKind = 'guild';
-      famResSig = null;
+      guildResSig = null;
       updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
       startLive('guild', guildQuery);
     };
@@ -804,8 +801,7 @@
   let famRH = FAMR_H_DEF;
   try { const fhv = parseInt(localStorage.getItem(LS_FAMRH), 10); if (fhv >= FAMR_H_MIN && fhv <= 4000) famRH = fhv; } catch (e) {}
   let famResEl = null, famResSig = null;
-  let famResQ = ''; // 결과창 가문 검색어
-  let guildResQ = ''; // 결과창 길드 검색어
+  let famResQ = ''; // 결과창 가문 검색어 (길드용은 아래 guild 블록)
   function removeFamRes() {
     if (famResEl) { try { famResEl.remove(); } catch (e) {} }
     famResEl = null;
@@ -880,6 +876,8 @@
     }).catch(() => null);
   }
   function startLive(kind, q) {
+    const upd = kind === 'guild' ? updateGuildRes : updateFamRes;
+    const ren = kind === 'guild' ? renderGuildRes : renderFamRes;
     const hit = liveCached(kind, q);
     if (hit) { live = { kind, q, phase: 'ok', data: hit }; }
     else {
@@ -894,37 +892,33 @@
           live = { kind, q, phase: 'miss', data: null }; // 실패·없음은 JSON 폴백으로
         }
         liveRev++;
-        famResSig = null;
-        try { renderFamRes(); } catch (e2) {}
+        if (kind === 'guild') guildResSig = null; else famResSig = null;
+        try { ren(); } catch (e2) {}
       });
     }
     liveRev++;
-    updateFamRes(Date.now());
+    upd(Date.now());
   }
   function renderFamRes() {
     if (!famResEl || !famResEl.isConnected) return;
-    const isGuild = resKind === 'guild';
-    const K = isGuild ? 'guild' : 'fam';
-    const q = isGuild ? guildResQ : famResQ;
-    const lv = (live && live.kind === K && live.q === q) ? live : null;
-    let f = q ? (isGuild ? guildFind(q) : famFind(q)) : null;
+    const q = famResQ;
+    const lv = (live && live.kind === 'fam' && live.q === q) ? live : null;
+    let f = q ? famFind(q) : null;
     let liveOn = false;
     if (lv && lv.phase === 'ok' && lv.data && !lv.data.miss) { f = lv.data; liveOn = true; } // 실시간 우선
-    const n = f ? ((isGuild ? (f.memberList || []) : (f.characters || [])).length) : 0;
-    const sig = [resKind, isGuild ? guildState : famState, q, f ? (isGuild ? f.guild : f.family) : '', n, famFetchedAt, guildFetchedAt, lv ? lv.phase : '-', liveRev].join('|');
+    const n = f ? (f.characters || []).length : 0;
+    const sig = ['fam', famState, q, f ? f.family : '', n, famFetchedAt, lv ? lv.phase : '-', liveRev].join('|');
     if (sig === famResSig) return;
     famResSig = sig;
-    const st = isGuild ? guildState : famState;
-    const dt = isGuild ? guildData : famData;
-    let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(isGuild ? TI_USERS : TI_SEARCH, '#ff7ab8') + (f ? esc(isGuild ? f.guild : f.family) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(q || '검색 결과')) + '</b></div>' +
+    let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + (f ? esc(f.family) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(q || '검색 결과')) + '</b></div>' +
       xBtn('__kw_bdo_family_r_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
       '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' +
       (liveOn ? '<div style="font-size:10px;color:#7dffb3;margin-top:4px">● 실시간 검색 결과</div>' : '') +
       '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
     if (lv && lv.phase === 'loading') h += '<div style="font-size:11px;color:#aaa;margin-top:6px">실시간 검색 중...</div>';
-    else if (st === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">목록을 받지 못했습니다. 잠시 뒤 다시 시도하세요.</div>';
-    else if (st === 'loading' || !dt) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
-    else if (f && !isGuild) {
+    else if (famState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">목록을 받지 못했습니다. 잠시 뒤 다시 시도하세요.</div>';
+    else if (famState === 'loading' || !famData) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
+    else if (f) {
       h += '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#888"><span>가문생성일</span><span>' + esc(f.created || '') + '</span></div>' +
         (f.guild ? '<div style="margin-top:2px;font-size:11px;color:#ff7ab8">' + esc(f.guild) + '</div>' : '');
       (f.characters || []).forEach((c) => {
@@ -933,32 +927,19 @@
           '<span style="font-size:11px;color:#ddd;white-space:nowrap">' + esc(c.class || '') + '</span>' +
           '<span style="font-size:11px;color:' + (c.level ? '#7dffb3' : '#888') + ';white-space:nowrap">' + (c.level ? 'Lv' + c.level : '비공개') + '</span></div>';
       });
-      h += famUpdated(dt);
-    } else if (f && isGuild) {
-      h += '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#888"><span>길드생성일</span><span>' + esc(f.created || '') + '</span></div>' +
-        '<div style="margin-top:2px;font-size:11px;color:#ddd">대장 ' + esc(f.master || '?') + (f.members ? ' · ' + f.members + '명' : '') + '</div>';
-      (f.memberList || []).forEach((m) => {
-        h += '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.12)">' +
-          '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(m.family || '?') + '</b>' +
-          (m.role ? '<span style="background:#3a2a33;color:#ff9aab;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:bold;white-space:nowrap">' + esc(m.role) + '</span>' : '') + '</div>';
-      });
-      h += famUpdated(dt);
-    } else h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">등록되지 않은 ' + (isGuild ? '길드' : '가문') + '입니다.<br>GitHub Issues로 등록을 요청하세요.</div>';
+      h += famUpdated(famData);
+    } else h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">등록되지 않은 가문입니다.<br>GitHub Issues로 등록을 요청하세요.</div>';
     h += '</div>';
     famResEl.innerHTML = h;
     const fx = famResEl.querySelector('#__kw_bdo_family_r_x');
     if (fx) fx.onclick = () => {
-      famResQ = ''; guildResQ = ''; resKind = '';
-      live = null; liveRev++;
-      famQuery = ''; guildQuery = '';
-      try { localStorage.setItem(LS_FAMQ, ''); localStorage.setItem(LS_GUILDQ, ''); } catch (er) {}
+      famResQ = '';
+      if (live && live.kind === 'fam') { live = null; liveRev++; }
+      famQuery = '';
+      try { localStorage.setItem(LS_FAMQ, ''); } catch (er) {}
       try {
-        if (famEl && famEl.isConnected) {
-          const qi = famEl.querySelector('#__kw_fam_q');
-          if (qi) qi.value = '';
-          const gi = famEl.querySelector('#__kw_guild_q');
-          if (gi) gi.value = '';
-        }
+        const qi = famEl && famEl.isConnected ? famEl.querySelector('#__kw_fam_q') : null;
+        if (qi) qi.value = '';
       } catch (er2) {}
       famSig = null;
       try { renderFamily(); } catch (er3) {}
@@ -974,7 +955,7 @@
   function updateFamRes(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
-    if (!opt('family', true) || !stack || !panel || !panel.classList.contains('show') || !resKind || !famEl || !famEl.isConnected) { removeFamRes(); return; }
+    if (!opt('family', true) || !stack || !panel || !panel.classList.contains('show') || !famResQ.trim() || !famEl || !famEl.isConnected) { removeFamRes(); return; }
     if (!famResEl || !famResEl.isConnected) {
       famResEl = document.createElement('div');
       famResEl.id = '__kw_bdo_family_r';
@@ -1012,9 +993,140 @@
     } catch (e) {}
   }
 
+  // ---------- 길드검색 결과창 (#__kw_bdo_guild_r: 검색창 오른쪽 별도 창, 가로+세로) ----------
+  const LS_GUILDRPOS = '__kw_guild_r_pos';
+  const LS_GUILDRH = '__kw_guild_r_h';
+  const GUILDR_H_DEF = 300, GUILDR_H_MIN = 120;
+  const guildRHMax = () => Math.max(GUILDR_H_MIN, window.innerHeight);
+  let guildRH = GUILDR_H_DEF;
+  try { const ghv = parseInt(localStorage.getItem(LS_GUILDRH), 10); if (ghv >= GUILDR_H_MIN && ghv <= 4000) guildRH = ghv; } catch (e) {}
+  let guildResEl = null, guildResSig = null;
+  let guildResQ = '';
+  function removeGuildRes() {
+    if (guildResEl) { try { guildResEl.remove(); } catch (e) {} }
+    guildResEl = null;
+    guildResSig = null;
+  }
+  // 결과창 위치: 저장된 곳, 없으면 검색창 오른쪽 (가문 결과와 겹치지 않게 아래로)
+  function placeGuildRes() {
+    if (!guildResEl) return;
+    let done = false;
+    try {
+      const o = JSON.parse(localStorage.getItem(LS_GUILDRPOS));
+      if (o && isFinite(o.x) && isFinite(o.y)) {
+        const w = isFinite(o.w) ? Math.max(225, Math.min(600, Math.round(o.w))) : 300;
+        guildResEl.style.position = 'fixed';
+        guildResEl.style.left = Math.max(0, Math.min(window.innerWidth - w, o.x)) + 'px';
+        guildResEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, o.y)) + 'px';
+        guildResEl.style.bottom = 'auto';
+        guildResEl.style.width = w + 'px';
+        done = true;
+      }
+    } catch (e) {}
+    if (done) return;
+    try {
+      const r = famEl && famEl.isConnected ? famEl.getBoundingClientRect() : null;
+      const w = 300;
+      guildResEl.style.position = 'fixed';
+      guildResEl.style.width = w + 'px';
+      guildResEl.style.bottom = 'auto';
+      if (r && r.width > 0) {
+        guildResEl.style.left = Math.max(0, Math.min(window.innerWidth - w, Math.round(r.right + 8))) + 'px';
+        guildResEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, Math.round(r.top + 48))) + 'px';
+      } else {
+        guildResEl.style.left = Math.max(0, window.innerWidth - w - 16) + 'px';
+        guildResEl.style.top = '120px';
+      }
+    } catch (e2) {}
+  }
+  function renderGuildRes() {
+    if (!guildResEl || !guildResEl.isConnected) return;
+    const q = guildResQ;
+    const lv = (live && live.kind === 'guild' && live.q === q) ? live : null;
+    let f = q ? guildFind(q) : null;
+    let liveOn = false;
+    if (lv && lv.phase === 'ok' && lv.data && !lv.data.miss) { f = lv.data; liveOn = true; }
+    const n = f ? (f.memberList || []).length : 0;
+    const sig = ['guild', guildState, q, f ? f.guild : '', n, guildFetchedAt, lv ? lv.phase : '-', liveRev].join('|');
+    if (sig === guildResSig) return;
+    guildResSig = sig;
+    let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_USERS, '#ff7ab8') + (f ? esc(f.guild) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(q || '검색 결과')) + '</b></div>' +
+      xBtn('__kw_bdo_guild_r_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
+      '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' +
+      (liveOn ? '<div style="font-size:10px;color:#7dffb3;margin-top:4px">● 실시간 검색 결과</div>' : '') +
+      '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
+    if (lv && lv.phase === 'loading') h += '<div style="font-size:11px;color:#aaa;margin-top:6px">실시간 검색 중...</div>';
+    else if (guildState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">목록을 받지 못했습니다. 잠시 뒤 다시 시도하세요.</div>';
+    else if (guildState === 'loading' || !guildData) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
+    else if (f) {
+      h += '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#888"><span>길드생성일</span><span>' + esc(f.created || '') + '</span></div>' +
+        '<div style="margin-top:2px;font-size:11px;color:#ddd">대장 ' + esc(f.master || '?') + (f.members ? ' · ' + f.members + '명' : '') + '</div>';
+      (f.memberList || []).forEach((m) => {
+        h += '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.12)">' +
+          '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(m.family || '?') + '</b>' +
+          (m.role ? '<span style="background:#3a2a33;color:#ff9aab;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:bold;white-space:nowrap">' + esc(m.role) + '</span>' : '') + '</div>';
+      });
+      h += famUpdated(guildData);
+    } else h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">등록되지 않은 길드입니다.<br>GitHub Issues로 등록을 요청하세요.</div>';
+    h += '</div>';
+    guildResEl.innerHTML = h;
+    const gx = guildResEl.querySelector('#__kw_bdo_guild_r_x');
+    if (gx) gx.onclick = () => {
+      guildResQ = '';
+      if (live && live.kind === 'guild') { live = null; liveRev++; }
+      guildQuery = '';
+      try { localStorage.setItem(LS_GUILDQ, ''); } catch (er) {}
+      try {
+        const gi = famEl && famEl.isConnected ? famEl.querySelector('#__kw_guild_q') : null;
+        if (gi) gi.value = '';
+      } catch (er2) {}
+      removeGuildRes();
+    };
+  }
+  function updateGuildRes(now) {
+    const stack = document.getElementById('__kw_stack');
+    const panel = document.getElementById('__kw_panel');
+    if (!opt('family', true) || !stack || !panel || !panel.classList.contains('show') || !guildResQ.trim() || !famEl || !famEl.isConnected) { removeGuildRes(); return; }
+    if (!guildResEl || !guildResEl.isConnected) {
+      guildResEl = document.createElement('div');
+      guildResEl.id = '__kw_bdo_guild_r';
+      guildResEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;height:' + Math.min(guildRH, guildRHMax()) + 'px';
+      document.body.appendChild(guildResEl);
+      placeGuildRes();
+      guildResSig = null;
+    }
+    renderGuildRes();
+    try { // 창 기본형 상속: 결과창=가로+세로
+      if (KW && typeof KW.window === 'function') {
+        KW.window(guildResEl, {
+          color: '#ff7ab8', posKey: LS_GUILDRPOS, rsz: 'd', dock: () => placeGuildRes(),
+          getH: () => guildRH,
+          setH: (v) => {
+            guildRH = Math.max(GUILDR_H_MIN, Math.min(guildRHMax(), v));
+            guildResEl.style.height = Math.min(guildRH, guildRHMax()) + 'px';
+          },
+          saveH: () => { try { localStorage.setItem(LS_GUILDRH, String(guildRH)); } catch (er) {} },
+        });
+      } else {
+        if (KW && typeof KW.rsz === 'function') KW.rsz(guildResEl, {
+          dir: 'd', color: '#ff7ab8', wMode: 'self',
+          getW: () => guildResEl.getBoundingClientRect().width,
+          setW: (v) => { guildResEl.style.width = Math.max(225, Math.min(600, Math.round(v))) + 'px'; },
+          getH: () => guildRH,
+          setH: (v) => {
+            guildRH = Math.max(GUILDR_H_MIN, Math.min(guildRHMax(), v));
+            guildResEl.style.height = Math.min(guildRH, guildRHMax()) + 'px';
+          },
+          save: () => { try { localStorage.setItem(LS_GUILDRH, String(guildRH)); } catch (er) {} },
+        });
+        if (KW && typeof KW.float === 'function') KW.float(guildResEl, { color: '#ff7ab8', key: LS_GUILDRPOS, dock: () => placeGuildRes() });
+      }
+    } catch (e) {}
+  }
+
   function tick() {
     try {
-      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); removeFamRes(); return; }
+      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); removeFamRes(); removeGuildRes(); return; }
       const now = Date.now();
       if (now - bossFetchedAt >= BOSS_REFRESH_MS) loadSchedule(); // 처음 켜질 때 한 번, 이후 6시간마다
       updateNext(now);
@@ -1022,6 +1134,7 @@
       updateParty(now);
       updateFamily(now);
       updateFamRes(now);
+      updateGuildRes(now);
       const lead = Math.max(1, Math.min(30, Number(opt('lead', 3)) || 3)) * 60000;
       const sel = opt('bosses', null);
       const active = new Set();

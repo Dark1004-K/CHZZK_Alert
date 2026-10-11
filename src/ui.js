@@ -1501,7 +1501,7 @@ function snapRects(skipEl) {
     if (!r || r.width < 20 || r.height < 20) return;
     out.push({ el, l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height });
   };
-  ['__kw_panel', '__kw_dropsp', '__kw_histp', '__kw_bdop', '__kw_cpn', '__kw_bdo_party', '__kw_bdo_family', '__kw_bdo_family_r', '__kw_setp', '__kw_optwin'].forEach((id) => {
+  ['__kw_panel', '__kw_dropsp', '__kw_histp', '__kw_bdop', '__kw_cpn', '__kw_bdo_party', '__kw_bdo_family', '__kw_bdo_family_r', '__kw_bdo_guild_r', '__kw_setp', '__kw_optwin'].forEach((id) => {
     try { pushEl(document.getElementById(id)); } catch (e) {}
   });
   try { // 신규 창 자동 포함 (KW.float/window으로 등록된 창). id가 __kw_ 로 시작하지 않으면 제외.
