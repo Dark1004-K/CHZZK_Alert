@@ -9,7 +9,7 @@
     },
     {
       "id": "blackdesert",
-      "name": "blackdesert v1.0.0",
+      "name": "검은사막 확장 활성",
       "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/plugins/blackdesert.js",
       "on": true,
       "companion": {

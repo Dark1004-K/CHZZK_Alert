@@ -87,7 +87,18 @@ const __kwListeners = {};
 const LS_PLUG = '__kw_plugins'; // { [id]: true|false } 사용자가 고른 상태. 없으면 매니페스트의 on 값
 let pluginList = null; // 매니페스트에서 받은 목록 (null이면 아직 못 받음)
 const pluginLoaded = {};
+const pluginMeta = {}; // 플러그인 자기 신고 { [id]: { name, version } }
 let pluginInjecting = '';
+function pluginMetaOf(id) {
+  try { return pluginMeta[id] || null; } catch (e) { return null; }
+}
+function pluginDisplayName(p) {
+  try {
+    const m = p && pluginMeta[p.id];
+    if (m && m.name) return m.version ? m.name + ' v' + m.version : m.name;
+  } catch (e) {}
+  return (p && p.name) || (p && p.id) || '';
+}
 function pluginStateMap() {
   try { return JSON.parse(localStorage.getItem(LS_PLUG)) || {}; } catch (e) { return {}; }
 }
@@ -164,6 +175,17 @@ try {
     sound() { playAlertSound(); }, // 설정 > 일반설정의 알림 소리 재생
     rsz(el, o) { try { return kwRsz(el, o); } catch (e) {} }, // 우하 리사이즈 핸들 (dir h=가로공유/v=세로/d=대각)
     float(el, o) { try { return kwFloatKey(el, o); } catch (e) {} }, // 좌상 + 띄우기 (key=위치 저장키, dock=복귀 추가동작)
+    describe(info) { // 플러그인 자기 신고 (이름·버전은 플러그인이 가짐). UI는 메타 우선, 매니페스트는 폴백.
+      try {
+        if (pluginInjecting && info && typeof info === 'object') {
+          pluginMeta[pluginInjecting] = {
+            name: String(info.name || ''),
+            version: String(info.version || ''),
+          };
+          if (setTab === 'ext') renderSettings();
+        }
+      } catch (e) {}
+    },
     window(el, cfg) { try { return kwWindow(el, cfg); } catch (e) {} }, // 창 기본형 (색+띄우기+리사이즈+자석 일괄. rsz h/v/d)
     stackW(v) { try { return kwStackW(v); } catch (e) {} }, // 스택 너비 공유 (225~600)
     emit(evt, data) { kwEmit('ext:' + evt, data); }, // 플러그인끼리 이벤트 전달 (구독은 on('ext:이름'))
