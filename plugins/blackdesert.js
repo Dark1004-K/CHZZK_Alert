@@ -748,12 +748,10 @@
   const LS_GUILDQ = '__kw_guild_q';
   const LS_ITEMQ = '__kw_item_q';
   let famEl = null, famSig = null;
-  let famQuery = '';
-  try { famQuery = localStorage.getItem(LS_FAMQ) || ''; } catch (e) {}
+  let famQuery = ''; // 새로고침 시 초기화 (이전 검색어는 복원하지 않음)
   let guildQuery = '';
-  try { guildQuery = localStorage.getItem(LS_GUILDQ) || ''; } catch (e) {}
   let itemQuery = '';
-  try { itemQuery = localStorage.getItem(LS_ITEMQ) || ''; } catch (e) {}
+  try { localStorage.removeItem(LS_FAMQ); localStorage.removeItem(LS_GUILDQ); localStorage.removeItem(LS_ITEMQ); } catch (e) {}
   // 결과창: 가문·길드·아이템 각각 독립 (동시 표시 가능)
   function removeFamily() {
     if (famEl) { try { famEl.remove(); } catch (e) {} }
@@ -1534,8 +1532,22 @@
     };
   }
   // [BETA-TEST-ONLY:end]
+  let lastHref = ''; // 방송 이동 감지용
   function tick() {
     try {
+      try { // 방송이 바뀌면(새로고침 없이 주소만 변경) 검색어·결과창 초기화
+        const href = location.href;
+        if (lastHref && href !== lastHref) {
+          famQuery = guildQuery = itemQuery = '';
+          famResQ = guildResQ = itemResQ = '';
+          liveFam = liveGuild = liveItem = null; liveFamRev++; liveGuildRev++; liveItemRev++;
+          selId = null; selPhase = ''; selData = null;
+          try { localStorage.removeItem(LS_FAMQ); localStorage.removeItem(LS_GUILDQ); localStorage.removeItem(LS_ITEMQ); } catch (e) {}
+          famSig = null; resSig = null;
+          removeFamily(); removeRes();
+        }
+        lastHref = href;
+      } catch (e) {}
       if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); removeRes(); return; }
       const now = Date.now();
       if (now - bossFetchedAt >= BOSS_REFRESH_MS) loadSchedule(); // 처음 켜질 때 한 번, 이후 6시간마다
