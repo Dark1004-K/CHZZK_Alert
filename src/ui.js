@@ -911,8 +911,8 @@ function renderSettings() {
     <b id="__kw_set_title" title="끌어서 설정 창 이동" style="position:absolute;top:10px;left:18px;font-size:14px;color:#fff;cursor:grab;touch-action:none;user-select:none;display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>설정</b>
     <button id="__kw_set_move" class="__kw_mv" title="드래그로 설정 창 이동 (화면 가장자리·다른 창에 자석처럼 붙음) · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</button>
     <button class="__kw_ic __kw_xabs" id="__kw_set_close" title="설정 닫기" style="color:#aaaab9">${IC.close}</button>
-    <div style="height:1px;flex:none;background:rgba(255,255,255,.14);margin:22px -10px 0"></div>
-    <div style="display:flex;gap:14px;height:calc(100% - 39px);margin-top:8px">
+    <div style="height:1px;flex:none;background:rgba(255,255,255,.14);margin:26px -10px 0"></div>
+    <div style="display:flex;gap:14px;height:calc(100% - 47px);margin-top:10px">
       <div class="__kw_tabs">
         <button class="__kw_tab${setTab === 'general' ? ' on' : ''}" data-tab="general">일반설정</button>
         <button class="__kw_tab${setTab === 'sound' ? ' on' : ''}" data-tab="sound">음향설정</button>
