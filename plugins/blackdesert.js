@@ -283,6 +283,42 @@
     const l = cpnData && Array.isArray(cpnData.coupons) ? cpnData.coupons : [];
     return l.filter((c) => c && c.code && (!c.expiresAt || c.expiresAt > now)); // 기간이 지난 쿠폰은 숨김
   }
+  // [BETA-TEST-ONLY:start]
+  // 새 쿠폰 감지·알림 (베타 전용): 본 적 없는 유효 쿠폰이 들어오면 토스트+알림음. 첫 수신 때는 조용히 기억만.
+  const LS_CPNSEEN = '__kw_cpn_seen';
+  function cpnSeenSet() { try { return new Set(JSON.parse(localStorage.getItem(LS_CPNSEEN)) || []); } catch (e) { return new Set(); } }
+  function cpnCheckNew() {
+    const list = cpnVisible(Date.now());
+    const seen = cpnSeenSet();
+    const fresh = list.filter((c) => c && c.code && !seen.has(c.code));
+    try { localStorage.setItem(LS_CPNSEEN, JSON.stringify(list.map((c) => c.code).slice(-200))); } catch (e) {}
+    if (!seen.size) return []; // 첫 수신: 알람 없이 기억만
+    return fresh;
+  }
+  function cpnAlarmNew(fresh) {
+    (fresh || []).forEach((c) => {
+      try { if (typeof KW.toast === 'function') KW.toast('🎟 새 쿠폰', (c.name || '쿠폰') + '\n' + c.code); } catch (e) {}
+    });
+    if (fresh && fresh.length) {
+      try { if (opt('sound', true) && typeof KW.sound === 'function') KW.sound(); } catch (e) {}
+      try { if (typeof KW.emit === 'function') KW.emit('coupon', { coupons: fresh.map((c) => ({ name: c.name, code: c.code })) }); } catch (e) {}
+    }
+    return (fresh || []).length;
+  }
+  // 테스트: 콘솔에서 __kwBdoCouponTest() 를 호출하면 가짜 새 쿠폰으로 알람 경로를 즉시 시험 (옵션 무시)
+  if (KW.beta) { // 정식 앱에서는 테스트 후크를 만들지 않는다
+    window.__kwBdoCouponTest = () => {
+      const code = 'TEST-' + Date.now().toString(36).toUpperCase();
+      if (!cpnData || !Array.isArray(cpnData.coupons)) cpnData = { updatedAt: Date.now(), coupons: [] };
+      cpnData.coupons.push({ name: '테스트 쿠폰', code });
+      cpnState = 'ok'; cpnSig = '';
+      cpnAlarmNew([{ name: '테스트 쿠폰', code }]);
+      try { const s = cpnSeenSet(); s.add(code); localStorage.setItem(LS_CPNSEEN, JSON.stringify([...s].slice(-200))); } catch (e) {}
+      try { updateCoupons(Date.now()); } catch (e) {}
+      return '쿠폰 테스트 알람: ' + code;
+    };
+  }
+  // [BETA-TEST-ONLY:end]
   function removeCoupons() {
     if (cpnEl) { try { cpnEl.remove(); } catch (e) {} }
     cpnEl = null;
@@ -295,7 +331,13 @@
     cpnSig = '';
     fetch(CPN_URL + '?t=' + Date.now(), { cache: 'no-store' })
       .then((r) => { if (!r.ok) throw new Error('http'); return r.json(); })
-      .then((j) => { if (!j || !Array.isArray(j.coupons)) throw new Error('format'); cpnData = j; cpnState = 'ok'; })
+      .then((j) => {
+        if (!j || !Array.isArray(j.coupons)) throw new Error('format');
+        cpnData = j; cpnState = 'ok';
+        // [BETA-TEST-ONLY:start]
+        try { cpnAlarmNew(cpnCheckNew()); } catch (e) {} // 새 쿠폰 감지·알림 (베타 전용)
+        // [BETA-TEST-ONLY:end]
+      })
       .catch(() => { cpnState = cpnData ? 'ok' : 'err'; }) // 실패해도 이전에 받은 목록은 유지
       .then(() => { cpnFetchedAt = Date.now(); }) // 실패해도 1시간 뒤에 다시 시도
       .then(() => {
