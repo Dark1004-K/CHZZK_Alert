@@ -1203,7 +1203,7 @@ function renderSettings() {
           <div style="display:flex;align-items:flex-start;gap:5px;margin-top:8px;line-height:18px"><span class="__kw_lbl" style="margin:0;width:5em;flex:none;line-height:18px">최초설치자</span><b>털찐길냥이</b></div>
           <div style="margin-top:4px;font-size:12px;color:#eee">"하우징은 즐겁다옹!!"</div>
           <div class="__kw_lbl">현재 버전</div>
-          <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span><button class="__kw_ic" id="__kw_update_check" title="업데이트 확인">${IC.refresh}</button><button class="__kw_upbtn" id="__kw_update_go" disabled>업데이트</button></div>
+          <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span><button class="__kw_ic" id="__kw_update_check" title="업데이트 확인">${IC.refresh}</button><button class="__kw_ic" id="__kw_update_go" title="업데이트" style="color:#00ffa3" disabled>${IC.down}</button></div>
           <div id="__kw_update_msg" class="__kw_lbl"></div>
           <div class="__kw_lbl"><a href="https://github.com/Dark1004-K/Chzzk_Alert" target="_blank" rel="noopener" style="color:#00ffa3">GitHub 리포지토리</a> · <a href="https://github.com/Dark1004-K/Chzzk_Alert/blob/main/beta/UPDATE.md" target="_blank" rel="noopener" style="color:#00ffa3">업데이트 내용</a></div>
         </div>
