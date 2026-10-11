@@ -890,7 +890,12 @@ function showCompanionPrompt(ch, items) {
       b.onclick = () => {
         const p = companionOf(b.getAttribute('data-companion-go'));
         const u = p && p.companion && p.companion.url;
-        if (u) { try { window.open(u, '_blank', 'noopener'); } catch (e) {} }
+        if (!u) return;
+        try { box.remove(); } catch (e) {}
+        showReloadPopup(() => window.open(u, '_blank', 'noopener'), {
+          done: '🔄 브릿지 설치 후 새로고침',
+          back: '이 탭으로 돌아오면 카운트 후 <b>자동으로 새로고침</b>됩니다 (브릿지가 적용됩니다)',
+        }, true);
       };
     });
     const x = box.querySelector('#__kw_compreq_x');
@@ -991,7 +996,11 @@ function bindCompanionInstall(root) {
       b.onclick = () => {
         const p = companionOf(b.getAttribute('data-companion-install'));
         const u = p && p.companion && p.companion.url;
-        if (u) { try { window.open(u, '_blank', 'noopener'); } catch (e) {} }
+        if (!u) return;
+        showReloadPopup(() => window.open(u, '_blank', 'noopener'), {
+          done: '🔄 브릿지 설치 후 새로고침',
+          back: '이 탭으로 돌아오면 카운트 후 <b>자동으로 새로고침</b>됩니다 (브릿지가 적용됩니다)',
+        }, true);
       };
     });
     // 몽키는 스크립트 삭제 API를 주지 않아서 삭제 방법 안내로 대체
@@ -1007,8 +1016,10 @@ function bindCompanionInstall(root) {
 }
 // 업데이트 설치(Tampermonkey 설치 창) 후 새로고침 안내 팝업.
 // 설치 완료 여부는 직접 알 수 없어서, 설치 창이 닫히면 자동으로, 아니면 버튼으로 새로고침한다.
-function showReloadPopup(openInstall) {
+// texts {done, back}: 동반 설치 등 다른 설치 흐름에서 문구만 바꿔 재사용. skipConfirm이면 확인 없이 바로 설치 창을 연다.
+function showReloadPopup(openInstall, texts, skipConfirm) {
   if (document.getElementById('__kw_upd')) return;
+  const T = texts || {};
   const box = document.createElement('div');
   box.id = '__kw_upd';
   // 우리 앱 화면(설정 창, 닫혀 있으면 왼쪽 아래 스택) 위에 덮어서 보여준다
@@ -1019,13 +1030,23 @@ function showReloadPopup(openInstall) {
   box.style.cssText = hr && hr.width > 120 && hr.height > 80
     ? base + 'position:fixed;left:' + hr.left + 'px;top:' + hr.top + 'px;width:' + hr.width + 'px;height:' + hr.height + 'px;padding:14px 16px;display:flex;flex-direction:column;justify-content:center;overflow:auto'
     : base + 'position:fixed;top:28%;left:50%;transform:translateX(-50%);padding:16px 18px;max-width:340px';
-  const phase1Html = '<div style="font-size:14px"><b>🔄 업데이트 설치 후 새로고침</b></div>' +
-    '<div style="font-size:12px;color:#bbb;margin:8px 0 10px;line-height:1.5">이 탭으로 돌아오면 카운트 후 <b>자동으로 새로고침</b>됩니다 (알람 초기화가 일어날 수 있습니다)</div>' +
+  const phase1Html = '<div style="font-size:14px"><b>' + (T.done || '🔄 업데이트 설치 후 새로고침') + '</b></div>' +
+    '<div style="font-size:12px;color:#bbb;margin:8px 0 10px;line-height:1.5">' + (T.back || '이 탭으로 돌아오면 카운트 후 <b>자동으로 새로고침</b>됩니다 (알람 초기화가 일어날 수 있습니다)') + '</div>' +
     '<div style="display:flex;gap:14px;align-items:center">' + // 두 버튼 사이 간격
     '<button class="__kw_b" id="__kw_upd_go" style="background:#1f6feb;color:#fff;margin:0">설치 끝남 · 새로고침</button>' +
     '<button class="__kw_b" id="__kw_upd_x" style="background:#444;color:#fff;margin:0">나중에</button></div>' +
     '<div id="__kw_upd_msg" style="font-size:12px;color:#ffd400;margin-top:8px"></div>';
+  const startWatch = () => {
+    let w = null;
+    try { w = openInstall(); } catch (e) {}
+    box.innerHTML = phase1Html;
+    watchInstall(w);
+  };
   // 1) 먼저 확인 팝업: 확인을 누르면 Tampermonkey 설치 창으로 넘어간다
+  if (skipConfirm) {
+    document.body.appendChild(box);
+    startWatch();
+  } else {
   box.innerHTML = '<div style="font-size:14px"><b>🔄 업데이트</b></div>' +
     '<div style="font-size:12px;color:#bbb;margin:8px 0 8px;line-height:1.5">새 버전을 설치합니다. <b>확인</b>을 누르면 Tampermonkey 설치 창이 열립니다.</div>' +
     '<div style="font-size:14px;font-weight:bold;color:#ffd400;background:rgba(255,212,0,.12);border:1px solid #ffd400;border-radius:8px;padding:8px 10px;margin:0 0 12px;line-height:1.5">새로 열린 Tampermonkey 창에서<br><span style="font-size:15px">재설치/업그레이드</span>를 누르세요</div>' +
@@ -1033,12 +1054,8 @@ function showReloadPopup(openInstall) {
     '<button class="__kw_b" id="__kw_upd_cancel" style="background:#444;color:#fff;margin:0;flex:1;padding:12px 0;font-size:14px">취소</button></div>';
   document.body.appendChild(box);
   box.querySelector('#__kw_upd_cancel').onclick = () => { try { box.remove(); } catch (e) {} };
-  box.querySelector('#__kw_upd_ok').onclick = () => {
-    let w = null;
-    try { w = openInstall(); } catch (e) {}
-    box.innerHTML = phase1Html;
-    watchInstall(w);
-  };
+  box.querySelector('#__kw_upd_ok').onclick = startWatch;
+  }
   function watchInstall(installWin) {
   let timer = null;
   const reload = () => { // 새로고침 전에 불린 대화 목록을 비운다
