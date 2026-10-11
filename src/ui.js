@@ -852,7 +852,6 @@ function extListHtml() {
 let __kwCompPromptDone = false; // 세션 내 중복 방지 (채널별 1회는 LS로 따로 관리)
 let __kwCompPromptCid = '';
 const LS_COMPREQ = '__kw_compreq_done'; // 팝업을 본 채널 { [cid]: 1 }
-const __kwCompanionKilled = {}; // 브릿지 미확인으로 해제한 플러그인 id
 function compReqSeen(cid) { try { const o = JSON.parse(localStorage.getItem(LS_COMPREQ)) || {}; return !!(cid && o[cid]); } catch (e) { return false; } }
 function compReqMark(cid) { try { const o = JSON.parse(localStorage.getItem(LS_COMPREQ)) || {}; if (cid) o[cid] = 1; localStorage.setItem(LS_COMPREQ, JSON.stringify(o)); } catch (e) {} }
 function maybeCompanionPrompt() {
@@ -872,7 +871,7 @@ function maybeCompanionPrompt() {
           if (!p || !p.companion || !p.companion.ready) return;
           if (p.noOwner && isOwner()) return;
           if (__kwCompanions[p.companion.ready]) return; // 설치됨
-          if (pluginIsOn(p) || __kwCompanionKilled[p.id]) items.push(p);
+          items.push(p); // 꺼져 있어도 설치 유도로 보여줌
         });
       } catch (e2) {}
       if (!items.length) return;
@@ -1004,7 +1003,7 @@ function paintCompanions() {
         if (!pl || !pl.companion || !pl.companion.ready) return;
         if (pl.noOwner && isOwner()) return;
         if (__kwCompanions[pl.companion.ready]) return; // 확인됨
-        if (pluginIsOn(pl)) { setPluginOn(pl, false); __kwCompanionKilled[pl.id] = 1; changed = true; }
+        if (pluginIsOn(pl)) { setPluginOn(pl, false); changed = true; }
       });
       if (changed) renderSettings();
     } catch (e2) {}
