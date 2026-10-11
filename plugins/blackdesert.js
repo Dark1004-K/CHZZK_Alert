@@ -260,6 +260,7 @@
   let cpnState = 'idle'; // idle | loading | ok | err
   let cpnSig = ''; // 마지막으로 그린 내용의 서명 (바뀔 때만 다시 그림)
   let cpnFitNext = false; // 펼치기(최대화) 직후 한 번: 아래 기준으로 내용만큼 펼치고 화면에 맞춤
+  let cpnAnchorB = 0; // 펼치기 클릭 시점(접힌 상태)의 아래 모서리. innerHTML이 먼저 깔리므로 클릭 때 잡아야 함
   let cpnFetchedAt = 0; // 마지막으로 받아온 시각
   const CPN_REFRESH_MS = 3600000; // 1시간마다 자동으로 다시 받는다
   let cpnBusyUntil = 0; // 이 시각까지는 "가져오는 중"(도는 아이콘)으로 보여줌 (너무 빨리 끝나도 눌린 것이 보이게)
@@ -350,27 +351,26 @@
     if (cpnFitNext && !cpnFolded()) { // 펼치기 직후: 아래 기준으로 내용만큼, 화면을 넘으면 거기까지만
       cpnFitNext = false;
       try {
-        const r0 = cpnEl.getBoundingClientRect(); // 펼치기 전(접힌) rect. 아래 모서리 기준용으로 먼저 잡음
+        const anchorB = cpnAnchorB > 0 ? cpnAnchorB : cpnEl.getBoundingClientRect().bottom; // 클릭 시점 아래 모서리
+        cpnAnchorB = 0;
         cpnEl.style.height = 'auto';
         const need = cpnEl.scrollHeight;
-        const isFx = cpnEl.style.position === 'fixed';
-        let room = 0;
-        if (isFx) {
+        if (cpnEl.style.position === 'fixed') {
           // 띄움: 펼치기 전 아래 모서리 고정 → 위로 늘어남
-          room = Math.max(CPN_H_MIN, r0.bottom);
+          const room = Math.max(CPN_H_MIN, anchorB);
           cpnH = Math.max(CPN_H_MIN, Math.min(need, room, cpnHMax()));
           cpnEl.style.height = Math.min(cpnH, cpnHMax()) + 'px';
-          cpnEl.style.top = Math.max(0, Math.round(r0.bottom - cpnH)) + 'px';
+          cpnEl.style.top = Math.max(0, Math.round(anchorB - cpnH)) + 'px';
           try { bdoPosSaveEl(LS_CPNNPOS, cpnEl); } catch (er2) {}
         } else {
           // 도크: 레이아웃이 아래 고정 → 위로 늘어남
           const r = cpnEl.getBoundingClientRect();
-          room = Math.max(CPN_H_MIN, r.top + r.height);
+          const room = Math.max(CPN_H_MIN, r.top + r.height);
           cpnH = Math.max(CPN_H_MIN, Math.min(need, room, cpnHMax()));
           cpnEl.style.height = Math.min(cpnH, cpnHMax()) + 'px';
         }
         try { localStorage.setItem(LS_CPNH, String(cpnH)); } catch (er) {}
-        try { console.log('[KW-BETA]', 'cpn-fit', JSON.stringify({ need, r0t: Math.round(r0.top), r0b: Math.round(r0.bottom), room: Math.round(room), H: cpnH, topAfter: cpnEl.style.top, isFx })); } catch (er3) {}
+        try { console.log('[KW-BETA]', 'cpn-fit', JSON.stringify({ need, anchorB: Math.round(anchorB), H: cpnH, topAfter: cpnEl.style.top, isFx: cpnEl.style.position === 'fixed' })); } catch (er3) {}
       } catch (e5) {}
     }
     // 높이는 패널 통째로 명시 (내용 길이에 관계없이 조절이 바로 보이게). 접힘 상태는 자동 높이.
@@ -384,7 +384,10 @@
       if (e.target && e.target.id === '__kw_cpn_rf') return;
       const was = cpnFolded();
       try { localStorage.setItem(LS_CPN_FOLD, was ? '0' : '1'); } catch (er) {}
-      if (was) cpnFitNext = true; // 펼칠 때 아래 기준으로 내용만큼 (화면을 넘으면 거기까지만)
+      if (was) {
+        cpnFitNext = true; // 펼칠 때 아래 기준으로 내용만큼 (화면을 넘으면 거기까지만)
+        try { cpnAnchorB = Math.round(cpnEl.getBoundingClientRect().bottom); } catch (ex2) { cpnAnchorB = 0; }
+      }
       try { console.log('[KW-BETA]', 'cpn-unfold-click', JSON.stringify({ was })); } catch (ex) {}
       cpnSig = '';
     };
