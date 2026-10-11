@@ -261,6 +261,7 @@
   let cpnSig = ''; // 마지막으로 그린 내용의 서명 (바뀔 때만 다시 그림)
   let cpnFitNext = false; // 펼치기(최대화) 직후 한 번: 아래 기준으로 내용만큼 펼치고 화면에 맞춤
   let cpnAnchorB = 0; // 펼치기 클릭 시점(접힌 상태)의 아래 모서리. innerHTML이 먼저 깔리므로 클릭 때 잡아야 함
+  let cpnFoldB = 0; // 접기 클릭 시점(펼친 상태)의 아래 모서리. 접을 때도 아래 고정
   let cpnFetchedAt = 0; // 마지막으로 받아온 시각
   const CPN_REFRESH_MS = 3600000; // 1시간마다 자동으로 다시 받는다
   let cpnBusyUntil = 0; // 이 시각까지는 "가져오는 중"(도는 아이콘)으로 보여줌 (너무 빨리 끝나도 눌린 것이 보이게)
@@ -379,6 +380,15 @@
       cpnEl.style.flexDirection = 'column';
       cpnEl.style.height = fold ? '' : Math.min(cpnH, cpnHMax()) + 'px';
     } catch (e5) {}
+    if (cpnFoldB > 0) { // 접기: 아래 모서리 고정 → 아래로 접힘 (띄움만, 도크는 레이아웃)
+      const fb = cpnFoldB; cpnFoldB = 0;
+      if (fold && cpnEl.style.position === 'fixed') {
+        try {
+          cpnEl.style.top = Math.max(0, Math.round(fb - cpnEl.getBoundingClientRect().height)) + 'px';
+          try { bdoPosSaveEl(LS_CPNNPOS, cpnEl); } catch (er2) {}
+        } catch (e6) {}
+      }
+    }
     const hd = cpnEl.querySelector('#__kw_cpn_hd');
     if (hd) hd.onclick = (e) => {
       if (e.target && e.target.id === '__kw_cpn_rf') return;
@@ -387,6 +397,8 @@
       if (was) {
         cpnFitNext = true; // 펼칠 때 아래 기준으로 내용만큼 (화면을 넘으면 거기까지만)
         try { cpnAnchorB = Math.round(cpnEl.getBoundingClientRect().bottom); } catch (ex2) { cpnAnchorB = 0; }
+      } else {
+        try { cpnFoldB = Math.round(cpnEl.getBoundingClientRect().bottom); } catch (ex3) { cpnFoldB = 0; }
       }
       try { console.log('[KW-BETA]', 'cpn-unfold-click', JSON.stringify({ was })); } catch (ex) {}
       cpnSig = '';
