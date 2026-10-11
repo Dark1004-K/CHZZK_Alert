@@ -441,6 +441,7 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
 
 * `bdo-search.user.js`를 Tampermonkey에 **추가로 설치**하면 검은사막 공식 홈페이지 검색을 브라우저에서 직접 호출합니다.
   👉 [동반 스크립트 설치 링크](https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/bdo-search.user.js)
+  👉 베타 사용자는 [동반 베타 설치 링크](https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/bdo-search.beta.user.js)를 쓰세요.
 * 본체(`@grant none`)는 CORS 때문에 검은사막 사이트를 직접 읽지 못해서, 권한(`GM_xmlhttpRequest`)이 있는 이 동반 스크립트가 대신 읽어다 줍니다. 본체 호출 알림에는 영향이 없습니다.
 * 지원하는 검색: 가문명(`famSearch`)·캐릭터명(`charSearch`)·가문 프로필·길드명·길드 프로필. 점검 중이면 `maintenance`로 응답합니다.
 * 콘솔에서 바로 테스트할 수 있습니다: `window.bdoSearch.searchGuild("미리내")`

@@ -14,7 +14,7 @@
       "on": true,
       "companion": {
         "label": "실시간 검색 브릿지",
-        "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/bdo-search.user.js",
+        "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/bdo-search.beta.user.js",
         "minVersion": "1.0",
         "ping": "bdo-search-ping",
         "ready": "bdo-search-ready"
