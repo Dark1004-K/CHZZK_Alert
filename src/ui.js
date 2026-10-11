@@ -952,7 +952,7 @@ function companionHtml(p, noRemove) {
   if (v && (!need || cmpVersions(v, need) >= 0)) {
     const m = pluginMetaOf(p.id);
     const label = (m && m.name) ? m.name + (m.version ? ' v' + m.version : '') : pluginDisplayName(p);
-    return `<span style="color:#888">${escapeHtml(label)}</span>` + (noRemove ? '' : ` <button class="__kw_ic" data-companion-remove="${escapeHtml(p.id)}" title="브릿지 삭제" style="color:#ff7b7b;padding:3px">${IC.trash}</button>`);
+    return `<span style="color:#888">${escapeHtml(label)} + 브릿지 v${escapeHtml(v)}</span>` + (noRemove ? '' : ` <button class="__kw_ic" data-companion-remove="${escapeHtml(p.id)}" title="브릿지 삭제" style="color:#ff7b7b;padding:3px">${IC.trash}</button>`);
   }
   if (v) { const un = (c.ready && __kwCompanionNames[c.ready]) || c.label || '동반 스크립트'; return `<span style="color:#ffd400">${escapeHtml(un)} v${escapeHtml(v)} → v${escapeHtml(need)}</span> <button class="__kw_upbtn" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 업그레이드 (설치 후 새로고침)">브릿지 업그레이드</button>`; }
   companionPing(p);
