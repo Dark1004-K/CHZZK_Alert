@@ -672,12 +672,15 @@
   const LS_FAMPOS = '__kw_family_pos';
   const LS_FAMQ = '__kw_family_q';
   const LS_GUILDQ = '__kw_guild_q';
+  const LS_ITEMQ = '__kw_item_q';
   let famEl = null, famSig = null;
   let famQuery = '';
   try { famQuery = localStorage.getItem(LS_FAMQ) || ''; } catch (e) {}
   let guildQuery = '';
   try { guildQuery = localStorage.getItem(LS_GUILDQ) || ''; } catch (e) {}
-  // 결과창: 가문·길드 각각 독립 (동시 표시 가능)
+  let itemQuery = '';
+  try { itemQuery = localStorage.getItem(LS_ITEMQ) || ''; } catch (e) {}
+  // 결과창: 가문·길드·아이템 각각 독립 (동시 표시 가능)
   function removeFamily() {
     if (famEl) { try { famEl.remove(); } catch (e) {} }
     famEl = null;
@@ -685,7 +688,7 @@
   }
   function renderFamily() {
     if (!famEl || !famEl.isConnected) return;
-    const sig = [famQuery, guildQuery].join('|'); // 입력 중에는 다시 그리지 않음 (포커스 유지)
+    const sig = [famQuery, guildQuery, itemQuery].join('|'); // 입력 중에는 다시 그리지 않음 (포커스 유지)
     if (sig === famSig) return;
     famSig = sig;
     // 다시 그리기 전 포커스 기억 (innerHTML 교체로 포커스가 날아감 방지)
@@ -697,7 +700,8 @@
     famEl.innerHTML = xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
       '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + '검은사막 검색</b></div>' +
       '<div style="display:flex;gap:6px;flex:none;margin-top:4px;padding-left:19px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>' +
-      '<div style="display:flex;gap:6px;flex:none;margin-top:6px;padding-left:19px"><input id="__kw_guild_q" class="__kw_in" placeholder="길드명 입력" value="' + esc(guildQuery) + '" style="flex:1;min-width:0"><button id="__kw_guild_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>';
+      '<div style="display:flex;gap:6px;flex:none;margin-top:6px;padding-left:19px"><input id="__kw_guild_q" class="__kw_in" placeholder="길드명 입력" value="' + esc(guildQuery) + '" style="flex:1;min-width:0"><button id="__kw_guild_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>' +
+      '<div style="display:flex;gap:6px;flex:none;margin-top:6px;padding-left:19px"><input id="__kw_item_q" class="__kw_in" placeholder="아이템명 입력" value="' + esc(itemQuery) + '" style="flex:1;min-width:0"><button id="__kw_item_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>';
     const qi = famEl.querySelector('#__kw_fam_q');
     const go = () => {
       famQuery = qi ? qi.value : '';
@@ -727,8 +731,22 @@
     if (gi) gi.addEventListener('input', () => { guildQuery = gi.value; try { localStorage.setItem(LS_GUILDQ, guildQuery); } catch (er) {} });
     const gg = famEl.querySelector('#__kw_guild_go');
     if (gg) gg.onclick = goGuild;
+    const ii = famEl.querySelector('#__kw_item_q');
+    const goItem = () => {
+      itemQuery = ii ? ii.value : '';
+      try { localStorage.setItem(LS_ITEMQ, itemQuery); } catch (er) {}
+      if (!itemQuery.trim()) { itemResQ = ''; liveItem = null; liveItemRev++; removeItemRes(); return; }
+      itemResQ = itemQuery;
+      itemResSig = null;
+      updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
+      startLive('item', itemQuery);
+    };
+    if (ii) ii.addEventListener('keydown', (e) => { try { e.stopPropagation(); } catch (er) {} if (e.key === 'Enter') goItem(); });
+    if (ii) ii.addEventListener('input', () => { itemQuery = ii.value; try { localStorage.setItem(LS_ITEMQ, itemQuery); } catch (er) {} });
+    const ig = famEl.querySelector('#__kw_item_go');
+    if (ig) ig.onclick = goItem;
     const fx = famEl.querySelector('#__kw_bdo_family_x');
-    if (fx) fx.onclick = (e) => { e.stopPropagation(); turnOff('family'); removeFamily(); removeFamRes(); };
+    if (fx) fx.onclick = (e) => { e.stopPropagation(); turnOff('family'); removeFamily(); removeFamRes(); removeGuildRes(); removeItemRes(); };
     // 다시 그리기로 날아간 포커스 복구 (커서 위치 포함)
     try {
       if (refocus) {
@@ -818,9 +836,10 @@
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
-  function bdoFetch(url, timeoutMs) {
+  const WC_BASE = 'https://apps.weingchicken.com'; // 제작노트 아이템 검색
+  function bdoFetch(url, timeoutMs, base) {
     if (!KW.bridgeReady || !KW.bridgeReady()) return Promise.resolve(null);
-    return KW.bridge('fetch', { url }, timeoutMs || 12000).then((r) => {
+    return KW.bridge('fetch', { url, base: base || BDO_BASE }, timeoutMs || 12000).then((r) => {
       if (!r || !r.ok || !r.data || typeof r.data.html !== 'string') {
         if (r && r.maintenance) {
           bdoMaint = true;
@@ -905,8 +924,8 @@
     }
     return { created, master, members, siege, memberList };
   }
-  let liveFamRev = 0, liveGuildRev = 0;
-  let liveFam = null, liveGuild = null; // { kind, q, phase:'loading'|'ok'|'miss', data } — 가문·길드 독립 (공유 시 한쪽 검색이 다른 쪽 결과를 덮음)
+  let liveFamRev = 0, liveGuildRev = 0, liveItemRev = 0;
+  let liveFam = null, liveGuild = null, liveItem = null; // { kind, q, phase:'loading'|'ok'|'miss', data } — 가문·길드·아이템 독립 (공유 시 한쪽 검색이 다른 쪽 결과를 덮음)
   const liveCache = {}; // "kind:Q" -> { t, data }
   function liveCached(kind, q) {
     try {
@@ -946,19 +965,41 @@
       });
     }).catch(() => null);
   }
+  function itemRowsOf(html) { // 제작노트 검색 목록: <a class="text-dark" ... data-id="504">검은 결정</a>
+    const out = [];
+    const seen = {};
+    const re = /<a class="text-dark" href="javascript:;" data-id="(\d+)">([^<]+)<\/a>/g;
+    let m;
+    while ((m = re.exec(html))) {
+      if (seen[m[1]]) continue;
+      seen[m[1]] = 1;
+      out.push({ id: m[1], name: decHtml(m[2]) });
+    }
+    return out;
+  }
+  function searchLiveItem(q) {
+    if (!KW.bridgeReady || !KW.bridgeReady()) return Promise.resolve(null);
+    const su = WC_BASE + '/bd/makings/search?query=' + encodeURIComponent(q);
+    return bdoFetch(su, 12000, WC_BASE).then((html) => {
+      if (!html) return null;
+      const items = itemRowsOf(html);
+      if (!items.length) return { miss: true };
+      return { query: q, items };
+    }).catch(() => null);
+  }
   function startLive(kind, q) {
-    const upd = kind === 'guild' ? updateGuildRes : updateFamRes;
-    const ren = kind === 'guild' ? renderGuildRes : renderFamRes;
-    const isGuild = kind === 'guild';
-    const getLive = () => (isGuild ? liveGuild : liveFam);
-    const setLive = (v) => { if (isGuild) liveGuild = v; else liveFam = v; };
-    const bump = () => { if (isGuild) liveGuildRev++; else liveFamRev++; };
+    const isGuild = kind === 'guild', isItem = kind === 'item';
+    const upd = isGuild ? updateGuildRes : isItem ? updateItemRes : updateFamRes;
+    const ren = isGuild ? renderGuildRes : isItem ? renderItemRes : renderFamRes;
+    const getLive = () => (isGuild ? liveGuild : isItem ? liveItem : liveFam);
+    const setLive = (v) => { if (isGuild) liveGuild = v; else if (isItem) liveItem = v; else liveFam = v; };
+    const bump = () => { if (isGuild) liveGuildRev++; else if (isItem) liveItemRev++; else liveFamRev++; };
     const hit = liveCached(kind, q);
     if (hit) { setLive({ kind, q, phase: 'ok', data: hit }); }
     else {
       const cur = { kind, q, phase: 'loading', data: null };
       setLive(cur);
-      const run = isGuild ? searchLiveGuild(q) : searchLiveFam(q);
+      const run = isGuild ? searchLiveGuild(q) : isItem ? searchLiveItem(q) : searchLiveFam(q);
       run.then((data) => {
         if (getLive() !== cur) return; // 같은 종류의 다른 검색으로 넘어감
         if (data && !data.miss) {
@@ -968,7 +1009,7 @@
           setLive({ kind, q, phase: 'miss', data: null });
         }
         bump();
-        if (isGuild) guildResSig = null; else famResSig = null;
+        if (isGuild) guildResSig = null; else if (isItem) itemResSig = null; else famResSig = null;
         try { ren(); } catch (e2) {}
       });
     }
@@ -1193,9 +1234,144 @@
     } catch (e) {}
   }
 
+  // ---------- 아이템검색 결과창 (#__kw_bdo_item_r: 검색창 오른쪽 별도 창, 가로+세로) ----------
+  const LS_ITEMRPOS = '__kw_item_r_pos';
+  const LS_ITEMRH = '__kw_item_r_h';
+  const ITEMR_H_DEF = 300, ITEMR_H_MIN = 120;
+  const ITEM_SHOW_MAX = 80; // 결과창에 그리는 최대 개수
+  const itemRHMax = () => Math.max(ITEMR_H_MIN, window.innerHeight);
+  let itemRH = ITEMR_H_DEF;
+  try { const ihv = parseInt(localStorage.getItem(LS_ITEMRH), 10); if (ihv >= ITEMR_H_MIN && ihv <= 4000) itemRH = ihv; } catch (e) {}
+  let itemResEl = null, itemResSig = null;
+  let itemResQ = '';
+  function removeItemRes() {
+    if (itemResEl) { try { itemResEl.remove(); } catch (e) {} }
+    itemResEl = null;
+    itemResSig = null;
+  }
+  // 결과창 위치: 저장된 곳, 없으면 검색창 오른쪽 (가문·길드 결과와 겹치지 않게 아래로)
+  function placeItemRes() {
+    if (!itemResEl) return;
+    let done = false;
+    try {
+      const o = JSON.parse(localStorage.getItem(LS_ITEMRPOS));
+      if (o && isFinite(o.x) && isFinite(o.y)) {
+        const w = isFinite(o.w) ? Math.max(225, Math.min(600, Math.round(o.w))) : 300;
+        itemResEl.style.position = 'fixed';
+        itemResEl.style.left = Math.max(0, Math.min(window.innerWidth - w, o.x)) + 'px';
+        itemResEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, o.y)) + 'px';
+        itemResEl.style.bottom = 'auto';
+        itemResEl.style.width = w + 'px';
+        done = true;
+      }
+    } catch (e) {}
+    if (done) return;
+    try {
+      const r = famEl && famEl.isConnected ? famEl.getBoundingClientRect() : null;
+      const w = 300;
+      itemResEl.style.position = 'fixed';
+      itemResEl.style.width = w + 'px';
+      itemResEl.style.bottom = 'auto';
+      if (r && r.width > 0) {
+        itemResEl.style.left = Math.max(0, Math.min(window.innerWidth - w, Math.round(r.right + 8))) + 'px';
+        itemResEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, Math.round(r.top + 96))) + 'px';
+      } else {
+        itemResEl.style.left = Math.max(0, window.innerWidth - w - 16) + 'px';
+        itemResEl.style.top = '170px';
+      }
+    } catch (e2) {}
+  }
+  function renderItemRes() {
+    if (!itemResEl || !itemResEl.isConnected) return;
+    const q = itemResQ;
+    const lv = (liveItem && liveItem.q === q) ? liveItem : null;
+    const bridgeOn = !!(KW.bridgeReady && KW.bridgeReady());
+    const items = (lv && lv.phase === 'ok' && lv.data && !lv.data.miss && Array.isArray(lv.data.items)) ? lv.data.items : null;
+    const liveOn = !!items;
+    const n = items ? items.length : 0;
+    const sig = ['item', q, n, items ? items.slice(0, 5).map((x) => x.id).join(',') : '', lv ? lv.phase : '-', liveItemRev, bridgeOn ? 'b' : '-'].join('|');
+    if (sig === itemResSig) return;
+    itemResSig = sig;
+    let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + (items ? esc(q) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(q || '검색 결과')) + '</b></div>' +
+      xBtn('__kw_bdo_item_r_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
+      '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' +
+      (liveOn ? '<div style="font-size:10px;color:#7dffb3;margin-top:4px">● 실시간 검색 결과</div>' : '') +
+      '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
+    if (!bridgeOn) h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px;line-height:1.5">동반 브릿지(chzzk_bridge)가 필요합니다.<br>설치 후 방송 페이지를 새로고침하세요.</div>';
+    else if (lv && lv.phase === 'loading') h += '<div style="font-size:11px;color:#aaa;margin-top:6px">실시간 검색 중...</div>';
+    else if (items) {
+      items.slice(0, ITEM_SHOW_MAX).forEach((it) => {
+        h += '<div class="__kw_item_row" data-item-id="' + esc(it.id) + '" title="제작노트 페이지 열기" style="display:flex;align-items:center;gap:8px;margin-top:5px;padding:5px 4px 5px 0;border-top:1px solid rgba(255,255,255,.12);cursor:pointer">' +
+          '<img src="' + WC_BASE + '/storage/images/bd/items/' + esc(it.id) + '.png" width="24" height="24" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06)" onerror="this.style.display=\'none\'">' +
+          '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(it.name || '?') + '</b></div>';
+      });
+      if (n > ITEM_SHOW_MAX) h += '<div style="font-size:11px;color:#888;margin-top:6px">외 ' + (n - ITEM_SHOW_MAX) + '개 (검색어를 좁혀보세요)</div>';
+    } else h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>아이템명을 정확히 입력했는지 확인하세요.</div>';
+    h += '</div>';
+    itemResEl.innerHTML = h;
+    itemResEl.querySelectorAll('.__kw_item_row').forEach((row) => {
+      row.onclick = () => {
+        const id = row.getAttribute('data-item-id');
+        if (id) { try { window.open(WC_BASE + '/bd/makings/' + encodeURIComponent(id), '_blank', 'noopener'); } catch (e) {} }
+      };
+    });
+    const ix = itemResEl.querySelector('#__kw_bdo_item_r_x');
+    if (ix) ix.onclick = () => {
+      itemResQ = '';
+      liveItem = null; liveItemRev++;
+      itemQuery = '';
+      try { localStorage.setItem(LS_ITEMQ, ''); } catch (er) {}
+      try {
+        const ii = famEl && famEl.isConnected ? famEl.querySelector('#__kw_item_q') : null;
+        if (ii) ii.value = '';
+      } catch (er2) {}
+      removeItemRes();
+    };
+  }
+  function updateItemRes(now) {
+    const stack = document.getElementById('__kw_stack');
+    const panel = document.getElementById('__kw_panel');
+    if (!opt('family', true) || !stack || !panel || !panel.classList.contains('show') || !itemResQ.trim() || !famEl || !famEl.isConnected) { removeItemRes(); return; }
+    if (!itemResEl || !itemResEl.isConnected) {
+      itemResEl = document.createElement('div');
+      itemResEl.id = '__kw_bdo_item_r';
+      itemResEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;height:' + Math.min(itemRH, itemRHMax()) + 'px';
+      document.body.appendChild(itemResEl);
+      placeItemRes();
+      itemResSig = null;
+    }
+    renderItemRes();
+    try { // 창 기본형 상속: 결과창=가로+세로
+      if (KW && typeof KW.window === 'function') {
+        KW.window(itemResEl, {
+          color: '#ff7ab8', posKey: LS_ITEMRPOS, rsz: 'd', dock: () => placeItemRes(),
+          getH: () => itemRH,
+          setH: (v) => {
+            itemRH = Math.max(ITEMR_H_MIN, Math.min(itemRHMax(), v));
+            itemResEl.style.height = Math.min(itemRH, itemRHMax()) + 'px';
+          },
+          saveH: () => { try { localStorage.setItem(LS_ITEMRH, String(itemRH)); } catch (er) {} },
+        });
+      } else {
+        if (KW && typeof KW.rsz === 'function') KW.rsz(itemResEl, {
+          dir: 'd', color: '#ff7ab8', wMode: 'self',
+          getW: () => itemResEl.getBoundingClientRect().width,
+          setW: (v) => { itemResEl.style.width = Math.max(225, Math.min(600, Math.round(v))) + 'px'; },
+          getH: () => itemRH,
+          setH: (v) => {
+            itemRH = Math.max(ITEMR_H_MIN, Math.min(itemRHMax(), v));
+            itemResEl.style.height = Math.min(itemRH, itemRHMax()) + 'px';
+          },
+          save: () => { try { localStorage.setItem(LS_ITEMRH, String(itemRH)); } catch (er) {} },
+        });
+        if (KW && typeof KW.float === 'function') KW.float(itemResEl, { color: '#ff7ab8', key: LS_ITEMRPOS, dock: () => placeItemRes() });
+      }
+    } catch (e) {}
+  }
+
   function tick() {
     try {
-      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); removeFamRes(); removeGuildRes(); return; }
+      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); removeFamRes(); removeGuildRes(); removeItemRes(); return; }
       const now = Date.now();
       if (now - bossFetchedAt >= BOSS_REFRESH_MS) loadSchedule(); // 처음 켜질 때 한 번, 이후 6시간마다
       updateNext(now);
@@ -1204,6 +1380,7 @@
       updateFamily(now);
       updateFamRes(now);
       updateGuildRes(now);
+      updateItemRes(now);
       const lead = Math.max(1, Math.min(30, Number(opt('lead', 3)) || 3)) * 60000;
       const sel = opt('bosses', null);
       const active = new Set();
