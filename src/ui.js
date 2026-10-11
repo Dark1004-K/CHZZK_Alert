@@ -831,7 +831,7 @@ function extListHtml() {
     const needComp = !blocked && p.companion;
     const compKnown = needComp && p.companion.ready && __kwCompanions[p.companion.ready];
     const canChange = !needComp || compKnown || pluginIsOn(p);
-    const compHtml = needComp ? ` <span data-compw="${escapeHtml(p.id)}">${companionHtml(p)}</span>` : '';
+    const compHtml = needComp ? ` <span data-compw="${escapeHtml(p.id)}" style="float:right">${companionHtml(p)}</span>` : '';
     return `<div class="__kw_lbl"><label style="cursor:${blocked || !canChange ? 'default' : 'pointer'}${blocked || !canChange ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" data-companion-need="${needComp ? escapeHtml(p.id) : ''}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked || !canChange ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${compHtml}${note}</div>`;
   }).join('');
 }
