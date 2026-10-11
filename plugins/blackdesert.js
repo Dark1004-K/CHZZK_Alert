@@ -353,11 +353,12 @@
         cpnEl.style.height = 'auto';
         const need = cpnEl.scrollHeight;
         const r = cpnEl.getBoundingClientRect();
-        const room = cpnEl.style.position === 'fixed'
-          ? window.innerHeight - r.top - 8 // 띄움: 위 고정 → 아래가 화면 밖으로 못 나감
-          : r.top + r.height; // 도크: 아래 고정 → 위가 0 위로 못 올라감
-        cpnH = Math.max(CPN_H_MIN, Math.min(need, room, cpnHMax()));
+        const roomF = cpnEl.style.position === 'fixed'
+          ? Math.max(CPN_H_MIN, r.bottom) // 띄움: 아래 모서리 고정 → 위로 늘어남
+          : Math.max(CPN_H_MIN, r.top + r.height); // 도크: 아래 고정 → 위로 늘어남
+        cpnH = Math.max(CPN_H_MIN, Math.min(need, roomF, cpnHMax()));
         cpnEl.style.height = Math.min(cpnH, cpnHMax()) + 'px';
+        if (cpnEl.style.position === 'fixed') cpnEl.style.top = Math.max(0, Math.round(r.bottom - cpnH)) + 'px';
         try { localStorage.setItem(LS_CPNH, String(cpnH)); } catch (er) {}
       } catch (e5) {}
     }
@@ -678,7 +679,7 @@
     famSig = sig;
     famEl.innerHTML = xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
       '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + '검은사막 검색</b></div>' +
-      '<div style="display:flex;gap:6px;flex:none;margin-top:4px;padding-left:19px;padding-right:19px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:1px solid #ff7ab8;border-radius:6px;background:transparent;color:#ff7ab8;padding:4px 8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="' + TI_SEARCH + '"/></svg></button></div>';
+      '<div style="display:flex;gap:6px;flex:none;margin-top:4px;padding-left:19px;padding-right:19px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>';
     const qi = famEl.querySelector('#__kw_fam_q');
     const go = () => {
       famQuery = qi ? qi.value : '';
