@@ -737,10 +737,9 @@
     const goItem = () => {
       itemQuery = ii ? ii.value : '';
       try { localStorage.setItem(LS_ITEMQ, itemQuery); } catch (er) {}
-      if (!itemQuery.trim()) { itemResQ = ''; liveItem = null; liveItemRev++; itemNav = []; resSig = null; try { updateRes(Date.now()); } catch (er) {} return; }
+      if (!itemQuery.trim()) { itemResQ = ''; liveItem = null; liveItemRev++; resSig = null; try { updateRes(Date.now()); } catch (er) {} return; }
       itemResQ = itemQuery;
       resKind = 'item';
-      itemNav = [];
       resSig = null;
       updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
       startLive('item', itemQuery);
@@ -796,8 +795,6 @@
   let famResQ = ''; // 결과창 가문 검색어
   let guildResQ = ''; // 결과창 길드 검색어
   let itemResQ = ''; // 결과창 아이템 검색어
-  let itemNav = []; // 아이템 드릴다운 스택 [{ id, phase:'loading'|'ok', data }] (空=목록)
-  const itemDetailCache = {}; // [id] -> { t, data }
   function removeRes() {
     if (resEl) { try { resEl.remove(); } catch (e) {} }
     resEl = null;
@@ -846,7 +843,8 @@
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
-  const WC_BASE = 'https://apps.weingchicken.com'; // 제작노트 아이템 검색
+  const CODEX_BASE = 'https://bdocodex.com'; // 아이템 검색 (display:"목"만)
+  const CODEX_GRADE = { 0: '#c8c8c8', 1: '#3fb950', 2: '#58a6ff', 3: '#bc8cff', 4: '#f0883e' }; // 등급별 이름 색
   function bdoFetch(url, timeoutMs, base) {
     if (!KW.bridgeReady || !KW.bridgeReady()) return Promise.resolve(null);
     return KW.bridge('fetch', { url, base: base || BDO_BASE }, timeoutMs || 12000).then((r) => {
@@ -975,87 +973,40 @@
       });
     }).catch(() => null);
   }
-  function itemRowsOf(html) { // 제작노트 검색 목록: <a class="text-dark" ... data-id="504">검은 결정</a>
+  function parseCodexItems(html) { // bdocodex 검색: {aaData:[[id, iconHtml, nameHtml, grade, {display}]} — display:"목"만
+    let j = null;
+    try { j = JSON.parse(html); } catch (e) { return null; }
+    const rows = (j && Array.isArray(j.aaData)) ? j.aaData : [];
     const out = [];
-    const seen = {};
-    const re = /<a class="text-dark" href="javascript:;" data-id="(\d+)">([^<]+)<\/a>/g;
-    let m;
-    while ((m = re.exec(html))) {
-      if (seen[m[1]]) continue;
-      seen[m[1]] = 1;
-      out.push({ id: m[1], name: decHtml(m[2]) });
+    for (const r of rows) {
+      if (!Array.isArray(r)) continue;
+      const meta = r[4];
+      if (!meta || meta.display !== '목') continue;
+      const id = String((r[0] == null ? '' : r[0]));
+      if (!id) continue;
+      const icon = String(r[1] || '');
+      const im = /src="([^"]+)"/.exec(icon);
+      let iconUrl = im ? im[1] : '';
+      if (iconUrl && iconUrl.charAt(0) === '/') iconUrl = CODEX_BASE + iconUrl;
+      out.push({
+        id,
+        name: decHtml(String(r[2] || '')),
+        icon: iconUrl,
+        href: CODEX_BASE + '/kr/item/' + encodeURIComponent(id) + '/',
+        grade: (typeof r[3] === 'number' ? r[3] : null),
+      });
     }
     return out;
   }
   function searchLiveItem(q) {
     if (!KW.bridgeReady || !KW.bridgeReady()) return Promise.resolve(null);
-    const su = WC_BASE + '/bd/makings/search?query=' + encodeURIComponent(q);
-    return bdoFetch(su, 12000, WC_BASE).then((html) => {
+    const su = CODEX_BASE + '/query.php?a=search&l=kr&sq=' + encodeURIComponent(q);
+    return bdoFetch(su, 12000, CODEX_BASE).then((html) => {
       if (!html) return null;
-      const items = itemRowsOf(html);
-      if (!items.length) return { miss: true };
+      const items = parseCodexItems(html);
+      if (!items || !items.length) return { miss: true };
       return { query: q, items };
     }).catch(() => null);
-  }
-  function parseItemDetail(html) { // 제작노트 상세: 이름·설명·제작법(재료)
-    html = String(html || '');
-    const nm = /<div id="detailItemName"[^>]*>([^<]+)<\/div>/.exec(html);
-    const name = nm ? decHtml(nm[1]) : '';
-    let desc = '';
-    const dm = /<div id="detailItemName"[^>]*>[^<]*<\/div>\s*<div class="mt-3">([\s\S]*?)<\/div>/.exec(html);
-    if (dm) desc = decHtml(dm[1]).slice(0, 300);
-    const methods = [];
-    const parts = html.split('<div class="font-weight-bold row mix-title">');
-    for (let i = 1; i < parts.length; i++) {
-      const t = /^[\s\S]*?<div class="col">([^<]+)<\/div>/.exec(parts[i]);
-      const method = t ? decHtml(t[1]) : '';
-      const mats = [];
-      const mre = /<a class="text-dark material-item-link"[^>]*href="\/bd\/makings\/(\d+)"[^>]*>([^<]*)<\/a>\s*<span>x<\/span>\s*<span class="material-count"[^>]*>([\s\S]*?)<\/span>/g;
-      let mm;
-      while ((mm = mre.exec(parts[i]))) mats.push({ id: mm[1], name: decHtml(mm[2]), count: decHtml(mm[3]) });
-      let note = '';
-      if (!mats.length) {
-        const nn = /<hr[^>]*>\s*<div>([^<]+)<\/div>/.exec(parts[i]);
-        if (nn) note = decHtml(nn[1]).slice(0, 200);
-      }
-      if (method || mats.length || note) methods.push({ method, mats, note });
-    }
-    return { name, desc, methods };
-  }
-  function itemDetailCached(id) {
-    try {
-      const c = itemDetailCache[id];
-      if (c && Date.now() - c.t < 3600000) return c.data;
-    } catch (e) {}
-    return null;
-  }
-  function fetchItemDetail(id) {
-    return bdoFetch(WC_BASE + '/bd/makings/' + encodeURIComponent(id), 12000, WC_BASE).then((html) => {
-      if (!html) return null;
-      const d = parseItemDetail(html);
-      if (!d || !d.name) return null;
-      try { itemDetailCache[id] = { t: Date.now(), data: d }; } catch (e) {}
-      return d;
-    }).catch(() => null);
-  }
-  function openItemDetail(id) { // 목록·재료 클릭 → 같은 창에서 상세로 드릴다운
-    id = String(id || '');
-    if (!id) return;
-    const hit = itemDetailCached(id);
-    const cur = { id, phase: hit ? 'ok' : 'loading', data: hit || null };
-    itemNav.push(cur);
-    resKind = 'item';
-    resSig = null;
-    try { renderRes(); } catch (e) {}
-    if (!hit) {
-      fetchItemDetail(id).then((d) => {
-        if (itemNav[itemNav.length - 1] !== cur) return; // 다른 곳으로 이동함
-        if (d) { cur.phase = 'ok'; cur.data = d; }
-        else cur.phase = 'miss';
-        resSig = null;
-        try { renderRes(); } catch (e2) {}
-      });
-    }
   }
   function startLive(kind, q) {
     const isGuild = kind === 'guild', isItem = kind === 'item';
@@ -1106,7 +1057,6 @@
     } else if (k === 'item') {
       itemResQ = '';
       liveItem = null; liveItemRev++;
-      itemNav = [];
       itemQuery = '';
       try { localStorage.setItem(LS_ITEMQ, ''); } catch (er) {}
       try {
@@ -1144,12 +1094,10 @@
     const fG = (lvG && lvG.phase === 'ok' && lvG.data && !lvG.data.miss) ? lvG.data : null;
     const lvI = (liveItem && liveItem.q === itemResQ) ? liveItem : null;
     const fI = (lvI && lvI.phase === 'ok' && lvI.data && !lvI.data.miss && Array.isArray(lvI.data.items)) ? lvI.data.items : null;
-    const navTop = (resKind === 'item' && itemNav.length) ? itemNav[itemNav.length - 1] : null;
     const sig = [resKind,
       famResQ, fF ? fF.family : '', fF ? (fF.characters || []).length : 0, lvF ? lvF.phase : '-', liveFamRev,
       guildResQ, fG ? fG.guild : '', fG ? (fG.memberList || []).length : 0, fG ? fG.siege : '', lvG ? lvG.phase : '-', liveGuildRev,
       itemResQ, fI ? fI.length : 0, lvI ? lvI.phase : '-', liveItemRev,
-      navTop ? navTop.id + ':' + navTop.phase : '',
       bridgeOn ? 'b' : '-'].join('|');
     if (sig === resSig) return;
     resSig = sig;
@@ -1172,45 +1120,21 @@
             (m.role ? '<span style="background:#3a2a33;color:#ff9aab;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:bold;white-space:nowrap">' + esc(m.role) + '</span>' : '') + '</div>';
         });
       } else body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>길드명을 정확히 입력했는지 확인하세요.</div>';
-    } else if (resKind === 'item') {
-      if (navTop) { // 상세 화면
-        const d = (navTop.phase === 'ok' && navTop.data) ? navTop.data : null;
-        title = '<button id="__kw_bdo_item_back" title="목록으로" style="border:1px solid rgba(255,255,255,.2);background:transparent;color:#ff9ec4;border-radius:8px;padding:1px 8px;font-size:11px;font-weight:bold;cursor:pointer;margin-right:6px">← 목록</button>' + esc((d && d.name) || itemResQ || '아이템');
-        if (!bridgeOn) body = needBridge;
-        else if (navTop.phase === 'loading' || !d) body = loading;
-        else if (navTop.phase === 'miss') body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">상세를 불러오지 못했습니다.<br>잠시 뒤 다시 시도하세요.</div>';
-        else {
-          body = '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
-            '<img src="' + WC_BASE + '/storage/images/bd/items/' + esc(navTop.id) + '.png" width="36" height="36" style="flex:none;border-radius:8px;background:rgba(255,255,255,.06)" onerror="this.style.display=\'none\'">' +
-            '<b style="font-size:13px">' + esc(d.name || '?') + '</b></div>';
-          if (d.desc) body += '<div style="margin-top:6px;font-size:11px;color:#ccc;line-height:1.5">' + esc(d.desc) + '</div>';
-          (d.methods || []).forEach((mt) => {
-            let mh = '<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)"><div style="font-size:11px;font-weight:bold;color:#ff9ec4">' + esc(mt.method || '제작') + '</div>';
-            (mt.mats || []).forEach((mm) => {
-              mh += '<div class="__kw_mat_row" data-mat-id="' + esc(mm.id) + '" title="이 재료 보기" style="display:flex;align-items:center;gap:8px;margin-top:5px;cursor:pointer">' +
-                '<img src="' + WC_BASE + '/storage/images/bd/items/' + esc(mm.id) + '.png" width="22" height="22" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06)" onerror="this.style.display=\'none\'">' +
-                '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(mm.name || '?') + '</b>' +
-                '<span style="font-size:11px;color:#7dffb3;white-space:nowrap">x ' + esc(mm.count || '?') + '</span></div>';
-            });
-            if (!(mt.mats || []).length && mt.note) mh += '<div style="margin-top:4px;font-size:11px;color:#ccc;line-height:1.5">' + esc(mt.note) + '</div>';
-            body += mh + '</div>';
-          });
-        }
-      } else { // 목록 화면
-        const n = fI ? fI.length : 0;
-        title = TI(TI_SEARCH, '#ff7ab8') + (fI ? esc(itemResQ) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(itemResQ || '검색 결과'));
-        liveTag = !!fI;
-        if (!bridgeOn) body = needBridge;
-        else if (lvI && lvI.phase === 'loading') body = loading;
-        else if (fI) {
-          fI.slice(0, ITEM_SHOW_MAX).forEach((it) => {
-            body += '<div class="__kw_item_row" data-item-id="' + esc(it.id) + '" title="상세 보기" style="display:flex;align-items:center;gap:8px;margin-top:5px;padding:5px 4px 5px 0;border-top:1px solid rgba(255,255,255,.12);cursor:pointer">' +
-              '<img src="' + WC_BASE + '/storage/images/bd/items/' + esc(it.id) + '.png" width="24" height="24" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06)" onerror="this.style.display=\'none\'">' +
-              '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(it.name || '?') + '</b></div>';
-          });
-          if (n > ITEM_SHOW_MAX) body += '<div style="font-size:11px;color:#888;margin-top:6px">외 ' + (n - ITEM_SHOW_MAX) + '개 (검색어를 좁혀보세요)</div>';
-        } else body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>아이템명을 정확히 입력했는지 확인하세요.</div>';
-      }
+    } else if (resKind === 'item') { // 목록 (bdocodex display:"목"만)
+      const n = fI ? fI.length : 0;
+      title = TI(TI_SEARCH, '#ff7ab8') + (fI ? esc(itemResQ) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(itemResQ || '검색 결과'));
+      liveTag = !!fI;
+      if (!bridgeOn) body = needBridge;
+      else if (lvI && lvI.phase === 'loading') body = loading;
+      else if (fI) {
+        fI.slice(0, ITEM_SHOW_MAX).forEach((it) => {
+          const gc = (it.grade != null && CODEX_GRADE[it.grade]) ? CODEX_GRADE[it.grade] : '#fff';
+          body += '<div class="__kw_item_row" data-item-href="' + esc(it.href || '') + '" title="bdocodex 페이지 열기" style="display:flex;align-items:center;gap:8px;margin-top:5px;padding:5px 4px 5px 0;border-top:1px solid rgba(255,255,255,.12);cursor:pointer">' +
+            (it.icon ? '<img src="' + esc(it.icon) + '" width="24" height="24" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06)" onerror="this.style.display=\'none\'">' : '') +
+            '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;color:' + gc + '">' + esc(it.name || '?') + '</b></div>';
+        });
+        if (n > ITEM_SHOW_MAX) body += '<div style="font-size:11px;color:#888;margin-top:6px">외 ' + (n - ITEM_SHOW_MAX) + '개 (검색어를 좁혀보세요)</div>';
+      } else body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>아이템명을 정확히 입력했는지 확인하세요.</div>';
     } else { // fam
       const n = fF ? (fF.characters || []).length : 0;
       title = TI(TI_SEARCH, '#ff7ab8') + (fF ? esc(fF.family) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(famResQ || '검색 결과'));
@@ -1245,13 +1169,11 @@
       t.onclick = () => { resKind = t.getAttribute('data-restab'); resSig = null; try { renderRes(); } catch (er) {} };
     });
     resEl.querySelectorAll('.__kw_item_row').forEach((row) => {
-      row.onclick = () => openItemDetail(row.getAttribute('data-item-id'));
+      row.onclick = () => {
+        const u = row.getAttribute('data-item-href');
+        if (u) { try { window.open(u, '_blank', 'noopener'); } catch (e) {} }
+      };
     });
-    resEl.querySelectorAll('.__kw_mat_row').forEach((row) => {
-      row.onclick = () => openItemDetail(row.getAttribute('data-mat-id'));
-    });
-    const bk = resEl.querySelector('#__kw_bdo_item_back');
-    if (bk) bk.onclick = () => { itemNav.pop(); resSig = null; try { renderRes(); } catch (er) {} };
   }
   function updateRes(now) {
     const stack = document.getElementById('__kw_stack');
