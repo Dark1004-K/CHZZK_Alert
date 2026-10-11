@@ -259,6 +259,7 @@
   let cpnData = null; // 마지막으로 받은 coupons.json
   let cpnState = 'idle'; // idle | loading | ok | err
   let cpnSig = ''; // 마지막으로 그린 내용의 서명 (바뀔 때만 다시 그림)
+  let cpnFitNext = false; // 펼치기(최대화) 직후 한 번: 아래 기준으로 내용만큼 펼치고 화면에 맞춤
   let cpnFetchedAt = 0; // 마지막으로 받아온 시각
   const CPN_REFRESH_MS = 3600000; // 1시간마다 자동으로 다시 받는다
   let cpnBusyUntil = 0; // 이 시각까지는 "가져오는 중"(도는 아이콘)으로 보여줌 (너무 빨리 끝나도 눌린 것이 보이게)
@@ -346,6 +347,20 @@
       h += '</div>';
     }
     cpnEl.innerHTML = h;
+    if (cpnFitNext && !cpnFolded()) { // 펼치기 직후: 아래 기준으로 내용만큼, 화면을 넘으면 거기까지만
+      cpnFitNext = false;
+      try {
+        cpnEl.style.height = 'auto';
+        const need = cpnEl.scrollHeight;
+        const r = cpnEl.getBoundingClientRect();
+        const room = cpnEl.style.position === 'fixed'
+          ? window.innerHeight - r.top - 8 // 띄움: 위 고정 → 아래가 화면 밖으로 못 나감
+          : r.top + r.height; // 도크: 아래 고정 → 위가 0 위로 못 올라감
+        cpnH = Math.max(CPN_H_MIN, Math.min(need, room, cpnHMax()));
+        cpnEl.style.height = Math.min(cpnH, cpnHMax()) + 'px';
+        try { localStorage.setItem(LS_CPNH, String(cpnH)); } catch (er) {}
+      } catch (e5) {}
+    }
     // 높이는 패널 통째로 명시 (내용 길이에 관계없이 조절이 바로 보이게). 접힘 상태는 자동 높이.
     try {
       cpnEl.style.display = 'flex';
@@ -355,7 +370,9 @@
     const hd = cpnEl.querySelector('#__kw_cpn_hd');
     if (hd) hd.onclick = (e) => {
       if (e.target && e.target.id === '__kw_cpn_rf') return;
-      try { localStorage.setItem(LS_CPN_FOLD, cpnFolded() ? '0' : '1'); } catch (er) {}
+      const was = cpnFolded();
+      try { localStorage.setItem(LS_CPN_FOLD, was ? '0' : '1'); } catch (er) {}
+      if (was) cpnFitNext = true; // 펼칠 때 아래 기준으로 내용만큼 (화면을 넘으면 거기까지만)
       cpnSig = '';
     };
     const cx = cpnEl.querySelector('#__kw_cpn_x');
@@ -661,7 +678,7 @@
     famSig = sig;
     famEl.innerHTML = xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
       '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + '검은사막 검색</b></div>' +
-      '<div style="display:flex;gap:6px;flex:none;margin-top:4px;padding-left:19px;padding-right:19px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;border-radius:6px;background:#ff7ab8;color:#000;font:bold 12px sans-serif;padding:4px 10px;cursor:pointer;flex:none">검색</button></div>';
+      '<div style="display:flex;gap:6px;flex:none;margin-top:4px;padding-left:19px;padding-right:19px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:1px solid #ff7ab8;border-radius:6px;background:transparent;color:#ff7ab8;padding:4px 8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="' + TI_SEARCH + '"/></svg></button></div>';
     const qi = famEl.querySelector('#__kw_fam_q');
     const go = () => {
       famQuery = qi ? qi.value : '';
