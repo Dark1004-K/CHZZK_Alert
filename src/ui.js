@@ -772,7 +772,7 @@ function renderOptWin() {
     const ss = loadOptSize();
     if (ss) { w.style.width = Math.min(ss.w, window.innerWidth - 16) + 'px'; w.style.height = Math.min(ss.h, optHMax()) + 'px'; }
   } catch (e) {}
-  w.innerHTML = `<div id="__kw_optwin_mv" class="__kw_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</div><div style="display:flex;align-items:center;flex:none;min-height:26px;padding-right:26px;margin-bottom:0"><b style="display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button><div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:8px -10px"></div><div id="__kw_optwin_body" style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin">${extOptHtml(p)}</div>`;
+  w.innerHTML = `<div id="__kw_optwin_mv" class="__kw_mv" title="드래그로 옵션 창 이동 · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc">+</div><div style="display:flex;align-items:center;flex:none;min-height:26px;padding-right:26px;margin-bottom:0"><b style="display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>${escapeHtml(p.name || p.id)} · 옵션</b></div><button class="__kw_ic __kw_xabs" id="__kw_optwin_x" title="닫기" style="color:#aaaab9">${IC.close}</button><div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:8px -10px"></div>${p.companion ? `<div class="__kw_lbl" style="display:flex;align-items:center;gap:6px;margin-top:0">브릿지 <span id="__kw_optwin_compv">${companionHtml(p)}</span><button class="__kw_ic" id="__kw_optwin_compcheck" title="브릿지 다시 확인" style="color:#ccc;padding:3px">${IC.refresh}</button></div>` : ''}<div id="__kw_optwin_body" style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin">${extOptHtml(p)}</div>`;
   if (!old) document.body.appendChild(w);
   try { // 옵션 창 폭이 넓어서 설정 창 오른쪽에 다 들어가지 않으면 화면 가운데로 (저장 위치가 없을 때만)
     if (!loadOptPos()) {
@@ -782,6 +782,17 @@ function renderOptWin() {
   } catch (e) {}
   w.querySelector('#__kw_optwin_x').onclick = closeOptWin;
   bindPluginOpts(w);
+  bindCompanionInstall(w);
+  const cc = w.querySelector('#__kw_optwin_compcheck');
+  if (cc) cc.onclick = () => {
+    companionPing(p);
+    setTimeout(() => {
+      try {
+        const v = w.querySelector('#__kw_optwin_compv');
+        if (v && v.isConnected) { v.innerHTML = companionHtml(p); bindCompanionInstall(w); }
+      } catch (e) {}
+    }, 1700);
+  };
   kwWindowXY(w, { // 확장 옵션: 가로+세로
     color: '#aaaab9', log: 'opt-size',
     loadPos: loadOptPos,
@@ -963,6 +974,15 @@ function paintCompanions() {
       if (p && p.companion) el.innerHTML = companionHtml(p);
     });
     bindCompanionInstall(setPanel); // 다시 그림 뒤 바인딩 복구
+    // 옵션 창이 열려 있으면 동반 행도 갱신
+    try {
+      const ow = document.getElementById('__kw_optwin');
+      const ov = ow && ow.querySelector('#__kw_optwin_compv');
+      if (ov && optWinId) {
+        const op = companionOf(optWinId);
+        if (op && op.companion) { ov.innerHTML = companionHtml(op); bindCompanionInstall(ow); }
+      }
+    } catch (e4) {}
     // 동반 확인되면 체크박스 잠금 해제 (이미 켜져 있으면 원래부터 변경 가능)
     setPanel.querySelectorAll('[data-companion-need]').forEach((c) => {
       const id = c.getAttribute('data-companion-need');
