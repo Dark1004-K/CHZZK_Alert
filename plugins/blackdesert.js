@@ -811,9 +811,10 @@
     const goItem = () => {
       itemQuery = ii ? ii.value : '';
       try { localStorage.setItem(LS_ITEMQ, itemQuery); } catch (er) {}
-      if (!itemQuery.trim()) { itemResQ = ''; liveItem = null; liveItemRev++; resSig = null; try { updateRes(Date.now()); } catch (er) {} return; }
+      if (!itemQuery.trim()) { itemResQ = ''; liveItem = null; liveItemRev++; selId = null; selPhase = ''; selData = null; resSig = null; try { updateRes(Date.now()); } catch (er) {} return; }
       itemResQ = itemQuery;
       resKind = 'item';
+      selId = null; selPhase = ''; selData = null;
       resSig = null;
       updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
       startLive('item', itemQuery);
@@ -869,6 +870,7 @@
   let famResQ = ''; // 결과창 가문 검색어
   let guildResQ = ''; // 결과창 길드 검색어
   let itemResQ = ''; // 결과창 아이템 검색어
+  let selId = null, selPhase = '', selData = null; // 옆 상세 pane: 선택된 아이템 (null=목록만)
   function removeRes() {
     if (resEl) { try { resEl.remove(); } catch (e) {} }
     resEl = null;
@@ -1091,6 +1093,64 @@
     }
     return out;
   }
+  function parseCodexDetail(html) { // bdocodex 상세: 스탯·특성·설명·효과 (ID·구입/판매/수리비 제외)
+    html = String(html || '');
+    const card = html.split('<div class="addon_info')[0];
+    let icon = '';
+    const im = /<td class="icon_cell"><img src="([^"]+)"/.exec(card);
+    if (im) icon = im[1].charAt(0) === '/' ? CODEX_BASE + im[1] : im[1];
+    const stats = [];
+    const tm = /<td class="titles_cell">([\s\S]*?)<\/td>/.exec(card);
+    if (tm) {
+      const t = tm[1].replace(/<span class="hide_me">/g, '').replace(/<\/span>/g, '');
+      t.split(/<br\s*\/?>/).forEach((ln) => { const s = decHtml(ln); if (s) stats.push(s); });
+    }
+    const flags = [];
+    let desc = '';
+    const effects = [];
+    let bodyHtml = ''; // 본문 td (장비 페이지는 <tr>이 중첩되어 있어 가격 블록이 있는 쪽을 고름)
+    try {
+      const bodies = [];
+      const bre = /<tr><td colspan="2">([\s\S]*?)<\/td><\/tr>/g;
+      let bmx;
+      while ((bmx = bre.exec(card))) bodies.push(bmx[1]);
+      for (const b of bodies) { if (/가격을 구입/.test(b)) { bodyHtml = b; break; } }
+      if (!bodyHtml && bodies.length) bodyHtml = bodies[bodies.length - 1];
+    } catch (e) {}
+    if (bodyHtml) {
+      const segs = bodyHtml.split(/<hr[^>]*>/);
+      for (const sg of segs) {
+        if (/가격을 구입/.test(sg)) continue; // 구입 가격·판매 가격·수리비 제외
+        if (/id="edescription"/.test(sg) || /아이템 효과/.test(sg)) {
+          sg.split(/<br\s*\/?>/).forEach((ln) => {
+            const s = decHtml(ln);
+            if (s && s !== '아이템 효과' && !/^[A-Z_0-9]+$/.test(s)) effects.push(s); // 섹션 제목·내부 코드는 제외
+          });
+          continue;
+        }
+        if (/-\s*설명/.test(sg)) {
+          desc = decHtml(sg.replace(/[\s\S]*?-\s*설명\s*:?/, '').replace(/<br\s*\/?>/g, '\n')).trim();
+          continue;
+        }
+        sg.split(/<br\s*\/?>/).forEach((ln) => { const s = decHtml(ln); if (s) flags.push(s); });
+      }
+    }
+    return { icon, stats, flags, desc, effects };
+  }
+  const selCache = {}; // [itemId] -> { t, data } 상세 캐시
+  function fetchCodexDetail(id) {
+    try {
+      const c = selCache[id];
+      if (c && Date.now() - c.t < 3600000) return Promise.resolve(c.data);
+    } catch (e) {}
+    return bdoFetch(CODEX_BASE + '/kr/item/' + encodeURIComponent(id) + '/', 12000, CODEX_BASE).then((html) => {
+      if (!html) return null;
+      const d = parseCodexDetail(html);
+      if (!d || (!d.stats.length && !d.flags.length && !d.desc && !d.effects.length)) return null;
+      try { selCache[id] = { t: Date.now(), data: d }; } catch (e) {}
+      return d;
+    }).catch(() => null);
+  }
   function searchLiveItem(q) {
     const run = () => {
       const su = CODEX_BASE + '/query.php?a=search&l=kr&sq=' + encodeURIComponent(q);
@@ -1115,6 +1175,27 @@
     };
     if (KW.bridgeReady && KW.bridgeReady()) return run();
     return ensureBridge(1500).then((ok) => (ok ? run() : { miss: true, error: '브릿지 없음' }));
+  }
+  function openCodexDetail(id) { // 목록 클릭 → 옆 pane에 상세 표시
+    id = String(id || '');
+    if (!id) return;
+    selId = id; selPhase = 'loading'; selData = null;
+    resKind = 'item';
+    resSig = null;
+    try { renderRes(); } catch (e) {}
+    try { // 상세를 옆에 붙이므로 창이 좁으면 넓힘
+      if (resEl && resEl.isConnected) {
+        const w = resEl.getBoundingClientRect().width;
+        if (w && w < 520) resEl.style.width = Math.min(560, window.innerWidth - 32) + 'px';
+      }
+    } catch (e) {}
+    fetchCodexDetail(id).then((d) => {
+      if (selId !== id) return; // 다른 항목으로 넘어감
+      if (d) { selPhase = 'ok'; selData = d; }
+      else selPhase = 'miss';
+      resSig = null;
+      try { renderRes(); } catch (e2) {}
+    });
   }
   function startLive(kind, q) {
     const isGuild = kind === 'guild', isItem = kind === 'item';
@@ -1160,6 +1241,35 @@
     bump();
     upd(Date.now());
   }
+  function selBodyHtml(fI) { // 옆 상세 pane 본문 (선택된 아이템)
+    if (selPhase === 'loading' || !selData) return '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
+    if (selPhase === 'miss') return '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">상세를 불러오지 못했습니다.<br>잠시 뒤 다시 시도하세요.</div>';
+    const d = selData;
+    const it = ((fI || []).find((x) => x && x.id === selId)) || null;
+    const nm = (it && it.name) || itemResQ || '아이템';
+    const gc = (it && it.grade != null && CODEX_GRADE[it.grade]) ? CODEX_GRADE[it.grade] : '#fff';
+    const href = (it && it.href) || (CODEX_BASE + '/kr/item/' + encodeURIComponent(selId) + '/');
+    const icon = (d && d.icon) || (it && it.icon) || '';
+    let h = '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
+      (icon ? '<img loading="lazy" src="' + esc(icon) + '" width="34" height="34" style="flex:none;border-radius:8px;background:rgba(255,255,255,.06)" onerror="__kwNoImg(this)">' : '') +
+      '<b style="font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + gc + '">' + esc(nm) + '</b>' +
+      '<button class="__kw_ic" data-ext-open="' + esc(href) + '" title="bdocodex 페이지 열기" style="color:#00ffa3;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button></div>';
+    (d.stats || []).forEach((s, i) => {
+      h += '<div style="font-size:11px;margin-top:2px;color:' + (i === 0 ? '#fff;font-weight:bold' : '#888') + '">' + esc(s) + '</div>';
+    });
+    (d.flags || []).forEach((s) => {
+      h += '<div style="font-size:11px;color:#ccc;margin-top:2px">· ' + esc(s) + '</div>';
+    });
+    if (d.desc) h += '<div style="margin-top:6px;font-size:11px;color:#ddd;line-height:1.55;white-space:pre-line">' + esc(d.desc) + '</div>';
+    if ((d.effects || []).length) {
+      h += '<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)"><div style="font-size:11px;font-weight:bold;color:#ff9ec4">아이템 효과</div>';
+      d.effects.forEach((s) => {
+        h += '<div style="margin-top:3px;font-size:11px;color:#ccc;line-height:1.5">' + esc(s) + '</div>';
+      });
+      h += '</div>';
+    }
+    return h;
+  }
   function resKinds() {
     const k = [];
     if (famResQ.trim()) k.push('fam');
@@ -1180,6 +1290,7 @@
     } else if (k === 'item') {
       itemResQ = '';
       liveItem = null; liveItemRev++;
+      selId = null; selPhase = ''; selData = null;
       itemQuery = '';
       try { localStorage.setItem(LS_ITEMQ, ''); } catch (er) {}
       try {
@@ -1221,6 +1332,7 @@
       famResQ, fF ? fF.family : '', fF ? (fF.characters || []).length : 0, lvF ? lvF.phase : '-', liveFamRev,
       guildResQ, fG ? fG.guild : '', fG ? (fG.memberList || []).length : 0, fG ? fG.siege : '', lvG ? lvG.phase : '-', liveGuildRev,
       itemResQ, fI ? fI.length : 0, lvI ? lvI.phase : '-', (lvI && lvI.data && lvI.data.error) || '', (lvI && lvI.data && lvI.data.timeout) ? 't' : '', liveItemRev,
+      selId || '', selPhase,
       bridgeOn ? 'b' : '-'].join('|');
     if (sig === resSig) return;
     resSig = sig;
@@ -1244,7 +1356,7 @@
             (m.role ? '<span style="background:#3a2a33;color:#ff9aab;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:bold;white-space:nowrap">' + esc(m.role) + '</span>' : '') + '</div>';
         });
       } else body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>길드명을 정확히 입력했는지 확인하세요.</div>';
-    } else if (resKind === 'item') { // 목록 (bdocodex display:"목"만)
+    } else if (resKind === 'item') { // 목록 + 옆 상세 (bdocodex display:"목"만)
       const n = fI ? fI.length : 0;
       title = TI(TI_SEARCH, '#ff7ab8') + (fI ? esc(itemResQ) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(itemResQ || '검색 결과'));
       liveTag = !!fI;
@@ -1253,12 +1365,16 @@
       else if (lvI && lvI.phase === 'miss' && lvI.data && lvI.data.timeout) body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">응답이 없습니다(시간 초과).<br>브릿지를 최신으로 업데이트하세요.</div>';
       else if (lvI && lvI.phase === 'miss' && lvI.data && lvI.data.error) body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 실패: ' + esc(lvI.data.error) + '</div>';
       else if (fI) {
+        let listH = '';
         fI.forEach((it) => {
           const gc = (it.grade != null && CODEX_GRADE[it.grade]) ? CODEX_GRADE[it.grade] : '#fff';
-          body += '<div class="__kw_item_row" data-item-href="' + esc(it.href || '') + '" title="bdocodex 페이지 열기" style="display:flex;align-items:center;gap:8px;margin-top:5px;padding:5px 4px 5px 0;border-top:1px solid rgba(255,255,255,.12);cursor:pointer">' +
+          const sel = selId === it.id;
+          listH += '<div class="__kw_item_row" data-item-id="' + esc(it.id) + '" title="옆에 상세 보기" style="display:flex;align-items:center;gap:8px;margin-top:5px;padding:5px 4px;border-top:1px solid rgba(255,255,255,.12);cursor:pointer' + (sel ? ';background:rgba(255,122,184,.12);border-radius:8px' : '') + '">' +
             thumbHtml(it.icon) +
             '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;color:' + gc + '">' + esc(it.name || '?') + '</b></div>';
         });
+        if (selId) body = { twoCol: true, list: listH, detail: selBodyHtml(fI) };
+        else body = listH;
       } else body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>아이템명을 정확히 입력했는지 확인하세요.</div>';
     } else { // fam
       const n = fF ? (fF.characters || []).length : 0;
@@ -1278,12 +1394,15 @@
         });
       } else body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>가문명을 정확히 입력했는지 확인하세요.</div>';
     }
+    const twoCol = (body && typeof body === 'object' && body.twoCol);
     let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;overflow:hidden">' + title + '</b></div>' +
       xBtn('__kw_bdo_res_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
       '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' +
       (kinds.length > 1 ? resTabHtml(kinds) : '') +
       (liveTag ? '<div style="font-size:10px;color:#7dffb3;margin-top:4px">● 실시간 검색 결과</div>' : '') +
-      '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">' + body + '</div>';
+      (twoCol
+        ? '<div style="flex:1;min-height:0;display:flex;gap:8px;margin-top:4px"><div style="flex:1;min-width:0;overflow-y:auto">' + body.list + '</div><div style="flex:none;width:1px;background:rgba(255,255,255,.14);margin:4px 0"></div><div class="__kw_sb_item" style="flex:1.25;min-width:0;overflow-y:auto">' + body.detail + '</div></div>'
+        : '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">' + body + '</div>');
     resEl.innerHTML = h;
     const rx = resEl.querySelector('#__kw_bdo_res_x');
     if (rx) rx.onclick = () => {
@@ -1296,8 +1415,17 @@
     });
     resEl.querySelectorAll('.__kw_item_row').forEach((row) => {
       row.onclick = () => {
-        const u = row.getAttribute('data-item-href');
-        if (u) { try { window.open(u, '_blank', 'noopener'); } catch (e) {} }
+        const id = row.getAttribute('data-item-id');
+        if (!id) return;
+        if (selId === id) { selId = null; selPhase = ''; selData = null; resSig = null; try { renderRes(); } catch (er) {} }
+        else openCodexDetail(id);
+      };
+    });
+    resEl.querySelectorAll('[data-ext-open]').forEach((b) => {
+      b.onclick = (e) => {
+        try { e.stopPropagation(); } catch (er) {}
+        const u = b.getAttribute('data-ext-open');
+        if (u) { try { window.open(u, '_blank', 'noopener'); } catch (er2) {} }
       };
     });
   }
