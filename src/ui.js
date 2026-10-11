@@ -853,7 +853,7 @@ function companionHtml(p) {
   if (!c) return '';
   const v = c.ready && __kwCompanions[c.ready];
   const need = c.minVersion || '';
-  if (v && (!need || cmpVersions(v, need) >= 0)) return `<span style="color:#888">브릿지 v${escapeHtml(v)}</span>`;
+  if (v && (!need || cmpVersions(v, need) >= 0)) return `<span style="color:#888">브릿지 v${escapeHtml(v)}</span> <button class="__kw_upbtn" data-companion-remove="${escapeHtml(p.id)}" title="브릿지 삭제 방법 안내" style="background:#8a2f2f">삭제</button>`;
   if (v) return `<span style="color:#ffd400">브릿지 v${escapeHtml(v)} → v${escapeHtml(need)}</span> <button class="__kw_upbtn" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 업그레이드 (설치 후 새로고침)">브릿지 업그레이드</button>`;
   companionPing(p);
   return `<button class="__kw_upbtn" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 설치 (설치 후 새로고침)">브릿지 설치</button>`;
@@ -911,6 +911,15 @@ function bindCompanionInstall(root) {
         const p = companionOf(b.getAttribute('data-companion-install'));
         const u = p && p.companion && p.companion.url;
         if (u) { try { window.open(u, '_blank', 'noopener'); } catch (e) {} }
+      };
+    });
+    // 몽키는 스크립트 삭제 API를 주지 않아서 삭제 방법 안내로 대체
+    root.querySelectorAll('[data-companion-remove]').forEach((b) => {
+      b.onclick = () => {
+        showOptHelp({
+          title: '브릿지 삭제 방법',
+          text: 'BDO 검색 브릿지를 지우려면 아래 순서대로 하세요.\n\n① 브라우저 오른쪽 위 Tampermonkey 아이콘 클릭\n② 대시보드 열기\n③ 목록에서 BDO 검색 브릿지 찾기\n④ 오른쪽 휴지통 클릭 후 삭제 확인\n⑤ 방송 페이지 새로고침(F5)\n\n이렇게 동작해요\n• 지우면 검은사막 확장을 다시 켤 수 없습니다.\n• 먼저 확장을 끄고 지우는 것을 권장합니다.',
+        });
       };
     });
   } catch (e) {}
