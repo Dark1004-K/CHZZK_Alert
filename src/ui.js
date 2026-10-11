@@ -853,10 +853,10 @@ function companionHtml(p) {
   if (!c) return '';
   const v = c.ready && __kwCompanions[c.ready];
   const need = c.minVersion || '';
-  if (v && (!need || cmpVersions(v, need) >= 0)) return `<span style="color:#888">브릿지 v${escapeHtml(v)}</span> <button class="__kw_upbtn" data-companion-remove="${escapeHtml(p.id)}" title="브릿지 삭제 방법 안내" style="background:#8a2f2f">삭제</button>`;
+  if (v && (!need || cmpVersions(v, need) >= 0)) return `<span style="color:#888">브릿지 v${escapeHtml(v)}</span> <button class="__kw_ic" data-companion-remove="${escapeHtml(p.id)}" title="브릿지 삭제" style="color:#ff7b7b;padding:3px">${IC.trash}</button>`;
   if (v) return `<span style="color:#ffd400">브릿지 v${escapeHtml(v)} → v${escapeHtml(need)}</span> <button class="__kw_upbtn" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 업그레이드 (설치 후 새로고침)">브릿지 업그레이드</button>`;
   companionPing(p);
-  return `<button class="__kw_upbtn" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 설치 (설치 후 새로고침)">브릿지 설치</button>`;
+  return `<button class="__kw_ic" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 설치 (설치 후 새로고침)" style="color:#00ffa3;padding:3px">${IC.down}</button>`;
 }
 // 버전 비교: 구간별로 숫자면 숫자로, 아니면 문자열로 ("1.0" < "1.1")
 function cmpVersions(a, b) {
@@ -902,6 +902,17 @@ function paintCompanions() {
         label.style.opacity = canChange ? '' : '.6';
       }
     });
+    // 브릿지 미확인 상태가 확정되면(핑 무응답) 켜져 있던 동반 필요 확장은 해제
+    try {
+      let changed = false;
+      (pluginList || []).forEach((pl) => {
+        if (!pl || !pl.companion || !pl.companion.ready) return;
+        if (pl.noOwner && isOwner()) return;
+        if (__kwCompanions[pl.companion.ready]) return; // 확인됨
+        if (pluginIsOn(pl)) { setPluginOn(pl, false); changed = true; }
+      });
+      if (changed) renderSettings();
+    } catch (e2) {}
   } catch (e) {}
 }
 function bindCompanionInstall(root) {
