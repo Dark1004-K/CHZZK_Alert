@@ -849,7 +849,7 @@ function extListHtml() {
     // 미설치: 다운로드 아이콘을 윗줄 오른쪽에. 확인됨: 아래 줄에 이름·버전·휴지통.
     const compWrap = needComp
       ? (compKnown
-        ? `<div class="__kw_lbl" data-compw="${escapeHtml(p.id)}" style="margin-top:2px;display:flex;justify-content:flex-end;align-items:center;gap:6px;text-align:right">${companionHtml(p)}</div>`
+        ? `<div class="__kw_lbl" data-compw="${escapeHtml(p.id)}" style="margin-top:2px;width:100%;box-sizing:border-box;display:flex;justify-content:flex-end;align-items:center;gap:6px;text-align:right">${companionHtml(p)}</div>`
         : ` <span data-compw="${escapeHtml(p.id)}" style="float:right">${companionHtml(p)}</span>`)
       : '';
     return `<div class="__kw_lbl"><label style="cursor:${blocked || !canChange ? 'default' : 'pointer'}${blocked || !canChange ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" data-companion-need="${needComp ? escapeHtml(p.id) : ''}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked || !canChange ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${compWrap}${note}</div>`;
@@ -1039,7 +1039,7 @@ function paintCompanions() {
         el.innerHTML = companionHtml(p);
       } else {
         const t = document.createElement(wantDiv ? 'div' : 'span');
-        if (wantDiv) { t.className = '__kw_lbl'; t.style.cssText = 'margin-top:2px;display:flex;justify-content:flex-end;align-items:center;gap:6px;text-align:right'; }
+        if (wantDiv) { t.className = '__kw_lbl'; t.style.cssText = 'margin-top:2px;width:100%;box-sizing:border-box;display:flex;justify-content:flex-end;align-items:center;gap:6px;text-align:right'; }
         else { t.style.cssText = 'float:right'; }
         t.setAttribute('data-compw', p.id);
         t.innerHTML = companionHtml(p);
