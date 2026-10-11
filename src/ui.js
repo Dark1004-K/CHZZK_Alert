@@ -785,9 +785,11 @@ function renderOptWin() {
   bindCompanionInstall(w);
   const cc = w.querySelector('#__kw_optwin_compcheck');
   if (cc) cc.onclick = () => {
+    try { cc.classList.add('__kw_spin'); } catch (e) {}
     companionPing(p, true); // 수동 확인은 스로틀 무시
     setTimeout(() => {
       try {
+        cc.classList.remove('__kw_spin');
         const v = w.querySelector('#__kw_optwin_compv');
         if (v && v.isConnected) { v.innerHTML = companionHtml(p, true); bindCompanionInstall(w); }
       } catch (e) {}
