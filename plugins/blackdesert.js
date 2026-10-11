@@ -844,6 +844,7 @@
   let famResQ = ''; // 결과창 가문 검색어
   let guildResQ = ''; // 결과창 길드 검색어
   let itemResQ = ''; // 결과창 아이템 검색어
+  const ITEM_SHOW_MAX = 80; // 아이템 목록에 그리는 최대 개수
   function removeRes() {
     if (resEl) { try { resEl.remove(); } catch (e) {} }
     resEl = null;
