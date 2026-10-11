@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         CHZZK Alert - 검은사막 (Beta)
+// @name         bdo-blackdesert (Beta)
 // @namespace    https://chzzk.naver.com/
 // @version      1.1
 // @description  검은사막 공식 홈페이지 검색을 GM_xmlhttpRequest로 호출해 CORS 없이 치지직 페이지에 전달합니다. 본체(CHZZK 채팅 호출 알림)의 동반 스크립트입니다.
@@ -24,7 +24,7 @@
 // 파서 정본: scripts/crawl-adventurers.js, scripts/crawl-guilds.js (이 파일과 동기화 유지)
 (function () {
   'use strict';
-  const VERSION = '1.1';
+  const VERSION = '1.2';
   const BASE = 'https://www.kr.playblackdesert.com';
   const TIMEOUT = 15000;
 
@@ -216,7 +216,7 @@
     try {
       if (typeof GM_info === 'object' && GM_info && GM_info.script && GM_info.script.name) return String(GM_info.script.name);
     } catch (e) {}
-    return 'CHZZK Alert - 검은사막';
+    return 'bdo-blackdesert (Beta)';
   }
   function readyDetail() { return { version: VERSION, name: scriptName() }; }
   document.addEventListener('bdo-search-ping', () => emit('bdo-search-ready', readyDetail()));
@@ -231,5 +231,5 @@
   };
   try { window.bdoSearch = bdoSearch; } catch (e) {}
   emit('bdo-search-ready', readyDetail());
-  try { console.log('[CHZZK Alert - 검은사막] 로드됨 v' + VERSION + '. window.bdoSearch.searchGuild("미리내") 로 테스트 가능'); } catch (e) {}
+  try { console.log('[bdo-blackdesert (Beta)] 로드됨 v' + VERSION + '. window.bdoSearch.searchGuild("미리내") 로 테스트 가능'); } catch (e) {}
 })();
