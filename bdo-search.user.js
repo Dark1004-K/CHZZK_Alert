@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CHZZK Alert - 검은사막
 // @namespace    https://chzzk.naver.com/
-// @version      1.0
+// @version      1.1
 // @description  검은사막 공식 홈페이지 검색을 GM_xmlhttpRequest로 호출해 CORS 없이 치지직 페이지에 전달합니다. 본체(CHZZK 채팅 호출 알림)의 동반 스크립트입니다.
 // @author       DarkAngel
 // @license      Proprietary - All rights reserved
@@ -19,12 +19,12 @@
 //     - kind: 'famSearch' {keyword} | 'charSearch' {keyword} | 'famProfile' {target}
 //             'guildSearch' {keyword, page} | 'guildProfile' {guildName}
 //     - 응답: 'bdo-search-res' { id, ok, data?, error?, maintenance? }
-//  3. 준비 신호: 'bdo-search-ready' { version }. 본체가 'bdo-search-ping'을 보내면 다시 응답.
+//  3. 준비 신호: 'bdo-search-ready' { version, name }. 본체가 'bdo-search-ping'을 보내면 다시 응답.
 //  4. 콘솔 테스트: window.bdoSearch.searchGuild('미리내') 등.
 // 파서 정본: scripts/crawl-adventurers.js, scripts/crawl-guilds.js (이 파일과 동기화 유지)
 (function () {
   'use strict';
-  const VERSION = '1.0';
+  const VERSION = '1.1';
   const BASE = 'https://www.kr.playblackdesert.com';
   const TIMEOUT = 15000;
 
@@ -211,7 +211,15 @@
         maintenance: !!(e && e.maintenance),
       }));
   });
-  document.addEventListener('bdo-search-ping', () => emit('bdo-search-ready', { version: VERSION }));
+  // 동반 스크립트 이름: 메타데이터 우선, 없으면 폴백
+  function scriptName() {
+    try {
+      if (typeof GM_info === 'object' && GM_info && GM_info.script && GM_info.script.name) return String(GM_info.script.name);
+    } catch (e) {}
+    return 'CHZZK Alert - 검은사막';
+  }
+  function readyDetail() { return { version: VERSION, name: scriptName() }; }
+  document.addEventListener('bdo-search-ping', () => emit('bdo-search-ready', readyDetail()));
 
   // 콘솔 테스트용 직접 호출
   const bdoSearch = {
@@ -222,6 +230,6 @@
     getGuild: (guildName) => api.guildProfile(guildName),
   };
   try { window.bdoSearch = bdoSearch; } catch (e) {}
-  emit('bdo-search-ready', { version: VERSION });
+  emit('bdo-search-ready', readyDetail());
   try { console.log('[CHZZK Alert - 검은사막] 로드됨 v' + VERSION + '. window.bdoSearch.searchGuild("미리내") 로 테스트 가능'); } catch (e) {}
 })();

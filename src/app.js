@@ -93,11 +93,12 @@ function pluginMetaOf(id) {
   try { return pluginMeta[id] || null; } catch (e) { return null; }
 }
 function pluginDisplayName(p) {
+  const base = (p && p.name) || (p && p.id) || '';
   try {
     const m = p && pluginMeta[p.id];
-    if (m && m.name) return m.version ? m.name + ' v' + m.version : m.name;
+    if (m && m.version) return base + ' v' + m.version;
   } catch (e) {}
-  return (p && p.name) || (p && p.id) || '';
+  return base;
 }
 function pluginStateMap() {
   try { return JSON.parse(localStorage.getItem(LS_PLUG)) || {}; } catch (e) { return {}; }

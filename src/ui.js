@@ -916,6 +916,7 @@ function showCompanionPrompt(ch, items) {
 // 동반은 document-idle 로딩이라 늦게 올 수 있어서 ready 이벤트 상시 수신 + 렌더 때마다 ping.
 // ---------- 동반 스크립트 상태 (설정 > 확장 행에 표시) ----------
 const __kwCompanions = {}; // [readyEvent] -> version
+const __kwCompanionNames = {}; // [readyEvent] -> 동반 스크립트 이름
 const __kwCompanionPingAt = {}; // [pluginId] -> 마지막 ping 시각
 let __kwCompanionListening = false;
 function companionListen() {
@@ -923,9 +924,11 @@ function companionListen() {
   __kwCompanionListening = true;
   try {
     document.addEventListener('bdo-search-ready', (e) => {
-      const v = e && e.detail && e.detail.version;
+      const d = e && e.detail;
+      const v = d && d.version;
       if (!v) return;
       __kwCompanions['bdo-search-ready'] = String(v);
+      if (d.name) __kwCompanionNames['bdo-search-ready'] = String(d.name);
       paintCompanions();
     });
   } catch (e) {}
@@ -937,9 +940,10 @@ function companionHtml(p) {
   const c = p && p.companion;
   if (!c) return '';
   const v = c.ready && __kwCompanions[c.ready];
+  const nm = (c.ready && __kwCompanionNames[c.ready]) || c.label || '동반 스크립트';
   const need = c.minVersion || '';
-  if (v && (!need || cmpVersions(v, need) >= 0)) return `<span style="color:#888">브릿지 v${escapeHtml(v)}</span> <button class="__kw_ic" data-companion-remove="${escapeHtml(p.id)}" title="브릿지 삭제" style="color:#ff7b7b;padding:3px">${IC.trash}</button>`;
-  if (v) return `<span style="color:#ffd400">브릿지 v${escapeHtml(v)} → v${escapeHtml(need)}</span> <button class="__kw_upbtn" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 업그레이드 (설치 후 새로고침)">브릿지 업그레이드</button>`;
+  if (v && (!need || cmpVersions(v, need) >= 0)) return `<span style="color:#888">${escapeHtml(nm)} v${escapeHtml(v)}</span> <button class="__kw_ic" data-companion-remove="${escapeHtml(p.id)}" title="브릿지 삭제" style="color:#ff7b7b;padding:3px">${IC.trash}</button>`;
+  if (v) return `<span style="color:#ffd400">${escapeHtml(nm)} v${escapeHtml(v)} → v${escapeHtml(need)}</span> <button class="__kw_upbtn" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 업그레이드 (설치 후 새로고침)">브릿지 업그레이드</button>`;
   companionPing(p);
   return `<button class="__kw_ic" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 설치 (설치 후 새로고침)" style="color:#00ffa3;padding:3px">${IC.down}</button>`;
 }
