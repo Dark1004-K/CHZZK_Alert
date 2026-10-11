@@ -253,7 +253,7 @@
   // ---------- 쿠폰 모아보기 (#__kw_cpn) ----------
   // 검은사막 사이트는 다른 사이트(치지직 페이지)에서 직접 읽을 수 없어서(CORS), 저장소의 coupons.json을 받아온다.
   // coupons.json은 scripts/crawl-coupons.js가 "쿠폰 모두 모아보기" 페이지를 읽어 갱신한다.
-  // 앱이 켜질 때 한 번 받고, 창의 새로고침 버튼을 누르면 다시 받는다.
+  // 앱이 켜질 때 한 번 받고, 이후 매시 27분(GitHub 액션 10분 뒤)에 자동으로 다시 받는다.
   const CPN_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/coupons.json';
   const LS_CPN_FOLD = '__kw_cpn_fold';
   let cpnEl = null;
@@ -264,7 +264,14 @@
   let cpnAnchorB = 0; // 펼치기 클릭 시점(접힌 상태)의 아래 모서리. innerHTML이 먼저 깔리므로 클릭 때 잡아야 함
   let cpnFoldB = 0; // 접기 클릭 시점(펼친 상태)의 아래 모서리. 접을 때도 아래 고정
   let cpnFetchedAt = 0; // 마지막으로 받아온 시각
-  const CPN_REFRESH_MS = 3600000; // 1시간마다 자동으로 다시 받는다
+  // GitHub 액션(매시 17분)이 끝난 10분 뒤(매시 27분)에 자동 갱신. 시간대와 무관하게 매시 '분'은 일치한다.
+  const CPN_SLOT_MIN = 27; // 매시 27분
+  function cpnSlotDue(now) { // 가장 최근 27분 슬롯 이후에 받은 적이 없으면 true
+    const d = new Date(now);
+    const slot = new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), CPN_SLOT_MIN, 0, 0).getTime();
+    const last = now < slot ? slot - 3600000 : slot;
+    return cpnFetchedAt < last;
+  }
   let cpnBusyUntil = 0; // 이 시각까지는 "가져오는 중"(도는 아이콘)으로 보여줌 (너무 빨리 끝나도 눌린 것이 보이게)
   let cpnFlashUntil = 0; // 이 시각까지는 완료(체크)/실패(!) 표시
   let cpnFlashErr = false;
@@ -501,7 +508,7 @@
     const panel = document.getElementById('__kw_panel');
     if (!opt('coupons', true) || !stack || !panel || !panel.classList.contains('show')) { removeCoupons(); return; }
     if (cpnState === 'idle') loadCoupons(); // 처음 켜질 때 한 번 받아온다
-    else if (cpnState !== 'loading' && now - cpnFetchedAt >= CPN_REFRESH_MS) loadCoupons(); // 이후 1시간마다 자동 갱신
+    else if (cpnState !== 'loading' && cpnSlotDue(now)) loadCoupons(); // 이후 매시 27분(액션 10분 뒤)에 자동 갱신
     if (!cpnEl || !cpnEl.isConnected) {
       cpnEl = document.createElement('div');
       cpnEl.id = '__kw_cpn';
