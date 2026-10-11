@@ -707,9 +707,10 @@
       famQuery = qi ? qi.value : '';
       try { localStorage.setItem(LS_FAMQ, famQuery); } catch (er) {}
       famSig = null;
-      if (!famQuery.trim()) { famResQ = ''; liveFam = null; liveFamRev++; removeFamRes(); renderFamily(); return; }
+      if (!famQuery.trim()) { famResQ = ''; liveFam = null; liveFamRev++; resSig = null; try { updateRes(Date.now()); } catch (er) {} renderFamily(); return; }
       famResQ = famQuery;
-      famResSig = null;
+      resKind = 'fam';
+      resSig = null;
       updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
       startLive('fam', famQuery);
     };
@@ -721,9 +722,10 @@
     const goGuild = () => {
       guildQuery = gi ? gi.value : '';
       try { localStorage.setItem(LS_GUILDQ, guildQuery); } catch (er) {}
-      if (!guildQuery.trim()) { guildResQ = ''; liveGuild = null; liveGuildRev++; removeGuildRes(); return; }
+      if (!guildQuery.trim()) { guildResQ = ''; liveGuild = null; liveGuildRev++; resSig = null; try { updateRes(Date.now()); } catch (er) {} return; }
       guildResQ = guildQuery;
-      guildResSig = null;
+      resKind = 'guild';
+      resSig = null;
       updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
       startLive('guild', guildQuery);
     };
@@ -735,9 +737,11 @@
     const goItem = () => {
       itemQuery = ii ? ii.value : '';
       try { localStorage.setItem(LS_ITEMQ, itemQuery); } catch (er) {}
-      if (!itemQuery.trim()) { itemResQ = ''; liveItem = null; liveItemRev++; removeItemRes(); return; }
+      if (!itemQuery.trim()) { itemResQ = ''; liveItem = null; liveItemRev++; itemNav = []; resSig = null; try { updateRes(Date.now()); } catch (er) {} return; }
       itemResQ = itemQuery;
-      itemResSig = null;
+      resKind = 'item';
+      itemNav = [];
+      resSig = null;
       updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
       startLive('item', itemQuery);
     };
@@ -746,7 +750,7 @@
     const ig = famEl.querySelector('#__kw_item_go');
     if (ig) ig.onclick = goItem;
     const fx = famEl.querySelector('#__kw_bdo_family_x');
-    if (fx) fx.onclick = (e) => { e.stopPropagation(); turnOff('family'); removeFamily(); removeFamRes(); removeGuildRes(); removeItemRes(); };
+    if (fx) fx.onclick = (e) => { e.stopPropagation(); turnOff('family'); removeFamily(); removeRes(); };
     // 다시 그리기로 날아간 포커스 복구 (커서 위치 포함)
     try {
       if (refocus) {
@@ -779,33 +783,39 @@
     } catch (e) {}
   }
 
-  // ---------- 가문검색 결과창 (#__kw_bdo_family_r: 검색창 오른쪽 별도 창, 가로+세로) ----------
-  const LS_FAMRPOS = '__kw_family_r_pos';
-  const LS_FAMRH = '__kw_family_r_h';
-  const FAMR_H_DEF = 300, FAMR_H_MIN = 120;
-  const famRHMax = () => Math.max(FAMR_H_MIN, window.innerHeight);
-  let famRH = FAMR_H_DEF;
-  try { const fhv = parseInt(localStorage.getItem(LS_FAMRH), 10); if (fhv >= FAMR_H_MIN && fhv <= 4000) famRH = fhv; } catch (e) {}
-  let famResEl = null, famResSig = null;
-  let famResQ = ''; // 결과창 가문 검색어 (길드용은 아래 guild 블록)
-  function removeFamRes() {
-    if (famResEl) { try { famResEl.remove(); } catch (e) {} }
-    famResEl = null;
-    famResSig = null;
+  // ---------- 검색 결과창 (단일 창 + 종류탭 + 아이템 드릴다운) ----------
+  // 가문·길드·아이템이 하나의 창을 공유. 탭으로 전환, 아이템은 목록→상세로 파고듦.
+  const LS_RESPOS = '__kw_family_r_pos'; // 기존 가문 결과창 위치 승계
+  const LS_RESH = '__kw_family_r_h';
+  const RES_H_DEF = 300, RES_H_MIN = 120;
+  const resHMax = () => Math.max(RES_H_MIN, window.innerHeight);
+  let resH = RES_H_DEF;
+  try { const rhv = parseInt(localStorage.getItem(LS_RESH), 10); if (rhv >= RES_H_MIN && rhv <= 4000) resH = rhv; } catch (e) {}
+  let resEl = null, resSig = null;
+  let resKind = 'fam'; // 'fam' | 'guild' | 'item' (현재 탭)
+  let famResQ = ''; // 결과창 가문 검색어
+  let guildResQ = ''; // 결과창 길드 검색어
+  let itemResQ = ''; // 결과창 아이템 검색어
+  let itemNav = []; // 아이템 드릴다운 스택 [{ id, phase:'loading'|'ok', data }] (空=목록)
+  const itemDetailCache = {}; // [id] -> { t, data }
+  function removeRes() {
+    if (resEl) { try { resEl.remove(); } catch (e) {} }
+    resEl = null;
+    resSig = null;
   }
   // 결과창 위치: 저장된 곳, 없으면 검색창 오른쪽
-  function placeFamRes() {
-    if (!famResEl) return;
+  function placeRes() {
+    if (!resEl) return;
     let done = false;
     try {
-      const o = JSON.parse(localStorage.getItem(LS_FAMRPOS));
+      const o = JSON.parse(localStorage.getItem(LS_RESPOS));
       if (o && isFinite(o.x) && isFinite(o.y)) {
         const w = isFinite(o.w) ? Math.max(225, Math.min(600, Math.round(o.w))) : 300;
-        famResEl.style.position = 'fixed';
-        famResEl.style.left = Math.max(0, Math.min(window.innerWidth - w, o.x)) + 'px';
-        famResEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, o.y)) + 'px';
-        famResEl.style.bottom = 'auto';
-        famResEl.style.width = w + 'px';
+        resEl.style.position = 'fixed';
+        resEl.style.left = Math.max(0, Math.min(window.innerWidth - w, o.x)) + 'px';
+        resEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, o.y)) + 'px';
+        resEl.style.bottom = 'auto';
+        resEl.style.width = w + 'px';
         done = true;
       }
     } catch (e) {}
@@ -813,15 +823,15 @@
     try {
       const r = famEl && famEl.isConnected ? famEl.getBoundingClientRect() : null;
       const w = 300;
-      famResEl.style.position = 'fixed';
-      famResEl.style.width = w + 'px';
-      famResEl.style.bottom = 'auto';
+      resEl.style.position = 'fixed';
+      resEl.style.width = w + 'px';
+      resEl.style.bottom = 'auto';
       if (r && r.width > 0) {
-        famResEl.style.left = Math.max(0, Math.min(window.innerWidth - w, Math.round(r.right + 8))) + 'px';
-        famResEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, Math.round(r.top))) + 'px';
+        resEl.style.left = Math.max(0, Math.min(window.innerWidth - w, Math.round(r.right + 8))) + 'px';
+        resEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, Math.round(r.top))) + 'px';
       } else {
-        famResEl.style.left = Math.max(0, window.innerWidth - w - 16) + 'px';
-        famResEl.style.top = '70px';
+        resEl.style.left = Math.max(0, window.innerWidth - w - 16) + 'px';
+        resEl.style.top = '70px';
       }
     } catch (e2) {}
   }
@@ -987,10 +997,70 @@
       return { query: q, items };
     }).catch(() => null);
   }
+  function parseItemDetail(html) { // 제작노트 상세: 이름·설명·제작법(재료)
+    html = String(html || '');
+    const nm = /<div id="detailItemName"[^>]*>([^<]+)<\/div>/.exec(html);
+    const name = nm ? decHtml(nm[1]) : '';
+    let desc = '';
+    const dm = /<div id="detailItemName"[^>]*>[^<]*<\/div>\s*<div class="mt-3">([\s\S]*?)<\/div>/.exec(html);
+    if (dm) desc = decHtml(dm[1]).slice(0, 300);
+    const methods = [];
+    const parts = html.split('<div class="font-weight-bold row mix-title">');
+    for (let i = 1; i < parts.length; i++) {
+      const t = /^[\s\S]*?<div class="col">([^<]+)<\/div>/.exec(parts[i]);
+      const method = t ? decHtml(t[1]) : '';
+      const mats = [];
+      const mre = /<a class="text-dark material-item-link"[^>]*href="\/bd\/makings\/(\d+)"[^>]*>([^<]*)<\/a>\s*<span>x<\/span>\s*<span class="material-count"[^>]*>([\s\S]*?)<\/span>/g;
+      let mm;
+      while ((mm = mre.exec(parts[i]))) mats.push({ id: mm[1], name: decHtml(mm[2]), count: decHtml(mm[3]) });
+      let note = '';
+      if (!mats.length) {
+        const nn = /<hr[^>]*>\s*<div>([^<]+)<\/div>/.exec(parts[i]);
+        if (nn) note = decHtml(nn[1]).slice(0, 200);
+      }
+      if (method || mats.length || note) methods.push({ method, mats, note });
+    }
+    return { name, desc, methods };
+  }
+  function itemDetailCached(id) {
+    try {
+      const c = itemDetailCache[id];
+      if (c && Date.now() - c.t < 3600000) return c.data;
+    } catch (e) {}
+    return null;
+  }
+  function fetchItemDetail(id) {
+    return bdoFetch(WC_BASE + '/bd/makings/' + encodeURIComponent(id), 12000, WC_BASE).then((html) => {
+      if (!html) return null;
+      const d = parseItemDetail(html);
+      if (!d || !d.name) return null;
+      try { itemDetailCache[id] = { t: Date.now(), data: d }; } catch (e) {}
+      return d;
+    }).catch(() => null);
+  }
+  function openItemDetail(id) { // 목록·재료 클릭 → 같은 창에서 상세로 드릴다운
+    id = String(id || '');
+    if (!id) return;
+    const hit = itemDetailCached(id);
+    const cur = { id, phase: hit ? 'ok' : 'loading', data: hit || null };
+    itemNav.push(cur);
+    resKind = 'item';
+    resSig = null;
+    try { renderRes(); } catch (e) {}
+    if (!hit) {
+      fetchItemDetail(id).then((d) => {
+        if (itemNav[itemNav.length - 1] !== cur) return; // 다른 곳으로 이동함
+        if (d) { cur.phase = 'ok'; cur.data = d; }
+        else cur.phase = 'miss';
+        resSig = null;
+        try { renderRes(); } catch (e2) {}
+      });
+    }
+  }
   function startLive(kind, q) {
     const isGuild = kind === 'guild', isItem = kind === 'item';
-    const upd = isGuild ? updateGuildRes : isItem ? updateItemRes : updateFamRes;
-    const ren = isGuild ? renderGuildRes : isItem ? renderItemRes : renderFamRes;
+    const upd = updateRes;
+    const ren = renderRes;
     const getLive = () => (isGuild ? liveGuild : isItem ? liveItem : liveFam);
     const setLive = (v) => { if (isGuild) liveGuild = v; else if (isItem) liveItem = v; else liveFam = v; };
     const bump = () => { if (isGuild) liveGuildRev++; else if (isItem) liveItemRev++; else liveFamRev++; };
@@ -1009,46 +1079,41 @@
           setLive({ kind, q, phase: 'miss', data: null });
         }
         bump();
-        if (isGuild) guildResSig = null; else if (isItem) itemResSig = null; else famResSig = null;
+        resSig = null;
         try { ren(); } catch (e2) {}
       });
     }
     bump();
     upd(Date.now());
   }
-  function renderFamRes() {
-    if (!famResEl || !famResEl.isConnected) return;
-    const q = famResQ;
-    const lv = (liveFam && liveFam.q === q) ? liveFam : null;
-    const bridgeOn = !!(KW.bridgeReady && KW.bridgeReady());
-    let f = (lv && lv.phase === 'ok' && lv.data && !lv.data.miss) ? lv.data : null;
-    const liveOn = !!f;
-    const n = f ? (f.characters || []).length : 0;
-    const sig = ['fam', q, f ? f.family : '', n, lv ? lv.phase : '-', liveFamRev, bridgeOn ? 'b' : '-'].join('|');
-    if (sig === famResSig) return;
-    famResSig = sig;
-    let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + (f ? esc(f.family) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(q || '검색 결과')) + '</b></div>' +
-      xBtn('__kw_bdo_family_r_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
-      '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' +
-      (liveOn ? '<div style="font-size:10px;color:#7dffb3;margin-top:4px">● 실시간 검색 결과</div>' : '') +
-      '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
-    if (!bridgeOn) h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px;line-height:1.5">동반 브릿지(chzzk_bridge)가 필요합니다.<br>설치 후 방송 페이지를 새로고침하세요.</div>';
-    else if (lv && lv.phase === 'loading') h += '<div style="font-size:11px;color:#aaa;margin-top:6px">실시간 검색 중...</div>';
-    else if (f) {
-      h += '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#888"><span>가문생성일</span><span>' + esc(f.created || '') + '</span></div>' +
-        (f.guild ? '<div style="margin-top:2px;font-size:11px;color:#ff7ab8">' + esc(f.guild) + '</div>' : '');
-      (f.characters || []).forEach((c) => {
-        h += '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.12)">' +
-          '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(c.name || '?') + (c.main ? ' <span style="color:#ff7ab8;font-size:10px">대표</span>' : '') + '</b>' +
-          '<span style="font-size:11px;color:#ddd;white-space:nowrap">' + esc(c.class || '') + '</span>' +
-          '<span style="font-size:11px;color:' + (c.level ? '#7dffb3' : '#888') + ';white-space:nowrap">' + (c.level ? 'Lv' + c.level : '비공개') + '</span></div>';
-      });
-      h += '</div>';
-    } else h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>가문명을 정확히 입력했는지 확인하세요.</div>';
-    h += '</div>';
-    famResEl.innerHTML = h;
-    const fx = famResEl.querySelector('#__kw_bdo_family_r_x');
-    if (fx) fx.onclick = () => {
+  function resKinds() {
+    const k = [];
+    if (famResQ.trim()) k.push('fam');
+    if (guildResQ.trim()) k.push('guild');
+    if (itemResQ.trim()) k.push('item');
+    return k;
+  }
+  function clearResKind(k) { // X 버튼: 현재 탭의 검색어·입력값·상태를 지움
+    if (k === 'guild') {
+      guildResQ = '';
+      liveGuild = null; liveGuildRev++;
+      guildQuery = '';
+      try { localStorage.setItem(LS_GUILDQ, ''); } catch (er) {}
+      try {
+        const gi = famEl && famEl.isConnected ? famEl.querySelector('#__kw_guild_q') : null;
+        if (gi) gi.value = '';
+      } catch (er2) {}
+    } else if (k === 'item') {
+      itemResQ = '';
+      liveItem = null; liveItemRev++;
+      itemNav = [];
+      itemQuery = '';
+      try { localStorage.setItem(LS_ITEMQ, ''); } catch (er) {}
+      try {
+        const ii = famEl && famEl.isConnected ? famEl.querySelector('#__kw_item_q') : null;
+        if (ii) ii.value = '';
+      } catch (er2) {}
+    } else {
       famResQ = '';
       liveFam = null; liveFamRev++;
       famQuery = '';
@@ -1059,328 +1124,189 @@
       } catch (er2) {}
       famSig = null;
       try { renderFamily(); } catch (er3) {}
-      removeFamRes();
-    };
-  }
-  function updateFamRes(now) {
-    const stack = document.getElementById('__kw_stack');
-    const panel = document.getElementById('__kw_panel');
-    if (!opt('family', true) || !stack || !panel || !panel.classList.contains('show') || !famResQ.trim() || !famEl || !famEl.isConnected) { removeFamRes(); return; }
-    if (!famResEl || !famResEl.isConnected) {
-      famResEl = document.createElement('div');
-      famResEl.id = '__kw_bdo_family_r';
-      famResEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;height:' + Math.min(famRH, famRHMax()) + 'px';
-      document.body.appendChild(famResEl);
-      placeFamRes();
-      famResSig = null;
     }
-    renderFamRes();
-    try { // 창 기본형 상속: 결과창=가로+세로
-      if (KW && typeof KW.window === 'function') {
-        KW.window(famResEl, {
-          color: '#ff7ab8', posKey: LS_FAMRPOS, rsz: 'd', dock: () => placeFamRes(),
-          getH: () => famRH,
-          setH: (v) => {
-            famRH = Math.max(FAMR_H_MIN, Math.min(famRHMax(), v));
-            famResEl.style.height = Math.min(famRH, famRHMax()) + 'px';
-          },
-          saveH: () => { try { localStorage.setItem(LS_FAMRH, String(famRH)); } catch (er) {} },
-        });
-      } else {
-        if (KW && typeof KW.rsz === 'function') KW.rsz(famResEl, {
-          dir: 'd', color: '#ff7ab8', wMode: 'self',
-          getW: () => famResEl.getBoundingClientRect().width,
-          setW: (v) => { famResEl.style.width = Math.max(225, Math.min(600, Math.round(v))) + 'px'; },
-          getH: () => famRH,
-          setH: (v) => {
-            famRH = Math.max(FAMR_H_MIN, Math.min(famRHMax(), v));
-            famResEl.style.height = Math.min(famRH, famRHMax()) + 'px';
-          },
-          save: () => { try { localStorage.setItem(LS_FAMRH, String(famRH)); } catch (er) {} },
-        });
-        if (KW && typeof KW.float === 'function') KW.float(famResEl, { color: '#ff7ab8', key: LS_FAMPOS, dock: () => placeFamRes() });
-      }
-    } catch (e) {}
   }
-
-  // ---------- 길드검색 결과창 (#__kw_bdo_guild_r: 검색창 오른쪽 별도 창, 가로+세로) ----------
-  const LS_GUILDRPOS = '__kw_guild_r_pos';
-  const LS_GUILDRH = '__kw_guild_r_h';
-  const GUILDR_H_DEF = 300, GUILDR_H_MIN = 120;
-  const guildRHMax = () => Math.max(GUILDR_H_MIN, window.innerHeight);
-  let guildRH = GUILDR_H_DEF;
-  try { const ghv = parseInt(localStorage.getItem(LS_GUILDRH), 10); if (ghv >= GUILDR_H_MIN && ghv <= 4000) guildRH = ghv; } catch (e) {}
-  let guildResEl = null, guildResSig = null;
-  let guildResQ = '';
-  function removeGuildRes() {
-    if (guildResEl) { try { guildResEl.remove(); } catch (e) {} }
-    guildResEl = null;
-    guildResSig = null;
+  function resTabHtml(kinds) {
+    const names = { fam: '가문', guild: '길드', item: '아이템' };
+    return '<div style="display:flex;gap:4px;flex:none;margin-top:6px">' + kinds.map((k) =>
+      '<button data-restab="' + k + '" style="flex:1;border:1px solid ' + (k === resKind ? '#ff7ab8' : 'rgba(255,255,255,.16)') + ';background:' + (k === resKind ? 'rgba(255,122,184,.14)' : 'transparent') + ';color:' + (k === resKind ? '#ff9ec4' : '#999') + ';border-radius:8px;padding:3px 0;font-size:11px;font-weight:bold;cursor:pointer">' + names[k] + '</button>'
+    ).join('') + '</div>';
   }
-  // 결과창 위치: 저장된 곳, 없으면 검색창 오른쪽 (가문 결과와 겹치지 않게 아래로)
-  function placeGuildRes() {
-    if (!guildResEl) return;
-    let done = false;
-    try {
-      const o = JSON.parse(localStorage.getItem(LS_GUILDRPOS));
-      if (o && isFinite(o.x) && isFinite(o.y)) {
-        const w = isFinite(o.w) ? Math.max(225, Math.min(600, Math.round(o.w))) : 300;
-        guildResEl.style.position = 'fixed';
-        guildResEl.style.left = Math.max(0, Math.min(window.innerWidth - w, o.x)) + 'px';
-        guildResEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, o.y)) + 'px';
-        guildResEl.style.bottom = 'auto';
-        guildResEl.style.width = w + 'px';
-        done = true;
-      }
-    } catch (e) {}
-    if (done) return;
-    try {
-      const r = famEl && famEl.isConnected ? famEl.getBoundingClientRect() : null;
-      const w = 300;
-      guildResEl.style.position = 'fixed';
-      guildResEl.style.width = w + 'px';
-      guildResEl.style.bottom = 'auto';
-      if (r && r.width > 0) {
-        guildResEl.style.left = Math.max(0, Math.min(window.innerWidth - w, Math.round(r.right + 8))) + 'px';
-        guildResEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, Math.round(r.top + 48))) + 'px';
-      } else {
-        guildResEl.style.left = Math.max(0, window.innerWidth - w - 16) + 'px';
-        guildResEl.style.top = '120px';
-      }
-    } catch (e2) {}
-  }
-  function renderGuildRes() {
-    if (!guildResEl || !guildResEl.isConnected) return;
-    const q = guildResQ;
-    const lv = (liveGuild && liveGuild.q === q) ? liveGuild : null;
+  function renderRes() {
+    if (!resEl || !resEl.isConnected) return;
+    const kinds = resKinds();
+    if (!kinds.length) { removeRes(); return; }
+    if (!kinds.includes(resKind)) resKind = kinds[0];
     const bridgeOn = !!(KW.bridgeReady && KW.bridgeReady());
-    let f = (lv && lv.phase === 'ok' && lv.data && !lv.data.miss) ? lv.data : null;
-    const liveOn = !!f;
-    const n = f ? (f.memberList || []).length : 0;
-    const sig = ['guild', q, f ? f.guild : '', n, f && f.siege ? f.siege : '', lv ? lv.phase : '-', liveGuildRev, bridgeOn ? 'b' : '-'].join('|');
-    if (sig === guildResSig) return;
-    guildResSig = sig;
-    let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_USERS, '#ff7ab8') + (f ? esc(f.guild) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(q || '검색 결과')) + '</b></div>' +
-      xBtn('__kw_bdo_guild_r_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
-      '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' +
-      (liveOn ? '<div style="font-size:10px;color:#7dffb3;margin-top:4px">● 실시간 검색 결과</div>' : '') +
-      '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
-    if (!bridgeOn) h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px;line-height:1.5">동반 브릿지(chzzk_bridge)가 필요합니다.<br>설치 후 방송 페이지를 새로고침하세요.</div>';
-    else if (lv && lv.phase === 'loading') h += '<div style="font-size:11px;color:#aaa;margin-top:6px">실시간 검색 중...</div>';
-    else if (f) {
-      h += '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#888"><span>길드생성일</span><span>' + esc(f.created || '') + '</span></div>' +
-        '<div style="margin-top:2px;font-size:11px;color:#ddd">대장 ' + esc(f.master || '?') + (f.members ? ' · ' + f.members + '명' : '') + '</div>' +
-        (f.siege ? '<div style="margin-top:2px;font-size:11px;color:#ddd">점령현황 ' + esc(f.siege) + '</div>' : '');
-      (f.memberList || []).forEach((m) => {
-        h += '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.12)">' +
-          '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(m.family || '?') + '</b>' +
-          (m.role ? '<span style="background:#3a2a33;color:#ff9aab;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:bold;white-space:nowrap">' + esc(m.role) + '</span>' : '') + '</div>';
-      });
-      h += '</div>';
-    } else h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>길드명을 정확히 입력했는지 확인하세요.</div>';
-    h += '</div>';
-    guildResEl.innerHTML = h;
-    const gx = guildResEl.querySelector('#__kw_bdo_guild_r_x');
-    if (gx) gx.onclick = () => {
-      guildResQ = '';
-      liveGuild = null; liveGuildRev++;
-      guildQuery = '';
-      try { localStorage.setItem(LS_GUILDQ, ''); } catch (er) {}
-      try {
-        const gi = famEl && famEl.isConnected ? famEl.querySelector('#__kw_guild_q') : null;
-        if (gi) gi.value = '';
-      } catch (er2) {}
-      removeGuildRes();
-    };
-  }
-  function updateGuildRes(now) {
-    const stack = document.getElementById('__kw_stack');
-    const panel = document.getElementById('__kw_panel');
-    if (!opt('family', true) || !stack || !panel || !panel.classList.contains('show') || !guildResQ.trim() || !famEl || !famEl.isConnected) { removeGuildRes(); return; }
-    if (!guildResEl || !guildResEl.isConnected) {
-      guildResEl = document.createElement('div');
-      guildResEl.id = '__kw_bdo_guild_r';
-      guildResEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;height:' + Math.min(guildRH, guildRHMax()) + 'px';
-      document.body.appendChild(guildResEl);
-      placeGuildRes();
-      guildResSig = null;
+    const lvF = (liveFam && liveFam.q === famResQ) ? liveFam : null;
+    const fF = (lvF && lvF.phase === 'ok' && lvF.data && !lvF.data.miss) ? lvF.data : null;
+    const lvG = (liveGuild && liveGuild.q === guildResQ) ? liveGuild : null;
+    const fG = (lvG && lvG.phase === 'ok' && lvG.data && !lvG.data.miss) ? lvG.data : null;
+    const lvI = (liveItem && liveItem.q === itemResQ) ? liveItem : null;
+    const fI = (lvI && lvI.phase === 'ok' && lvI.data && !lvI.data.miss && Array.isArray(lvI.data.items)) ? lvI.data.items : null;
+    const navTop = (resKind === 'item' && itemNav.length) ? itemNav[itemNav.length - 1] : null;
+    const sig = [resKind,
+      famResQ, fF ? fF.family : '', fF ? (fF.characters || []).length : 0, lvF ? lvF.phase : '-', liveFamRev,
+      guildResQ, fG ? fG.guild : '', fG ? (fG.memberList || []).length : 0, fG ? fG.siege : '', lvG ? lvG.phase : '-', liveGuildRev,
+      itemResQ, fI ? fI.length : 0, lvI ? lvI.phase : '-', liveItemRev,
+      navTop ? navTop.id + ':' + navTop.phase : '',
+      bridgeOn ? 'b' : '-'].join('|');
+    if (sig === resSig) return;
+    resSig = sig;
+    const needBridge = '<div style="font-size:11px;color:#ff7b7b;margin-top:6px;line-height:1.5">동반 브릿지(chzzk_bridge)가 필요합니다.<br>설치 후 방송 페이지를 새로고침하세요.</div>';
+    const loading = '<div style="font-size:11px;color:#aaa;margin-top:6px">실시간 검색 중...</div>';
+    let title = '', body = '', liveTag = false;
+    if (resKind === 'guild') {
+      const n = fG ? (fG.memberList || []).length : 0;
+      title = TI(TI_USERS, '#ff7ab8') + (fG ? esc(fG.guild) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(guildResQ || '검색 결과'));
+      liveTag = !!fG;
+      if (!bridgeOn) body = needBridge;
+      else if (lvG && lvG.phase === 'loading') body = loading;
+      else if (fG) {
+        body = '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#888"><span>길드생성일</span><span>' + esc(fG.created || '') + '</span></div>' +
+          '<div style="margin-top:2px;font-size:11px;color:#ddd">대장 ' + esc(fG.master || '?') + (fG.members ? ' · ' + fG.members + '명' : '') + '</div>' +
+          (fG.siege ? '<div style="margin-top:2px;font-size:11px;color:#ddd">점령현황 ' + esc(fG.siege) + '</div>' : '');
+        (fG.memberList || []).forEach((m) => {
+          body += '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.12)">' +
+            '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(m.family || '?') + '</b>' +
+            (m.role ? '<span style="background:#3a2a33;color:#ff9aab;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:bold;white-space:nowrap">' + esc(m.role) + '</span>' : '') + '</div>';
+        });
+      } else body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>길드명을 정확히 입력했는지 확인하세요.</div>';
+    } else if (resKind === 'item') {
+      if (navTop) { // 상세 화면
+        const d = (navTop.phase === 'ok' && navTop.data) ? navTop.data : null;
+        title = '<button id="__kw_bdo_item_back" title="목록으로" style="border:1px solid rgba(255,255,255,.2);background:transparent;color:#ff9ec4;border-radius:8px;padding:1px 8px;font-size:11px;font-weight:bold;cursor:pointer;margin-right:6px">← 목록</button>' + esc((d && d.name) || itemResQ || '아이템');
+        if (!bridgeOn) body = needBridge;
+        else if (navTop.phase === 'loading' || !d) body = loading;
+        else if (navTop.phase === 'miss') body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">상세를 불러오지 못했습니다.<br>잠시 뒤 다시 시도하세요.</div>';
+        else {
+          body = '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
+            '<img src="' + WC_BASE + '/storage/images/bd/items/' + esc(navTop.id) + '.png" width="36" height="36" style="flex:none;border-radius:8px;background:rgba(255,255,255,.06)" onerror="this.style.display=\'none\'">' +
+            '<b style="font-size:13px">' + esc(d.name || '?') + '</b></div>';
+          if (d.desc) body += '<div style="margin-top:6px;font-size:11px;color:#ccc;line-height:1.5">' + esc(d.desc) + '</div>';
+          (d.methods || []).forEach((mt) => {
+            let mh = '<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)"><div style="font-size:11px;font-weight:bold;color:#ff9ec4">' + esc(mt.method || '제작') + '</div>';
+            (mt.mats || []).forEach((mm) => {
+              mh += '<div class="__kw_mat_row" data-mat-id="' + esc(mm.id) + '" title="이 재료 보기" style="display:flex;align-items:center;gap:8px;margin-top:5px;cursor:pointer">' +
+                '<img src="' + WC_BASE + '/storage/images/bd/items/' + esc(mm.id) + '.png" width="22" height="22" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06)" onerror="this.style.display=\'none\'">' +
+                '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(mm.name || '?') + '</b>' +
+                '<span style="font-size:11px;color:#7dffb3;white-space:nowrap">x ' + esc(mm.count || '?') + '</span></div>';
+            });
+            if (!(mt.mats || []).length && mt.note) mh += '<div style="margin-top:4px;font-size:11px;color:#ccc;line-height:1.5">' + esc(mt.note) + '</div>';
+            body += mh + '</div>';
+          });
+        }
+      } else { // 목록 화면
+        const n = fI ? fI.length : 0;
+        title = TI(TI_SEARCH, '#ff7ab8') + (fI ? esc(itemResQ) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(itemResQ || '검색 결과'));
+        liveTag = !!fI;
+        if (!bridgeOn) body = needBridge;
+        else if (lvI && lvI.phase === 'loading') body = loading;
+        else if (fI) {
+          fI.slice(0, ITEM_SHOW_MAX).forEach((it) => {
+            body += '<div class="__kw_item_row" data-item-id="' + esc(it.id) + '" title="상세 보기" style="display:flex;align-items:center;gap:8px;margin-top:5px;padding:5px 4px 5px 0;border-top:1px solid rgba(255,255,255,.12);cursor:pointer">' +
+              '<img src="' + WC_BASE + '/storage/images/bd/items/' + esc(it.id) + '.png" width="24" height="24" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06)" onerror="this.style.display=\'none\'">' +
+              '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(it.name || '?') + '</b></div>';
+          });
+          if (n > ITEM_SHOW_MAX) body += '<div style="font-size:11px;color:#888;margin-top:6px">외 ' + (n - ITEM_SHOW_MAX) + '개 (검색어를 좁혀보세요)</div>';
+        } else body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>아이템명을 정확히 입력했는지 확인하세요.</div>';
+      }
+    } else { // fam
+      const n = fF ? (fF.characters || []).length : 0;
+      title = TI(TI_SEARCH, '#ff7ab8') + (fF ? esc(fF.family) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(famResQ || '검색 결과'));
+      liveTag = !!fF;
+      if (!bridgeOn) body = needBridge;
+      else if (lvF && lvF.phase === 'loading') body = loading;
+      else if (fF) {
+        body = '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#888"><span>가문생성일</span><span>' + esc(fF.created || '') + '</span></div>' +
+          (fF.guild ? '<div style="margin-top:2px;font-size:11px;color:#ff7ab8">' + esc(fF.guild) + '</div>' : '');
+        (fF.characters || []).forEach((c) => {
+          body += '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.12)">' +
+            '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(c.name || '?') + (c.main ? ' <span style="color:#ff7ab8;font-size:10px">대표</span>' : '') + '</b>' +
+            '<span style="font-size:11px;color:#ddd;white-space:nowrap">' + esc(c.class || '') + '</span>' +
+            '<span style="font-size:11px;color:' + (c.level ? '#7dffb3' : '#888') + ';white-space:nowrap">' + (c.level ? 'Lv' + c.level : '비공개') + '</span></div>';
+        });
+      } else body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>가문명을 정확히 입력했는지 확인하세요.</div>';
     }
-    renderGuildRes();
-    try { // 창 기본형 상속: 결과창=가로+세로
-      if (KW && typeof KW.window === 'function') {
-        KW.window(guildResEl, {
-          color: '#ff7ab8', posKey: LS_GUILDRPOS, rsz: 'd', dock: () => placeGuildRes(),
-          getH: () => guildRH,
-          setH: (v) => {
-            guildRH = Math.max(GUILDR_H_MIN, Math.min(guildRHMax(), v));
-            guildResEl.style.height = Math.min(guildRH, guildRHMax()) + 'px';
-          },
-          saveH: () => { try { localStorage.setItem(LS_GUILDRH, String(guildRH)); } catch (er) {} },
-        });
-      } else {
-        if (KW && typeof KW.rsz === 'function') KW.rsz(guildResEl, {
-          dir: 'd', color: '#ff7ab8', wMode: 'self',
-          getW: () => guildResEl.getBoundingClientRect().width,
-          setW: (v) => { guildResEl.style.width = Math.max(225, Math.min(600, Math.round(v))) + 'px'; },
-          getH: () => guildRH,
-          setH: (v) => {
-            guildRH = Math.max(GUILDR_H_MIN, Math.min(guildRHMax(), v));
-            guildResEl.style.height = Math.min(guildRH, guildRHMax()) + 'px';
-          },
-          save: () => { try { localStorage.setItem(LS_GUILDRH, String(guildRH)); } catch (er) {} },
-        });
-        if (KW && typeof KW.float === 'function') KW.float(guildResEl, { color: '#ff7ab8', key: LS_GUILDRPOS, dock: () => placeGuildRes() });
-      }
-    } catch (e) {}
-  }
-
-  // ---------- 아이템검색 결과창 (#__kw_bdo_item_r: 검색창 오른쪽 별도 창, 가로+세로) ----------
-  const LS_ITEMRPOS = '__kw_item_r_pos';
-  const LS_ITEMRH = '__kw_item_r_h';
-  const ITEMR_H_DEF = 300, ITEMR_H_MIN = 120;
-  const ITEM_SHOW_MAX = 80; // 결과창에 그리는 최대 개수
-  const itemRHMax = () => Math.max(ITEMR_H_MIN, window.innerHeight);
-  let itemRH = ITEMR_H_DEF;
-  try { const ihv = parseInt(localStorage.getItem(LS_ITEMRH), 10); if (ihv >= ITEMR_H_MIN && ihv <= 4000) itemRH = ihv; } catch (e) {}
-  let itemResEl = null, itemResSig = null;
-  let itemResQ = '';
-  function removeItemRes() {
-    if (itemResEl) { try { itemResEl.remove(); } catch (e) {} }
-    itemResEl = null;
-    itemResSig = null;
-  }
-  // 결과창 위치: 저장된 곳, 없으면 검색창 오른쪽 (가문·길드 결과와 겹치지 않게 아래로)
-  function placeItemRes() {
-    if (!itemResEl) return;
-    let done = false;
-    try {
-      const o = JSON.parse(localStorage.getItem(LS_ITEMRPOS));
-      if (o && isFinite(o.x) && isFinite(o.y)) {
-        const w = isFinite(o.w) ? Math.max(225, Math.min(600, Math.round(o.w))) : 300;
-        itemResEl.style.position = 'fixed';
-        itemResEl.style.left = Math.max(0, Math.min(window.innerWidth - w, o.x)) + 'px';
-        itemResEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, o.y)) + 'px';
-        itemResEl.style.bottom = 'auto';
-        itemResEl.style.width = w + 'px';
-        done = true;
-      }
-    } catch (e) {}
-    if (done) return;
-    try {
-      const r = famEl && famEl.isConnected ? famEl.getBoundingClientRect() : null;
-      const w = 300;
-      itemResEl.style.position = 'fixed';
-      itemResEl.style.width = w + 'px';
-      itemResEl.style.bottom = 'auto';
-      if (r && r.width > 0) {
-        itemResEl.style.left = Math.max(0, Math.min(window.innerWidth - w, Math.round(r.right + 8))) + 'px';
-        itemResEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, Math.round(r.top + 96))) + 'px';
-      } else {
-        itemResEl.style.left = Math.max(0, window.innerWidth - w - 16) + 'px';
-        itemResEl.style.top = '170px';
-      }
-    } catch (e2) {}
-  }
-  function renderItemRes() {
-    if (!itemResEl || !itemResEl.isConnected) return;
-    const q = itemResQ;
-    const lv = (liveItem && liveItem.q === q) ? liveItem : null;
-    const bridgeOn = !!(KW.bridgeReady && KW.bridgeReady());
-    const items = (lv && lv.phase === 'ok' && lv.data && !lv.data.miss && Array.isArray(lv.data.items)) ? lv.data.items : null;
-    const liveOn = !!items;
-    const n = items ? items.length : 0;
-    const sig = ['item', q, n, items ? items.slice(0, 5).map((x) => x.id).join(',') : '', lv ? lv.phase : '-', liveItemRev, bridgeOn ? 'b' : '-'].join('|');
-    if (sig === itemResSig) return;
-    itemResSig = sig;
-    let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + (items ? esc(q) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(q || '검색 결과')) + '</b></div>' +
-      xBtn('__kw_bdo_item_r_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
+    let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;overflow:hidden">' + title + '</b></div>' +
+      xBtn('__kw_bdo_res_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
       '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' +
-      (liveOn ? '<div style="font-size:10px;color:#7dffb3;margin-top:4px">● 실시간 검색 결과</div>' : '') +
-      '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
-    if (!bridgeOn) h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px;line-height:1.5">동반 브릿지(chzzk_bridge)가 필요합니다.<br>설치 후 방송 페이지를 새로고침하세요.</div>';
-    else if (lv && lv.phase === 'loading') h += '<div style="font-size:11px;color:#aaa;margin-top:6px">실시간 검색 중...</div>';
-    else if (items) {
-      items.slice(0, ITEM_SHOW_MAX).forEach((it) => {
-        h += '<div class="__kw_item_row" data-item-id="' + esc(it.id) + '" title="제작노트 페이지 열기" style="display:flex;align-items:center;gap:8px;margin-top:5px;padding:5px 4px 5px 0;border-top:1px solid rgba(255,255,255,.12);cursor:pointer">' +
-          '<img src="' + WC_BASE + '/storage/images/bd/items/' + esc(it.id) + '.png" width="24" height="24" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06)" onerror="this.style.display=\'none\'">' +
-          '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(it.name || '?') + '</b></div>';
-      });
-      if (n > ITEM_SHOW_MAX) h += '<div style="font-size:11px;color:#888;margin-top:6px">외 ' + (n - ITEM_SHOW_MAX) + '개 (검색어를 좁혀보세요)</div>';
-    } else h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>아이템명을 정확히 입력했는지 확인하세요.</div>';
-    h += '</div>';
-    itemResEl.innerHTML = h;
-    itemResEl.querySelectorAll('.__kw_item_row').forEach((row) => {
-      row.onclick = () => {
-        const id = row.getAttribute('data-item-id');
-        if (id) { try { window.open(WC_BASE + '/bd/makings/' + encodeURIComponent(id), '_blank', 'noopener'); } catch (e) {} }
-      };
+      (kinds.length > 1 ? resTabHtml(kinds) : '') +
+      (liveTag ? '<div style="font-size:10px;color:#7dffb3;margin-top:4px">● 실시간 검색 결과</div>' : '') +
+      '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">' + body + '</div>';
+    resEl.innerHTML = h;
+    const rx = resEl.querySelector('#__kw_bdo_res_x');
+    if (rx) rx.onclick = () => {
+      clearResKind(resKind);
+      if (!resKinds().length) removeRes();
+      else { resSig = null; try { renderRes(); } catch (er) {} }
+    };
+    resEl.querySelectorAll('[data-restab]').forEach((t) => {
+      t.onclick = () => { resKind = t.getAttribute('data-restab'); resSig = null; try { renderRes(); } catch (er) {} };
     });
-    const ix = itemResEl.querySelector('#__kw_bdo_item_r_x');
-    if (ix) ix.onclick = () => {
-      itemResQ = '';
-      liveItem = null; liveItemRev++;
-      itemQuery = '';
-      try { localStorage.setItem(LS_ITEMQ, ''); } catch (er) {}
-      try {
-        const ii = famEl && famEl.isConnected ? famEl.querySelector('#__kw_item_q') : null;
-        if (ii) ii.value = '';
-      } catch (er2) {}
-      removeItemRes();
-    };
+    resEl.querySelectorAll('.__kw_item_row').forEach((row) => {
+      row.onclick = () => openItemDetail(row.getAttribute('data-item-id'));
+    });
+    resEl.querySelectorAll('.__kw_mat_row').forEach((row) => {
+      row.onclick = () => openItemDetail(row.getAttribute('data-mat-id'));
+    });
+    const bk = resEl.querySelector('#__kw_bdo_item_back');
+    if (bk) bk.onclick = () => { itemNav.pop(); resSig = null; try { renderRes(); } catch (er) {} };
   }
-  function updateItemRes(now) {
+  function updateRes(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
-    if (!opt('family', true) || !stack || !panel || !panel.classList.contains('show') || !itemResQ.trim() || !famEl || !famEl.isConnected) { removeItemRes(); return; }
-    if (!itemResEl || !itemResEl.isConnected) {
-      itemResEl = document.createElement('div');
-      itemResEl.id = '__kw_bdo_item_r';
-      itemResEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;height:' + Math.min(itemRH, itemRHMax()) + 'px';
-      document.body.appendChild(itemResEl);
-      placeItemRes();
-      itemResSig = null;
+    if (!opt('family', true) || !stack || !panel || !panel.classList.contains('show') || !famEl || !famEl.isConnected) { removeRes(); return; }
+    if (!resKinds().length) { removeRes(); return; }
+    if (!resEl || !resEl.isConnected) {
+      resEl = document.createElement('div');
+      resEl.id = '__kw_bdo_res';
+      resEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;height:' + Math.min(resH, resHMax()) + 'px';
+      document.body.appendChild(resEl);
+      placeRes();
+      resSig = null;
     }
-    renderItemRes();
+    renderRes();
     try { // 창 기본형 상속: 결과창=가로+세로
       if (KW && typeof KW.window === 'function') {
-        KW.window(itemResEl, {
-          color: '#ff7ab8', posKey: LS_ITEMRPOS, rsz: 'd', dock: () => placeItemRes(),
-          getH: () => itemRH,
+        KW.window(resEl, {
+          color: '#ff7ab8', posKey: LS_RESPOS, rsz: 'd', dock: () => placeRes(),
+          getH: () => resH,
           setH: (v) => {
-            itemRH = Math.max(ITEMR_H_MIN, Math.min(itemRHMax(), v));
-            itemResEl.style.height = Math.min(itemRH, itemRHMax()) + 'px';
+            resH = Math.max(RES_H_MIN, Math.min(resHMax(), v));
+            resEl.style.height = Math.min(resH, resHMax()) + 'px';
           },
-          saveH: () => { try { localStorage.setItem(LS_ITEMRH, String(itemRH)); } catch (er) {} },
+          saveH: () => { try { localStorage.setItem(LS_RESH, String(resH)); } catch (er) {} },
         });
       } else {
-        if (KW && typeof KW.rsz === 'function') KW.rsz(itemResEl, {
+        if (KW && typeof KW.rsz === 'function') KW.rsz(resEl, {
           dir: 'd', color: '#ff7ab8', wMode: 'self',
-          getW: () => itemResEl.getBoundingClientRect().width,
-          setW: (v) => { itemResEl.style.width = Math.max(225, Math.min(600, Math.round(v))) + 'px'; },
-          getH: () => itemRH,
+          getW: () => resEl.getBoundingClientRect().width,
+          setW: (v) => { resEl.style.width = Math.max(225, Math.min(600, Math.round(v))) + 'px'; },
+          getH: () => resH,
           setH: (v) => {
-            itemRH = Math.max(ITEMR_H_MIN, Math.min(itemRHMax(), v));
-            itemResEl.style.height = Math.min(itemRH, itemRHMax()) + 'px';
+            resH = Math.max(RES_H_MIN, Math.min(resHMax(), v));
+            resEl.style.height = Math.min(resH, resHMax()) + 'px';
           },
-          save: () => { try { localStorage.setItem(LS_ITEMRH, String(itemRH)); } catch (er) {} },
+          save: () => { try { localStorage.setItem(LS_RESH, String(resH)); } catch (er) {} },
         });
-        if (KW && typeof KW.float === 'function') KW.float(itemResEl, { color: '#ff7ab8', key: LS_ITEMRPOS, dock: () => placeItemRes() });
+        if (KW && typeof KW.float === 'function') KW.float(resEl, { color: '#ff7ab8', key: LS_FAMPOS, dock: () => placeRes() });
       }
     } catch (e) {}
   }
+
+  // (구 종류별 결과창 3개는 단일 결과창 renderRes/updateRes로 통합됨)
 
   function tick() {
     try {
-      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); removeFamRes(); removeGuildRes(); removeItemRes(); return; }
+      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); removeRes(); return; }
       const now = Date.now();
       if (now - bossFetchedAt >= BOSS_REFRESH_MS) loadSchedule(); // 처음 켜질 때 한 번, 이후 6시간마다
       updateNext(now);
       updateCoupons(now);
       updateParty(now);
       updateFamily(now);
-      updateFamRes(now);
-      updateGuildRes(now);
-      updateItemRes(now);
+      updateRes(now);
       const lead = Math.max(1, Math.min(30, Number(opt('lead', 3)) || 3)) * 60000;
       const sel = opt('bosses', null);
       const active = new Set();
