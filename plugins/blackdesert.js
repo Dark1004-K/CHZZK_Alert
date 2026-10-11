@@ -657,12 +657,37 @@
   const FAM_REFRESH_MS = 3600000; // 1시간마다 자동 갱신 (프로필 갱신 주기와 동일)
   const LS_FAMPOS = '__kw_family_pos';
   const LS_FAMQ = '__kw_family_q';
+  const LS_GUILDQ = '__kw_guild_q';
   let famEl = null, famSig = null;
   let famData = null; // 마지막으로 받은 adventurers.json
   let famState = 'idle'; // idle | loading | ok | err
   let famFetchedAt = 0;
   let famQuery = '';
   try { famQuery = localStorage.getItem(LS_FAMQ) || ''; } catch (e) {}
+  let guildQuery = '';
+  try { guildQuery = localStorage.getItem(LS_GUILDQ) || ''; } catch (e) {}
+  // 결과창: 마지막에 검색한 종류(resKind)만 보여준다
+  let resKind = '';
+  const GUILD_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/guilds.json';
+  let guildData = null; // 마지막으로 받은 guilds.json
+  let guildState = 'idle'; // idle | loading | ok | err
+  let guildFetchedAt = 0;
+  function loadGuilds() {
+    if (guildState === 'loading') return;
+    guildState = 'loading';
+    famResSig = null;
+    fetch(GUILD_URL + '?t=' + Date.now(), { cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('http'); return r.json(); })
+      .then((j) => { if (!j || !Array.isArray(j.guilds)) throw new Error('format'); guildData = j; guildState = 'ok'; })
+      .catch(() => { guildState = guildData ? 'ok' : 'err'; })
+      .then(() => { guildFetchedAt = Date.now(); famResSig = null; });
+  }
+  function guildFind(q) {
+    const l = guildData && Array.isArray(guildData.guilds) ? guildData.guilds : [];
+    const t = String(q || '').trim();
+    if (!t) return null;
+    return l.find((g) => g && g.guild === t) || l.find((g) => g && g.guild && g.guild.includes(t)) || null;
+  }
   function removeFamily() {
     if (famEl) { try { famEl.remove(); } catch (e) {} }
     famEl = null;
@@ -691,14 +716,17 @@
     famSig = sig;
     famEl.innerHTML = xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
       '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + '검은사막 검색</b></div>' +
-      '<div style="display:flex;gap:6px;flex:none;margin-top:4px;padding-left:19px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>';
+      '<div style="display:flex;gap:6px;flex:none;margin-top:4px;padding-left:19px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>' +
+      '<div style="display:flex;gap:6px;flex:none;margin-top:6px;padding-left:19px"><input id="__kw_guild_q" class="__kw_in" placeholder="길드명 입력" value="' + esc(guildQuery) + '" style="flex:1;min-width:0"><button id="__kw_guild_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>';
     const qi = famEl.querySelector('#__kw_fam_q');
     const go = () => {
       famQuery = qi ? qi.value : '';
       try { localStorage.setItem(LS_FAMQ, famQuery); } catch (er) {}
       famSig = null;
       renderFamily();
+      if (!famQuery.trim()) { famResQ = ''; resKind = ''; removeFamRes(); return; }
       famResQ = famQuery;
+      resKind = 'fam';
       famResSig = null;
       updateFamRes(Date.now());
     };
@@ -706,6 +734,20 @@
     if (qi) qi.addEventListener('input', () => { famQuery = qi.value; try { localStorage.setItem(LS_FAMQ, famQuery); } catch (er) {} });
     const gb = famEl.querySelector('#__kw_fam_go');
     if (gb) gb.onclick = go;
+    const gi = famEl.querySelector('#__kw_guild_q');
+    const goGuild = () => {
+      guildQuery = gi ? gi.value : '';
+      try { localStorage.setItem(LS_GUILDQ, guildQuery); } catch (er) {}
+      if (!guildQuery.trim()) { guildResQ = ''; if (resKind === 'guild') resKind = ''; removeFamRes(); return; }
+      guildResQ = guildQuery;
+      resKind = 'guild';
+      famResSig = null;
+      updateFamRes(Date.now());
+    };
+    if (gi) gi.addEventListener('keydown', (e) => { if (e.key === 'Enter') goGuild(); });
+    if (gi) gi.addEventListener('input', () => { guildQuery = gi.value; try { localStorage.setItem(LS_GUILDQ, guildQuery); } catch (er) {} });
+    const gg = famEl.querySelector('#__kw_guild_go');
+    if (gg) gg.onclick = goGuild;
     const fx = famEl.querySelector('#__kw_bdo_family_x');
     if (fx) fx.onclick = (e) => { e.stopPropagation(); turnOff('family'); removeFamily(); removeFamRes(); };
   }
@@ -716,6 +758,8 @@
     if (!stack || !panel || !panel.classList.contains('show')) { removeFamily(); return; }
     if (famState === 'idle') loadFam(); // 처음 켜질 때 한 번 받아온다
     else if (famState !== 'loading' && now - famFetchedAt >= FAM_REFRESH_MS) loadFam(); // 이후 1시간마다 자동 갱신
+    if (guildState === 'idle') loadGuilds();
+    else if (guildState !== 'loading' && now - guildFetchedAt >= FAM_REFRESH_MS) loadGuilds();
     if (!famEl || !famEl.isConnected) {
       famEl = document.createElement('div');
       famEl.id = '__kw_bdo_family';
@@ -743,7 +787,8 @@
   let famRH = FAMR_H_DEF;
   try { const fhv = parseInt(localStorage.getItem(LS_FAMRH), 10); if (fhv >= FAMR_H_MIN && fhv <= 4000) famRH = fhv; } catch (e) {}
   let famResEl = null, famResSig = null;
-  let famResQ = ''; // 결과창에 보여줄 검색어 (''면 결과창 숨김)
+  let famResQ = ''; // 결과창 가문 검색어
+  let guildResQ = ''; // 결과창 길드 검색어
   function removeFamRes() {
     if (famResEl) { try { famResEl.remove(); } catch (e) {} }
     famResEl = null;
@@ -783,18 +828,22 @@
   }
   function renderFamRes() {
     if (!famResEl || !famResEl.isConnected) return;
-    const q = famResQ;
-    const f = q ? famFind(q) : null;
-    const sig = [famState, q, f ? f.family : '', f ? (f.characters || []).length : 0, famFetchedAt].join('|');
+    const isGuild = resKind === 'guild';
+    const q = isGuild ? guildResQ : famResQ;
+    const f = q ? (isGuild ? guildFind(q) : famFind(q)) : null;
+    const n = f ? ((isGuild ? (f.memberList || []) : (f.characters || [])).length) : 0;
+    const sig = [resKind, isGuild ? guildState : famState, q, f ? (isGuild ? f.guild : f.family) : '', n, famFetchedAt, guildFetchedAt].join('|');
     if (sig === famResSig) return;
     famResSig = sig;
-    let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + (f ? esc(f.family) + '&nbsp;<span style="color:#ff7ab8">(' + (f.characters || []).length + ')</span>' : esc(q || '검색 결과')) + '</b></div>' +
+    const st = isGuild ? guildState : famState;
+    const dt = isGuild ? guildData : famData;
+    let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(isGuild ? TI_USERS : TI_SEARCH, '#ff7ab8') + (f ? esc(isGuild ? f.guild : f.family) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(q || '검색 결과')) + '</b></div>' +
       xBtn('__kw_bdo_family_r_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
       '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' +
       '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
-    if (famState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">가문 목록을 받지 못했습니다. 잠시 뒤 다시 시도하세요.</div>';
-    else if (famState === 'loading' || !famData) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
-    else if (f) {
+    if (st === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">목록을 받지 못했습니다. 잠시 뒤 다시 시도하세요.</div>';
+    else if (st === 'loading' || !dt) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
+    else if (f && !isGuild) {
       h += '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#888"><span>가문생성일</span><span>' + esc(f.created || '') + '</span></div>' +
         (f.guild ? '<div style="margin-top:2px;font-size:11px;color:#ff7ab8">' + esc(f.guild) + '</div>' : '');
       (f.characters || []).forEach((c) => {
@@ -803,32 +852,47 @@
           '<span style="font-size:11px;color:#ddd;white-space:nowrap">' + esc(c.class || '') + '</span>' +
           '<span style="font-size:11px;color:' + (c.level ? '#7dffb3' : '#888') + ';white-space:nowrap">' + (c.level ? 'Lv' + c.level : '비공개') + '</span></div>';
       });
-      if (famData && famData.updatedAt) {
-        const d = new Date(famData.updatedAt + KST);
-        const p2 = (n) => String(n).padStart(2, '0');
-        h += '<div style="font-size:10px;color:#777;margin-top:6px">목록 갱신 ' + (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + '</div>';
-      }
-    } else h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">등록되지 않은 가문입니다.<br>GitHub Issues로 등록을 요청하세요.</div>';
+      h += famUpdated(dt);
+    } else if (f && isGuild) {
+      h += '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#888"><span>길드생성일</span><span>' + esc(f.created || '') + '</span></div>' +
+        '<div style="margin-top:2px;font-size:11px;color:#ddd">대장 ' + esc(f.master || '?') + (f.members ? ' · ' + f.members + '명' : '') + '</div>';
+      (f.memberList || []).forEach((m) => {
+        h += '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.12)">' +
+          '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(m.family || '?') + '</b>' +
+          (m.role ? '<span style="background:#3a2a33;color:#ff9aab;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:bold;white-space:nowrap">' + esc(m.role) + '</span>' : '') + '</div>';
+      });
+      h += famUpdated(dt);
+    } else h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">등록되지 않은 ' + (isGuild ? '길드' : '가문') + '입니다.<br>GitHub Issues로 등록을 요청하세요.</div>';
     h += '</div>';
     famResEl.innerHTML = h;
     const fx = famResEl.querySelector('#__kw_bdo_family_r_x');
     if (fx) fx.onclick = () => {
-      famResQ = '';
-      famQuery = '';
-      try { localStorage.setItem(LS_FAMQ, ''); } catch (er) {}
+      famResQ = ''; guildResQ = ''; resKind = '';
+      famQuery = ''; guildQuery = '';
+      try { localStorage.setItem(LS_FAMQ, ''); localStorage.setItem(LS_GUILDQ, ''); } catch (er) {}
       try {
-        const qi = famEl && famEl.isConnected ? famEl.querySelector('#__kw_fam_q') : null;
-        if (qi) qi.value = '';
+        if (famEl && famEl.isConnected) {
+          const qi = famEl.querySelector('#__kw_fam_q');
+          if (qi) qi.value = '';
+          const gi = famEl.querySelector('#__kw_guild_q');
+          if (gi) gi.value = '';
+        }
       } catch (er2) {}
       famSig = null;
       try { renderFamily(); } catch (er3) {}
       removeFamRes();
     };
   }
+  function famUpdated(dt) {
+    if (!dt || !dt.updatedAt) return '';
+    const d = new Date(dt.updatedAt + KST);
+    const p2 = (n) => String(n).padStart(2, '0');
+    return '<div style="font-size:10px;color:#777;margin-top:6px">목록 갱신 ' + (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + '</div>';
+  }
   function updateFamRes(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
-    if (!opt('family', true) || !stack || !panel || !panel.classList.contains('show') || !famResQ.trim() || !famEl || !famEl.isConnected) { removeFamRes(); return; }
+    if (!opt('family', true) || !stack || !panel || !panel.classList.contains('show') || !resKind || !famEl || !famEl.isConnected) { removeFamRes(); return; }
     if (!famResEl || !famResEl.isConnected) {
       famResEl = document.createElement('div');
       famResEl.id = '__kw_bdo_family_r';
