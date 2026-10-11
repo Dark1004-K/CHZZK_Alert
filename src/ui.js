@@ -814,12 +814,73 @@ function extListHtml() {
   if (limitedMode) return '<div class="__kw_lbl" style="color:#ffd400">사용자 스크립트 허용이 꺼져 있어 확장을 쓸 수 없습니다</div>';
   if (pluginList === null) return '<div class="__kw_lbl">목록을 불러오는 중...</div>';
   if (!pluginList.length) return '<div class="__kw_lbl">등록된 확장이 없습니다</div>';
+  companionListen();
   return pluginList.map((p) => {
     const blocked = !!(p.noOwner && isOwner()); // 방장은 이 확장을 켤 수 없다
     const note = blocked ? ' <span style="color:#ffd400">(방장은 사용할 수 없음)</span>' : (p.desc ? ` <span style="color:#888">${escapeHtml(p.desc)}</span>` : '');
     const optBtn = pluginIsOn(p) && pluginHasOpts(p) ? ` <button class="__kw_ic __kw_popen" data-id="${escapeHtml(p.id)}" title="옵션" style="color:#ccc;padding:3px">${IC.sliders}</button>` : '';
-    return `<div class="__kw_lbl"><label style="cursor:${blocked ? 'default' : 'pointer'}${blocked ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${note}</div>`;
+    const compHtml = (!blocked && p.companion) ? ` <span data-compw="${escapeHtml(p.id)}">${companionHtml(p)}</span>` : '';
+    return `<div class="__kw_lbl"><label style="cursor:${blocked ? 'default' : 'pointer'}${blocked ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${compHtml}${note}</div>`;
   }).join('');
+}
+// ---------- 동반 스크립트 상태 (설정 > 확장 행에 표시) ----------
+// plugins.json의 companion { label, url, ping, ready } 선언 기반.
+// 동반은 document-idle 로딩이라 늦게 올 수 있어서 ready 이벤트 상시 수신 + 렌더 때마다 ping.
+const __kwCompanions = {}; // [readyEvent] -> version
+const __kwCompanionPingAt = {}; // [pluginId] -> 마지막 ping 시각
+let __kwCompanionListening = false;
+function companionListen() {
+  if (__kwCompanionListening) return;
+  __kwCompanionListening = true;
+  try {
+    document.addEventListener('bdo-search-ready', (e) => {
+      const v = e && e.detail && e.detail.version;
+      if (!v) return;
+      __kwCompanions['bdo-search-ready'] = String(v);
+      paintCompanions();
+    });
+  } catch (e) {}
+}
+function companionOf(id) {
+  try { return (pluginList || []).find((x) => x && x.id === id) || null; } catch (e) { return null; }
+}
+function companionHtml(p) {
+  const c = p && p.companion;
+  if (!c) return '';
+  const v = c.ready && __kwCompanions[c.ready];
+  if (v) return `<span style="color:#888">브릿지 v${escapeHtml(v)}</span>`;
+  companionPing(p);
+  return `<button class="__kw_upbtn" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 설치 (설치 후 새로고침)">브릿지 설치</button>`;
+}
+function companionPing(p) {
+  const c = p && p.companion;
+  if (!c || !c.ping) return;
+  const now = Date.now();
+  if (now - (__kwCompanionPingAt[p.id] || 0) < 10000) return; // 렌더 반복 ping 폭주 방지
+  __kwCompanionPingAt[p.id] = now;
+  try { document.dispatchEvent(new CustomEvent(c.ping, {})); } catch (e) {}
+  setTimeout(() => { try { paintCompanions(); } catch (e2) {} }, 1600);
+}
+function paintCompanions() {
+  try {
+    if (!setPanel || !setPanel.isConnected) return;
+    setPanel.querySelectorAll('[data-compw]').forEach((el) => {
+      const p = companionOf(el.getAttribute('data-compw'));
+      if (p && p.companion) el.innerHTML = companionHtml(p);
+    });
+    bindCompanionInstall(setPanel); // 다시 그림 뒤 바인딩 복구
+  } catch (e) {}
+}
+function bindCompanionInstall(root) {
+  try {
+    root.querySelectorAll('[data-companion-install]').forEach((b) => {
+      b.onclick = () => {
+        const p = companionOf(b.getAttribute('data-companion-install'));
+        const u = p && p.companion && p.companion.url;
+        if (u) { try { window.open(u, '_blank', 'noopener'); } catch (e) {} }
+      };
+    });
+  } catch (e) {}
 }
 // 업데이트 설치(Tampermonkey 설치 창) 후 새로고침 안내 팝업.
 // 설치 완료 여부는 직접 알 수 없어서, 설치 창이 닫히면 자동으로, 아니면 버튼으로 새로고침한다.
@@ -1065,6 +1126,7 @@ function renderSettings() {
     };
   });
   setPanel.querySelectorAll('.__kw_popen').forEach((b) => { b.onclick = () => { optWinId = b.dataset.id; renderOptWin(); }; });
+  bindCompanionInstall(setPanel);
   bindPluginOpts(setPanel);
   renderOptWin(); // 열려 있으면 최신 값으로 다시 그림
   const opInput = setPanel.querySelector('#__kw_op');

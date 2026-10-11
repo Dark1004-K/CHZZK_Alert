@@ -12,6 +12,12 @@
       "name": "검은사막 확장 활성",
       "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/plugins/blackdesert.js",
       "on": true,
+      "companion": {
+        "label": "실시간 검색 브릿지",
+        "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/bdo-search.user.js",
+        "ping": "bdo-search-ping",
+        "ready": "bdo-search-ready"
+      },
       "options": [
         {
           "key": "sound",
