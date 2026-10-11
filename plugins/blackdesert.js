@@ -10,15 +10,28 @@
   window.__kwBdoLoaded = true;
   try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.1' }); } catch (e) {}
   const ID = 'blackdesert';
-  // 이미지 로드 실패 시 "no" 박스로 교체 (onerror="__kwNoImg(this)"에서 호출)
+  // 썸네일 박스: 로딩 중 스피너 → 완료 시 이미지 → 실패 시 "NO"
+  // (onload/onerror="..." 인라인에서 호출. 박스(.​__kw_thumb) 구조에 의존)
+  const THUMB_CSS = 'flex:none;width:24px;height:24px;position:relative;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;background:rgba(255,255,255,.06);overflow:hidden';
+  const SPIN_CSS = 'width:12px;height:12px;border-radius:50%;border:2px solid rgba(255,255,255,.2);border-top-color:#ff7ab8;animation:__kwspin .8s linear infinite';
+  const NO_CSS = 'width:100%;height:100%;display:inline-flex;align-items:center;justify-content:center;color:#777;font-size:10px';
+  function thumbHtml(iconUrl) {
+    if (!iconUrl) return '<span class="__kw_thumb" style="' + THUMB_CSS + '"><span style="' + NO_CSS + '">NO</span></span>';
+    return '<span class="__kw_thumb" style="' + THUMB_CSS + '"><span class="__kw_ld" style="' + SPIN_CSS + '"></span>' +
+      '<img loading="lazy" src="' + esc(iconUrl) + '" width="24" height="24" style="position:absolute;left:0;top:0;border-radius:6px" onload="try{this.parentNode.querySelector(\'.__kw_ld\').style.display=\'none\';}catch(e){}" onerror="__kwNoImg(this)"></span>';
+  }
   try {
     window.__kwNoImg = (el) => {
       try {
-        const s = document.createElement('span');
-        s.textContent = 'no';
-        const w = (el && el.width) || 24, h = (el && el.height) || 24;
-        s.style.cssText = 'flex:none;width:' + w + 'px;height:' + h + 'px;border-radius:6px;background:rgba(255,255,255,.06);color:#777;font-size:10px;display:inline-flex;align-items:center;justify-content:center';
-        el.replaceWith(s);
+        const box = el && el.parentNode && el.parentNode.classList && el.parentNode.classList.contains('__kw_thumb') ? el.parentNode : null;
+        const t = document.createElement('span');
+        t.textContent = 'NO';
+        if (box) { t.style.cssText = NO_CSS; box.innerHTML = ''; box.appendChild(t); }
+        else {
+          const w = (el && el.width) || 24, h = (el && el.height) || 24;
+          t.style.cssText = NO_CSS + ';flex:none;width:' + w + 'px;height:' + h + 'px;border-radius:6px;background:rgba(255,255,255,.06)';
+          el.replaceWith(t);
+        }
       } catch (e) {}
     };
   } catch (e) {}
@@ -1243,7 +1256,7 @@
         fI.forEach((it) => {
           const gc = (it.grade != null && CODEX_GRADE[it.grade]) ? CODEX_GRADE[it.grade] : '#fff';
           body += '<div class="__kw_item_row" data-item-href="' + esc(it.href || '') + '" title="bdocodex 페이지 열기" style="display:flex;align-items:center;gap:8px;margin-top:5px;padding:5px 4px 5px 0;border-top:1px solid rgba(255,255,255,.12);cursor:pointer">' +
-            (it.icon ? '<img loading="lazy" src="' + esc(it.icon) + '" width="24" height="24" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06)" onerror="__kwNoImg(this)">' : '<span style="flex:none;width:24px;height:24px;border-radius:6px;background:rgba(255,255,255,.06);color:#777;font-size:10px;display:inline-flex;align-items:center;justify-content:center">no</span>') +
+            thumbHtml(it.icon) +
             '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;color:' + gc + '">' + esc(it.name || '?') + '</b></div>';
         });
       } else body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>아이템명을 정확히 입력했는지 확인하세요.</div>';
