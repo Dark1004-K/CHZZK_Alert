@@ -784,6 +784,7 @@ function renderOptWin() {
   w.querySelector('#__kw_optwin_x').onclick = closeOptWin;
   bindPluginOpts(w);
   bindCompanionInstall(w);
+  try { const cb0 = w.querySelector('#__kw_optwin_compcheck'); if (cb0) cb0.style.display = companionNeedsUpdate(p) ? 'none' : ''; } catch (e) {} // 업그레이드 대상이면 새로고침 숨김
   const cc = w.querySelector('#__kw_optwin_compcheck');
   if (cc) cc.onclick = () => {
     try { cc.classList.add('__kw_spin'); } catch (e) {}
@@ -792,7 +793,7 @@ function renderOptWin() {
       try {
         cc.classList.remove('__kw_spin');
         const v = w.querySelector('#__kw_optwin_compv');
-        if (v && v.isConnected) { v.innerHTML = companionHtml(p, true); bindCompanionInstall(w); }
+        if (v && v.isConnected) { v.innerHTML = companionHtml(p, true); bindCompanionInstall(w); try { const cb1 = w.querySelector('#__kw_optwin_compcheck'); if (cb1) cb1.style.display = companionNeedsUpdate(p) ? 'none' : ''; } catch (e2) {} }
       } catch (e) {}
     }, 1700);
   };
@@ -953,6 +954,14 @@ function companionOf(id) {
 function companionKnownOf(p) {
   try { return !!(p && p.companion && p.companion.ready && __kwCompanions[p.companion.ready]); } catch (e) { return false; }
 }
+function companionNeedsUpdate(p) { // 설치됨 + 최소 버전 미달 (업그레이드 유도 대상)
+  try {
+    const c = p && p.companion;
+    const v = c && c.ready && __kwCompanions[c.ready];
+    const need = c && c.minVersion;
+    return !!(v && need && cmpVersions(v, need) < 0);
+  } catch (e) { return false; }
+}
 function companionHtml(p, noRemove) {
   const c = p && p.companion;
   if (!c) return '';
@@ -966,7 +975,7 @@ function companionHtml(p, noRemove) {
   if (v) {
     const un = (c.ready && __kwCompanionNames[c.ready]) || c.label || '동반 스크립트';
     // 옵션 창에서만 업그레이드 유도. 목록줄(noRemove 없음)은 설치된 이름·버전 + 내려받기 아이콘만.
-    if (noRemove) return `<span style="color:#ffd400">${escapeHtml(un)} v${escapeHtml(v)} → v${escapeHtml(need)}</span> <button class="__kw_upbtn" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 업그레이드 (설치 후 새로고침)">브릿지 업그레이드</button>`;
+    if (noRemove) return `<span style="color:#ffd400">${escapeHtml(un)} v${escapeHtml(v)} → v${escapeHtml(need)}</span> <button class="__kw_ic" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 업그레이드 (설치 후 새로고침)" style="color:#00ffa3;padding:3px">${IC.down}</button>`;
     return `<span style="color:#ffd400">${escapeHtml(un)} v${escapeHtml(v)}</span> <button class="__kw_ic" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 설치 (설치 후 새로고침)" style="color:#00ffa3;padding:3px">${IC.down}</button>`;
   }
   companionPing(p);
@@ -1044,7 +1053,7 @@ function paintCompanions() {
       const ov = ow && ow.querySelector('#__kw_optwin_compv');
       if (ov && optWinId) {
         const op = companionOf(optWinId);
-        if (op && op.companion) { ov.innerHTML = companionHtml(op, true); bindCompanionInstall(ow); }
+        if (op && op.companion) { ov.innerHTML = companionHtml(op, true); bindCompanionInstall(ow); try { const cb2 = ow.querySelector('#__kw_optwin_compcheck'); if (cb2) cb2.style.display = companionNeedsUpdate(op) ? 'none' : ''; } catch (e5) {} }
       }
     } catch (e4) {}
     // 동반 확인되면 체크박스 잠금 해제 (이미 켜져 있으면 원래부터 변경 가능)
