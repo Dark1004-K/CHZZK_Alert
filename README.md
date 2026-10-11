@@ -371,7 +371,7 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
 | 구분 | 정식 | 베타 |
 | --- | --- | --- |
 | 설치 파일 | `chzzk_alert.user.js` (루트) | `beta/chzzk_alert.beta.user.js` |
-| 이름 | CHZZK 채팅 호출 알림 (Keyword Alert) | CHZZK Alert (Beta) |
+| 이름 | CHZZK Alert (정식) | CHZZK Alert (Beta) |
 | 기능 | 안정된 기능 | 정식보다 먼저 들어가는 새 기능, 테스트 버튼 |
 | 콘솔 로그 | 없음 | 진단 로그 있음 (`[KW-BETA]`) |
 

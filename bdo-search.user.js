@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         BDO 검색 브릿지 (Chzzk Alert 동반)
+// @name         CHZZK Alert - 검은사막
 // @namespace    https://chzzk.naver.com/
 // @version      1.0
 // @description  검은사막 공식 홈페이지 검색을 GM_xmlhttpRequest로 호출해 CORS 없이 치지직 페이지에 전달합니다. 본체(CHZZK 채팅 호출 알림)의 동반 스크립트입니다.
@@ -223,5 +223,5 @@
   };
   try { window.bdoSearch = bdoSearch; } catch (e) {}
   emit('bdo-search-ready', { version: VERSION });
-  try { console.log('[BDO 검색 브릿지] 로드됨 v' + VERSION + '. window.bdoSearch.searchGuild("미리내") 로 테스트 가능'); } catch (e) {}
+  try { console.log('[CHZZK Alert - 검은사막] 로드됨 v' + VERSION + '. window.bdoSearch.searchGuild("미리내") 로 테스트 가능'); } catch (e) {}
 })();

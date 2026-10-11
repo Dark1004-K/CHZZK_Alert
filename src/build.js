@@ -127,7 +127,7 @@ function buildRelease(ver, doObfuscate) {
 
   // 2) 헤더: 정식 이름/버전/주소 + 정식 모듈 @require
   let head = header;
-  head = replaceMust('header name', head, '// @name         CHZZK Alert (Beta)', '// @name         CHZZK 채팅 호출 알림 (Keyword Alert)');
+  head = replaceMust('header name', head, '// @name         CHZZK Alert (Beta)', '// @name         CHZZK Alert (정식)');
   head = head.replace(/(@version\s+)\S+/, '$1' + ver);
   head = replaceMust('header urls', head, RAW + 'beta/chzzk_alert.beta.user.js', RAW + 'chzzk_alert.user.js');
   const requires = MODULES.map((m) => '// @require      ' + RAW + 'release/' + m + '.js?v=' + ver).join('\n');
