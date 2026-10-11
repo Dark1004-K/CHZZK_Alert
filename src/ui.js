@@ -819,8 +819,12 @@ function extListHtml() {
     const blocked = !!(p.noOwner && isOwner()); // 방장은 이 확장을 켤 수 없다
     const note = blocked ? ' <span style="color:#ffd400">(방장은 사용할 수 없음)</span>' : (p.desc ? ` <span style="color:#888">${escapeHtml(p.desc)}</span>` : '');
     const optBtn = pluginIsOn(p) && pluginHasOpts(p) ? ` <button class="__kw_ic __kw_popen" data-id="${escapeHtml(p.id)}" title="옵션" style="color:#ccc;padding:3px">${IC.sliders}</button>` : '';
-    const compHtml = (!blocked && p.companion) ? ` <span data-compw="${escapeHtml(p.id)}">${companionHtml(p)}</span>` : '';
-    return `<div class="__kw_lbl"><label style="cursor:${blocked ? 'default' : 'pointer'}${blocked ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${compHtml}${note}</div>`;
+    // 동반 필요 확장은 브릿지 확인 전에는 켤 수 없음 (이미 켜져 있으면 끌 수만 있음)
+    const needComp = !blocked && p.companion;
+    const compKnown = needComp && p.companion.ready && __kwCompanions[p.companion.ready];
+    const canChange = !needComp || compKnown || pluginIsOn(p);
+    const compHtml = needComp ? ` <span data-compw="${escapeHtml(p.id)}">${companionHtml(p)}</span>` : '';
+    return `<div class="__kw_lbl"><label style="cursor:${blocked || !canChange ? 'default' : 'pointer'}${blocked || !canChange ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" data-companion-need="${needComp ? escapeHtml(p.id) : ''}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked || !canChange ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${compHtml}${note}</div>`;
   }).join('');
 }
 // ---------- 동반 스크립트 상태 (설정 > 확장 행에 표시) ----------
@@ -884,6 +888,20 @@ function paintCompanions() {
       if (p && p.companion) el.innerHTML = companionHtml(p);
     });
     bindCompanionInstall(setPanel); // 다시 그림 뒤 바인딩 복구
+    // 동반 확인되면 체크박스 잠금 해제 (이미 켜져 있으면 원래부터 변경 가능)
+    setPanel.querySelectorAll('[data-companion-need]').forEach((c) => {
+      const id = c.getAttribute('data-companion-need');
+      if (!id) return;
+      const p = companionOf(id);
+      const known = p && p.companion && p.companion.ready && __kwCompanions[p.companion.ready];
+      const canChange = known || (p && pluginIsOn(p));
+      c.disabled = !canChange;
+      const label = c.closest ? c.closest('label') : null;
+      if (label) {
+        label.style.cursor = canChange ? 'pointer' : 'default';
+        label.style.opacity = canChange ? '' : '.6';
+      }
+    });
   } catch (e) {}
 }
 function bindCompanionInstall(root) {
