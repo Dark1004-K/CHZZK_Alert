@@ -433,3 +433,15 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
 * **쿠폰 크롤러**: `node scripts/crawl-coupons.js`가 검은사막 쿠폰 글을 읽어 `coupons.json`을 만듭니다. `.github/workflows/crawl-coupons.yml`이 1시간마다 실행해서 바뀐 경우에만 커밋합니다(수동 실행도 가능). 읽기에 실패하거나 쿠폰이 하나도 없으면 기존 파일을 그대로 둡니다.
 * **시간표 변경 감지**: `node scripts/check-boss-schedule.js`가 위키 시간표 이미지의 주소와 "최근 수정 일시"를 이전 기록(`data/boss-schedule-state.json`)과 비교합니다. 바뀌었으면 공식 사이트의 새 이미지 주소를 적은 Issue를 만듭니다(이미지는 저장소에 복사하지 않습니다). `.github/workflows/check-boss-schedule.yml`이 매주 수요일 18:00(한국시간, UTC 09:00)에 실행합니다. 시간표 값 자체는 `bosses.json`을 사람이 고칩니다(이미지를 글자로 읽는 OCR은 쓰지 않음).
 * 콘솔 로그(`[KW-BETA]`) 등 진단 정보는 베타에만 있습니다.
+
+* 콘솔 로그(`[KW-BETA]`) 등 진단 정보는 베타에만 있습니다.
+
+## 부록 E. 실시간 검색 동반 스크립트 (검은사막 가문·길드)
+
+* `bdo-search.user.js`를 Tampermonkey에 **추가로 설치**하면 검은사막 공식 홈페이지 검색을 브라우저에서 직접 호출합니다.
+  👉 [동반 스크립트 설치 링크](https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/bdo-search.user.js)
+* 본체(`@grant none`)는 CORS 때문에 검은사막 사이트를 직접 읽지 못해서, 권한(`GM_xmlhttpRequest`)이 있는 이 동반 스크립트가 대신 읽어다 줍니다. 본체 호출 알림에는 영향이 없습니다.
+* 지원하는 검색: 가문명(`famSearch`)·캐릭터명(`charSearch`)·가문 프로필·길드명·길드 프로필. 점검 중이면 `maintenance`로 응답합니다.
+* 콘솔에서 바로 테스트할 수 있습니다: `window.bdoSearch.searchGuild("미리내")`
+* 파서(HTML 읽기 규칙)는 `scripts/crawl-adventurers.js`·`scripts/crawl-guilds.js`와 동일합니다. 사이트 구조가 바뀌면 양쪽을 함께 고쳐야 합니다.
+* 콘솔 로그(`[KW-BETA]`) 등 진단 정보는 베타에만 있습니다.
