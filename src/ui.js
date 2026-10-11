@@ -618,6 +618,7 @@ function checkUpdate() {
   };
   const stamp = () => { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()); };
   if (btn) { btn.disabled = true; btn.classList.add('__kw_spin'); }
+  if (go) go.style.display = 'none';
   say('확인 중...');
   const done = () => { if (btn) { btn.disabled = false; btn.classList.remove('__kw_spin'); } };
   try {
@@ -629,7 +630,7 @@ function checkUpdate() {
         const remote = m[1].trim();
         if (isNewer(remote, SCRIPT_VERSION)) {
           say('새버전 : ' + remote + ' + ' + stamp(), true);
-          if (go) go.disabled = false;
+          if (go) { go.disabled = false; try { if (msg) msg.appendChild(go); } catch (e) {} go.style.display = ''; }
           dlog('update-avail', remote);
         } else {
           say('최신 버전입니다 (' + SCRIPT_VERSION + ') · ' + stamp(), false);
@@ -842,10 +843,15 @@ function extListHtml() {
     const optBtn = pluginIsOn(p) && pluginHasOpts(p) ? ` <button class="__kw_ic __kw_popen" data-id="${escapeHtml(p.id)}" title="옵션" style="color:#ccc;padding:3px;float:right">${IC.sliders}</button>` : '';
     // 동반 필요 확장은 브릿지 확인 전에는 켤 수 없음 (이미 켜져 있으면 끌 수만 있음)
     const needComp = !blocked && p.companion;
-    const compKnown = needComp && p.companion.ready && __kwCompanions[p.companion.ready];
+    const compKnown = needComp && companionKnownOf(p);
     const canChange = !needComp || compKnown || pluginIsOn(p);
-    const compHtml = needComp ? companionHtml(p) : '';
-    return `<div class="__kw_lbl"><label style="cursor:${blocked || !canChange ? 'default' : 'pointer'}${blocked || !canChange ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" data-companion-need="${needComp ? escapeHtml(p.id) : ''}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked || !canChange ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${note}</div>${needComp ? `<div class="__kw_lbl" data-compw="${escapeHtml(p.id)}" style="margin-top:2px;text-align:right">${compHtml}</div>` : ''}`;
+    // 미설치: 다운로드 아이콘을 윗줄 오른쪽에. 확인됨: 아래 줄에 이름·버전·휴지통.
+    const compWrap = needComp
+      ? (compKnown
+        ? `<div class="__kw_lbl" data-compw="${escapeHtml(p.id)}" style="margin-top:2px;text-align:right">${companionHtml(p)}</div>`
+        : ` <span data-compw="${escapeHtml(p.id)}" style="float:right">${companionHtml(p)}</span>`)
+      : '';
+    return `<div class="__kw_lbl"><label style="cursor:${blocked || !canChange ? 'default' : 'pointer'}${blocked || !canChange ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" data-companion-need="${needComp ? escapeHtml(p.id) : ''}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked || !canChange ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${compWrap}${note}</div>`;
   }).join('');
 }
 // ---------- 동반 미설치 안내 팝업 (방송 진입 시 1회) ----------
@@ -944,6 +950,9 @@ function companionListen() {
 function companionOf(id) {
   try { return (pluginList || []).find((x) => x && x.id === id) || null; } catch (e) { return null; }
 }
+function companionKnownOf(p) {
+  try { return !!(p && p.companion && p.companion.ready && __kwCompanions[p.companion.ready]); } catch (e) { return false; }
+}
 function companionHtml(p, noRemove) {
   const c = p && p.companion;
   if (!c) return '';
@@ -1008,7 +1017,20 @@ function paintCompanions() {
     if (!setPanel || !setPanel.isConnected) return;
     setPanel.querySelectorAll('[data-compw]').forEach((el) => {
       const p = companionOf(el.getAttribute('data-compw'));
-      if (p && p.companion) el.innerHTML = companionHtml(p);
+      if (!(p && p.companion)) return;
+      // 상태에 따라 래퍼 교체 (미설치: 윗줄 span / 확인됨: 아래줄 div)
+      const wantDiv = companionKnownOf(p);
+      const isDiv = el.tagName === 'DIV';
+      if (wantDiv === isDiv) {
+        el.innerHTML = companionHtml(p);
+      } else {
+        const t = document.createElement(wantDiv ? 'div' : 'span');
+        if (wantDiv) { t.className = '__kw_lbl'; t.style.cssText = 'margin-top:2px;text-align:right'; }
+        else { t.style.cssText = 'float:right'; }
+        t.setAttribute('data-compw', p.id);
+        t.innerHTML = companionHtml(p);
+        try { el.replaceWith(t); } catch (e2) { el.innerHTML = companionHtml(p); }
+      }
     });
     bindCompanionInstall(setPanel); // 다시 그림 뒤 바인딩 복구
     // 옵션 창이 열려 있으면 동반 행도 갱신
@@ -1237,7 +1259,7 @@ function renderSettings() {
           <div style="display:flex;align-items:flex-start;gap:5px;margin-top:8px;line-height:18px"><span class="__kw_lbl" style="margin:0;width:5em;flex:none;line-height:18px">최초설치자</span><b>털찐길냥이</b></div>
           <div style="margin-top:4px;font-size:12px;color:#eee">"하우징은 즐겁다옹!!"</div>
           <div class="__kw_lbl">현재 버전</div>
-          <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span><button class="__kw_ic" id="__kw_update_check" title="업데이트 확인">${IC.refresh}</button><button class="__kw_ic" id="__kw_update_go" title="업데이트" style="color:#00ffa3" disabled>${IC.down}</button></div>
+          <div><b>${escapeHtml(SCRIPT_VERSION)}</b> <span style="color:#888">(Beta 채널)</span><button class="__kw_ic" id="__kw_update_check" title="업데이트 확인">${IC.refresh}</button><button class="__kw_ic" id="__kw_update_go" title="업데이트" style="color:#00ffa3;display:none" disabled>${IC.down}</button></div>
           <div id="__kw_update_msg" class="__kw_lbl"></div>
           <div class="__kw_lbl"><a href="https://github.com/Dark1004-K/Chzzk_Alert" target="_blank" rel="noopener" style="color:#00ffa3">GitHub 리포지토리</a> · <a href="https://github.com/Dark1004-K/Chzzk_Alert/blob/main/beta/UPDATE.md" target="_blank" rel="noopener" style="color:#00ffa3">업데이트 내용</a></div>
         </div>
