@@ -843,7 +843,7 @@ function extListHtml() {
     const compKnown = needComp && p.companion.ready && __kwCompanions[p.companion.ready];
     const canChange = !needComp || compKnown || pluginIsOn(p);
     const compHtml = needComp ? ` <span data-compw="${escapeHtml(p.id)}" style="float:right">${companionHtml(p)}</span>` : '';
-    return `<div class="__kw_lbl"><label style="cursor:${blocked || !canChange ? 'default' : 'pointer'}${blocked || !canChange ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" data-companion-need="${needComp ? escapeHtml(p.id) : ''}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked || !canChange ? 'disabled' : ''}> ${escapeHtml(pluginDisplayName(p))}</label>${optBtn}${compHtml}${note}</div>`;
+    return `<div class="__kw_lbl"><label style="cursor:${blocked || !canChange ? 'default' : 'pointer'}${blocked || !canChange ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" data-companion-need="${needComp ? escapeHtml(p.id) : ''}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked || !canChange ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${compHtml}${note}</div>`;
   }).join('');
 }
 // ---------- 동반 미설치 안내 팝업 (방송 진입 시 1회) ----------
@@ -940,10 +940,13 @@ function companionHtml(p) {
   const c = p && p.companion;
   if (!c) return '';
   const v = c.ready && __kwCompanions[c.ready];
-  const nm = (c.ready && __kwCompanionNames[c.ready]) || c.label || '동반 스크립트';
   const need = c.minVersion || '';
-  if (v && (!need || cmpVersions(v, need) >= 0)) return `<span style="color:#888">${escapeHtml(nm)} v${escapeHtml(v)}</span> <button class="__kw_ic" data-companion-remove="${escapeHtml(p.id)}" title="브릿지 삭제" style="color:#ff7b7b;padding:3px">${IC.trash}</button>`;
-  if (v) return `<span style="color:#ffd400">${escapeHtml(nm)} v${escapeHtml(v)} → v${escapeHtml(need)}</span> <button class="__kw_upbtn" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 업그레이드 (설치 후 새로고침)">브릿지 업그레이드</button>`;
+  if (v && (!need || cmpVersions(v, need) >= 0)) {
+    const m = pluginMetaOf(p.id);
+    const label = (m && m.name) ? m.name + (m.version ? ' v' + m.version : '') : pluginDisplayName(p);
+    return `<span style="color:#888">${escapeHtml(label)}</span> <button class="__kw_ic" data-companion-remove="${escapeHtml(p.id)}" title="브릿지 삭제" style="color:#ff7b7b;padding:3px">${IC.trash}</button>`;
+  }
+  if (v) { const un = (c.ready && __kwCompanionNames[c.ready]) || c.label || '동반 스크립트'; return `<span style="color:#ffd400">${escapeHtml(un)} v${escapeHtml(v)} → v${escapeHtml(need)}</span> <button class="__kw_upbtn" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 업그레이드 (설치 후 새로고침)">브릿지 업그레이드</button>`; }
   companionPing(p);
   return `<button class="__kw_ic" data-companion-install="${escapeHtml(p.id)}" title="${escapeHtml(c.label || '동반 스크립트')} 설치 (설치 후 새로고침)" style="color:#00ffa3;padding:3px">${IC.down}</button>`;
 }
