@@ -838,17 +838,22 @@ function extListHtml() {
 // ---------- 동반 미설치 안내 팝업 (방송 진입 시 1회) ----------
 // 브릿지가 필요한 확장을 켰는데(켰다가 해제됐거나) 브릿지가 없으면 설치 안내.
 // 채널 바뀌면 다시 평가.
-let __kwCompPromptDone = false;
+let __kwCompPromptDone = false; // 세션 내 중복 방지 (채널별 1회는 LS로 따로 관리)
 let __kwCompPromptCid = '';
-const __kwCompanionKilled = {}; // 브릿트 미확인으로 해제한 플러그인 id
+const LS_COMPREQ = '__kw_compreq_done'; // 팝업을 본 채널 { [cid]: 1 }
+const __kwCompanionKilled = {}; // 브릿지 미확인으로 해제한 플러그인 id
+function compReqSeen(cid) { try { const o = JSON.parse(localStorage.getItem(LS_COMPREQ)) || {}; return !!(cid && o[cid]); } catch (e) { return false; } }
+function compReqMark(cid) { try { const o = JSON.parse(localStorage.getItem(LS_COMPREQ)) || {}; if (cid) o[cid] = 1; localStorage.setItem(LS_COMPREQ, JSON.stringify(o)); } catch (e) {} }
 function maybeCompanionPrompt() {
   try {
     const cid = pageChannelId();
-    if (__kwCompPromptCid !== cid) { __kwCompPromptCid = cid; __kwCompPromptDone = false; }
-    if (__kwCompPromptDone) return;
+    if (__kwCompPromptCid !== cid) { __kwCompPromptCid = cid; __kwCompPromptDone = false; } // 채널 바뀌면 세션 가드 리셋
+    if (!cid || __kwCompPromptDone || compReqSeen(cid)) return;
     try { (pluginList || []).forEach((p) => { if (p && p.companion) companionPing(p); }); } catch (e) {}
     setTimeout(() => {
       if (__kwCompPromptDone) return;
+      const cid2 = pageChannelId();
+      if (!cid2 || compReqSeen(cid2)) return;
       __kwCompPromptDone = true;
       let items = [];
       try {
@@ -860,6 +865,7 @@ function maybeCompanionPrompt() {
         });
       } catch (e2) {}
       if (!items.length) return;
+      compReqMark(cid2); // 보여줬으면 그 채널에서 다시 안 보여줌 (닫기 포함)
       showCompanionPrompt(chDisplayName(), items);
     }, 2500);
   } catch (e) {}
