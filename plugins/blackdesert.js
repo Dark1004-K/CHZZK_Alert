@@ -1048,14 +1048,26 @@
     return out;
   }
   function searchLiveItem(q) {
-    if (!KW.bridgeReady || !KW.bridgeReady()) return Promise.resolve(null);
+    if (!KW.bridgeReady || !KW.bridgeReady()) return Promise.resolve({ miss: true, error: '브릿지 없음' });
     const su = CODEX_BASE + '/query.php?a=search&l=kr&sq=' + encodeURIComponent(q);
-    return bdoFetch(su, 12000, CODEX_BASE).then((html) => {
-      if (!html) return null;
-      const items = parseCodexItems(html);
-      if (!items || !items.length) return { miss: true };
+    let p = null;
+    try { p = KW.bridge('fetch', { url: su, base: CODEX_BASE }, 12000); } catch (e) { p = null; }
+    if (!p || typeof p.then !== 'function') return Promise.resolve({ miss: true, error: '호출 실패' });
+    return p.then((r) => {
+      if (!r || !r.ok || !r.data || typeof r.data.html !== 'string') {
+        if (r && r.maintenance) {
+          bdoMaint = true;
+          if (!bdoMaintTold) { bdoMaintTold = true; try { KW.toast('검은사막 검색', '점검중입니다'); } catch (e) {} }
+          return { miss: true, error: '점검중' };
+        }
+        return { miss: true, error: '브릿지 응답 오류' + (r && r.error ? ' (' + r.error + ')' : '') };
+      }
+      bdoMaint = false;
+      let items = null;
+      try { items = parseCodexItems(r.data.html); } catch (e) { items = null; }
+      if (!items || !items.length) return { miss: true, error: '일치 항목 없음' };
       return { query: q, items };
-    }).catch(() => null);
+    }).catch(() => ({ miss: true, error: '예외 발생' }));
   }
   function startLive(kind, q) {
     const isGuild = kind === 'guild', isItem = kind === 'item';
@@ -1082,7 +1094,7 @@
       let run = null;
       try { run = isGuild ? searchLiveGuild(q) : isItem ? searchLiveItem(q) : searchLiveFam(q); } catch (e) { run = null; }
       if (!run || typeof run.then !== 'function') {
-        setLive({ kind, q, phase: 'miss', data: { miss: true, timeout: true } });
+        setLive({ kind, q, phase: 'miss', data: { miss: true, error: '호출 실패' } });
       } else {
       run.then((data) => {
         if (getLive() !== cur) return; // 같은 종류의 다른 검색으로 넘어감
@@ -1090,7 +1102,7 @@
           setLive({ kind, q, phase: 'ok', data });
           try { liveCache[kind + ':' + q] = { t: Date.now(), data }; } catch (e) {}
         } else {
-          setLive({ kind, q, phase: 'miss', data: null });
+          setLive({ kind, q, phase: 'miss', data: (data && data.miss) ? data : null }); // 실패 사유(error) 유지
         }
         bump();
         resSig = null;
@@ -1161,7 +1173,7 @@
     const sig = [resKind,
       famResQ, fF ? fF.family : '', fF ? (fF.characters || []).length : 0, lvF ? lvF.phase : '-', liveFamRev,
       guildResQ, fG ? fG.guild : '', fG ? (fG.memberList || []).length : 0, fG ? fG.siege : '', lvG ? lvG.phase : '-', liveGuildRev,
-      itemResQ, fI ? fI.length : 0, lvI ? lvI.phase : '-', liveItemRev,
+      itemResQ, fI ? fI.length : 0, lvI ? lvI.phase : '-', (lvI && lvI.data && lvI.data.error) || '', (lvI && lvI.data && lvI.data.timeout) ? 't' : '', liveItemRev,
       bridgeOn ? 'b' : '-'].join('|');
     if (sig === resSig) return;
     resSig = sig;
@@ -1192,6 +1204,7 @@
       if (!bridgeOn) body = needBridge;
       else if (lvI && lvI.phase === 'loading') body = loading;
       else if (lvI && lvI.phase === 'miss' && lvI.data && lvI.data.timeout) body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">응답이 없습니다(시간 초과).<br>브릿지를 최신으로 업데이트하세요.</div>';
+      else if (lvI && lvI.phase === 'miss' && lvI.data && lvI.data.error) body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 실패: ' + esc(lvI.data.error) + '</div>';
       else if (fI) {
         fI.slice(0, ITEM_SHOW_MAX).forEach((it) => {
           const gc = (it.grade != null && CODEX_GRADE[it.grade]) ? CODEX_GRADE[it.grade] : '#fff';
