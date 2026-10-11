@@ -883,6 +883,24 @@
   }
   // ---------- 실시간 검색 (동반 브릿지 fetch + 플러그인 파싱) ----------
   const BDO_BASE = 'https://www.kr.playblackdesert.com';
+  // 동반이 뒤늦게 깔리거나 load 시점 ready를 놓치면 검색이 '브릿지 없음'으로 끝나버린다. 그때는 ping 후 잠깐 기다렸다가 다시 확인.
+  function ensureBridge(waitMs) {
+    if (KW.bridgeReady && KW.bridgeReady()) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (v) => {
+        if (done) return;
+        done = true;
+        try { clearTimeout(to); } catch (e) {}
+        try { document.removeEventListener('bdo-search-ready', onReady); } catch (e) {}
+        resolve(v);
+      };
+      function onReady() { finish(true); }
+      const to = setTimeout(() => finish(!!(KW.bridgeReady && KW.bridgeReady())), waitMs || 1500);
+      try { document.addEventListener('bdo-search-ready', onReady); } catch (e) {}
+      try { document.dispatchEvent(new CustomEvent('bdo-search-ping', {})); } catch (e) {}
+    });
+  }
   let bdoMaint = false, bdoMaintTold = false;
   const decHtml = (s) => String(s)
     .replace(/<br\s*\/?>/gi, ' ')
@@ -895,8 +913,7 @@
   const CODEX_BASE = 'https://bdocodex.com'; // 아이템 검색 (display:"목"만)
   const CODEX_GRADE = { 0: '#c8c8c8', 1: '#3fb950', 2: '#58a6ff', 3: '#bc8cff', 4: '#f0883e' }; // 등급별 이름 색
   function bdoFetch(url, timeoutMs, base) {
-    if (!KW.bridgeReady || !KW.bridgeReady()) return Promise.resolve(null);
-    return KW.bridge('fetch', { url, base: base || BDO_BASE }, timeoutMs || 12000).then((r) => {
+    const call = () => KW.bridge('fetch', { url, base: base || BDO_BASE }, timeoutMs || 12000).then((r) => {
       if (!r || !r.ok || !r.data || typeof r.data.html !== 'string') {
         if (r && r.maintenance) {
           bdoMaint = true;
@@ -907,6 +924,8 @@
       bdoMaint = false;
       return r.data.html;
     }).catch(() => null);
+    if (KW.bridgeReady && KW.bridgeReady()) return call();
+    return ensureBridge(1500).then((ok) => (ok ? call() : null)); // 뒤늦은 동반 대비 ping 후 재확인
   }
   function famRowsOf(html) {
     const out = [];
@@ -1048,12 +1067,12 @@
     return out;
   }
   function searchLiveItem(q) {
-    if (!KW.bridgeReady || !KW.bridgeReady()) return Promise.resolve({ miss: true, error: '브릿지 없음' });
-    const su = CODEX_BASE + '/query.php?a=search&l=kr&sq=' + encodeURIComponent(q);
-    let p = null;
-    try { p = KW.bridge('fetch', { url: su, base: CODEX_BASE }, 12000); } catch (e) { p = null; }
-    if (!p || typeof p.then !== 'function') return Promise.resolve({ miss: true, error: '호출 실패' });
-    return p.then((r) => {
+    const run = () => {
+      const su = CODEX_BASE + '/query.php?a=search&l=kr&sq=' + encodeURIComponent(q);
+      let p = null;
+      try { p = KW.bridge('fetch', { url: su, base: CODEX_BASE }, 12000); } catch (e) { p = null; }
+      if (!p || typeof p.then !== 'function') return Promise.resolve({ miss: true, error: '호출 실패' });
+      return p.then((r) => {
       if (!r || !r.ok || !r.data || typeof r.data.html !== 'string') {
         if (r && r.maintenance) {
           bdoMaint = true;
@@ -1067,7 +1086,10 @@
       try { items = parseCodexItems(r.data.html); } catch (e) { items = null; }
       if (!items || !items.length) return { miss: true, error: '일치 항목 없음' };
       return { query: q, items };
-    }).catch(() => ({ miss: true, error: '예외 발생' }));
+      }).catch(() => ({ miss: true, error: '예외 발생' }));
+    };
+    if (KW.bridgeReady && KW.bridgeReady()) return run();
+    return ensureBridge(1500).then((ok) => (ok ? run() : { miss: true, error: '브릿지 없음' }));
   }
   function startLive(kind, q) {
     const isGuild = kind === 'guild', isItem = kind === 'item';

@@ -270,6 +270,14 @@ function initApp() {
   }
   runWorldProbe();
   loadPlugins();
+  try { if (typeof companionListen === 'function') companionListen(); } catch (e) {} // 설정을 열기 전에도 동반 감지되게 시작 시 수신 대기
+  try { // 시작 후 동반 ping (로드 시점 ready를 놓친 경우 대비)
+    setTimeout(() => {
+      try {
+        (pluginList || []).forEach((p) => { if (p && p.companion && typeof companionPing === 'function') companionPing(p); });
+      } catch (e) {}
+    }, 2500);
+  } catch (e) {}
   try {
     document.addEventListener('pointerdown', unlockAudio);
     document.addEventListener('keydown', unlockAudio);
