@@ -1346,8 +1346,7 @@ function renderSettings() {
     const v = addInput.value.trim();
     if (v && !keywords.includes(v)) { keywords.push(v); saveKeywords(keywords); refreshNormCache(); renderPanel(); renderSettings(); }
   };
-  addBtn.onclick = doAdd;
-  addInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) doAdd(); }); // 한글 조합 중 Enter는 추가 안 함 (조합 확정용)
+  addBtn.onclick = doAdd; // Enter 추가 없음 (추가 버튼만)
   setPanel.querySelector('#__kw_nick').onchange = (e) => { myNick = e.target.value; saveNick(myNick); refreshNormCache(); };
   setPanel.querySelector('#__kw_auto').onchange = (e) => localStorage.setItem(LS_AUTO, e.target.checked ? '1' : '0');
   setPanel.querySelector('#__kw_hist').onchange = (e) => {
