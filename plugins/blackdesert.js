@@ -688,7 +688,7 @@
     famSig = sig;
     famEl.innerHTML = xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
       '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + '검은사막 검색</b></div>' +
-      '<div style="display:flex;gap:6px;flex:none;margin-top:4px;padding-left:19px;padding-right:19px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="width:170px;flex:none"><button id="__kw_fam_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>';
+      '<div style="display:flex;gap:6px;flex:none;margin-top:4px;padding-left:19px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>';
     const qi = famEl.querySelector('#__kw_fam_q');
     const go = () => {
       famQuery = qi ? qi.value : '';
@@ -792,9 +792,8 @@
     if (famState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">가문 목록을 받지 못했습니다. 잠시 뒤 다시 시도하세요.</div>';
     else if (famState === 'loading' || !famData) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
     else if (f) {
-      h += '<div style="margin-top:6px;font-size:11px;color:#888">' +
-        (f.created ? esc(f.created) : '') +
-        (f.guild ? ' · <span style="color:#ff7ab8">' + esc(f.guild) + '</span>' : '') + '</div>';
+      h += '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#888"><span>가문생성일</span><span>' + esc(f.created || '') + '</span></div>' +
+        (f.guild ? '<div style="margin-top:2px;font-size:11px;color:#ff7ab8">' + esc(f.guild) + '</div>' : '');
       (f.characters || []).forEach((c) => {
         h += '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.12)">' +
           '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">' + esc(c.name || '?') + (c.main ? ' <span style="color:#ff7ab8;font-size:10px">대표</span>' : '') + '</b>' +
@@ -810,7 +809,18 @@
     h += '</div>';
     famResEl.innerHTML = h;
     const fx = famResEl.querySelector('#__kw_bdo_family_r_x');
-    if (fx) fx.onclick = () => { famResQ = ''; removeFamRes(); };
+    if (fx) fx.onclick = () => {
+      famResQ = '';
+      famQuery = '';
+      try { localStorage.setItem(LS_FAMQ, ''); } catch (er) {}
+      try {
+        const qi = famEl && famEl.isConnected ? famEl.querySelector('#__kw_fam_q') : null;
+        if (qi) qi.value = '';
+      } catch (er2) {}
+      famSig = null;
+      try { renderFamily(); } catch (er3) {}
+      removeFamRes();
+    };
   }
   function updateFamRes(now) {
     const stack = document.getElementById('__kw_stack');
