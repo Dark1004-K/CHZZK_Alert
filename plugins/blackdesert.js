@@ -844,7 +844,6 @@
   let famResQ = ''; // 결과창 가문 검색어
   let guildResQ = ''; // 결과창 길드 검색어
   let itemResQ = ''; // 결과창 아이템 검색어
-  const ITEM_SHOW_MAX = 80; // 아이템 목록에 그리는 최대 개수
   function removeRes() {
     if (resEl) { try { resEl.remove(); } catch (e) {} }
     resEl = null;
@@ -1229,13 +1228,12 @@
       else if (lvI && lvI.phase === 'miss' && lvI.data && lvI.data.timeout) body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">응답이 없습니다(시간 초과).<br>브릿지를 최신으로 업데이트하세요.</div>';
       else if (lvI && lvI.phase === 'miss' && lvI.data && lvI.data.error) body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 실패: ' + esc(lvI.data.error) + '</div>';
       else if (fI) {
-        fI.slice(0, ITEM_SHOW_MAX).forEach((it) => {
+        fI.forEach((it) => {
           const gc = (it.grade != null && CODEX_GRADE[it.grade]) ? CODEX_GRADE[it.grade] : '#fff';
           body += '<div class="__kw_item_row" data-item-href="' + esc(it.href || '') + '" title="bdocodex 페이지 열기" style="display:flex;align-items:center;gap:8px;margin-top:5px;padding:5px 4px 5px 0;border-top:1px solid rgba(255,255,255,.12);cursor:pointer">' +
-            (it.icon ? '<img src="' + esc(it.icon) + '" width="24" height="24" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06)" onerror="this.style.display=\'none\'">' : '') +
+            (it.icon ? '<img loading="lazy" src="' + esc(it.icon) + '" width="24" height="24" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06)" onerror="this.style.display=\'none\'">' : '') +
             '<b style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;color:' + gc + '">' + esc(it.name || '?') + '</b></div>';
         });
-        if (n > ITEM_SHOW_MAX) body += '<div style="font-size:11px;color:#888;margin-top:6px">외 ' + (n - ITEM_SHOW_MAX) + '개 (검색어를 좁혀보세요)</div>';
       } else body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>아이템명을 정확히 입력했는지 확인하세요.</div>';
     } else { // fam
       const n = fF ? (fF.characters || []).length : 0;
