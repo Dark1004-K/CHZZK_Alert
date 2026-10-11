@@ -835,9 +835,65 @@ function extListHtml() {
     return `<div class="__kw_lbl"><label style="cursor:${blocked || !canChange ? 'default' : 'pointer'}${blocked || !canChange ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" data-companion-need="${needComp ? escapeHtml(p.id) : ''}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked || !canChange ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${compHtml}${note}</div>`;
   }).join('');
 }
-// ---------- 동반 스크립트 상태 (설정 > 확장 행에 표시) ----------
+// ---------- 동반 미설치 안내 팝업 (방송 진입 시 1회) ----------
+// 브릿지가 필요한 확장을 켰는데(켰다가 해제됐거나) 브릿지가 없으면 설치 안내.
+// 채널 바뀌면 다시 평가.
+let __kwCompPromptDone = false;
+let __kwCompPromptCid = '';
+const __kwCompanionKilled = {}; // 브릿트 미확인으로 해제한 플러그인 id
+function maybeCompanionPrompt() {
+  try {
+    const cid = pageChannelId();
+    if (__kwCompPromptCid !== cid) { __kwCompPromptCid = cid; __kwCompPromptDone = false; }
+    if (__kwCompPromptDone) return;
+    try { (pluginList || []).forEach((p) => { if (p && p.companion) companionPing(p); }); } catch (e) {}
+    setTimeout(() => {
+      if (__kwCompPromptDone) return;
+      __kwCompPromptDone = true;
+      let items = [];
+      try {
+        (pluginList || []).forEach((p) => {
+          if (!p || !p.companion || !p.companion.ready) return;
+          if (p.noOwner && isOwner()) return;
+          if (__kwCompanions[p.companion.ready]) return; // 설치됨
+          if (pluginIsOn(p) || __kwCompanionKilled[p.id]) items.push(p);
+        });
+      } catch (e2) {}
+      if (!items.length) return;
+      showCompanionPrompt(chDisplayName(), items);
+    }, 2500);
+  } catch (e) {}
+}
+function showCompanionPrompt(ch, items) {
+  if (!items.length) return;
+  if (document.getElementById('__kw_compreq')) return;
+  try {
+    const box = document.createElement('div');
+    box.id = '__kw_compreq';
+    box.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:2147483647;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:12px 14px;border-radius:12px;border:2px solid #1f6feb;box-shadow:0 4px 16px rgba(0,0,0,.5);max-width:min(380px,92vw);box-sizing:border-box';
+    let h = '';
+    items.forEach((p) => {
+      h += `<div style="line-height:1.5"><b>${escapeHtml(ch)}</b> 채널은 <b>${escapeHtml(p.name || p.id)}</b>을(를) 활성화할 수 있습니다.<br>${escapeHtml(p.name || p.id)}을(를) 활성화하시려면 추가 기능을 설치해야 합니다.</div>` +
+        `<div style="display:flex;gap:8px;margin:8px 0 10px"><button class="__kw_b" data-companion-go="${escapeHtml(p.id)}" style="background:#1f6feb;color:#fff;flex:1">설치하기</button></div>`;
+    });
+    h += '<div style="display:flex;gap:8px"><button class="__kw_b" id="__kw_compreq_x" style="background:#444;color:#fff;flex:1">닫기</button></div>' +
+      '<div style="font-size:11px;color:#888;margin-top:6px">설치 후 방송 새로고침(F5)</div>';
+    box.innerHTML = h;
+    document.body.appendChild(box);
+    box.querySelectorAll('[data-companion-go]').forEach((b) => {
+      b.onclick = () => {
+        const p = companionOf(b.getAttribute('data-companion-go'));
+        const u = p && p.companion && p.companion.url;
+        if (u) { try { window.open(u, '_blank', 'noopener'); } catch (e) {} }
+      };
+    });
+    const x = box.querySelector('#__kw_compreq_x');
+    if (x) x.onclick = () => { try { box.remove(); } catch (e) {} };
+  } catch (e) {}
+}
 // plugins.json의 companion { label, url, ping, ready } 선언 기반.
 // 동반은 document-idle 로딩이라 늦게 올 수 있어서 ready 이벤트 상시 수신 + 렌더 때마다 ping.
+// ---------- 동반 스크립트 상태 (설정 > 확장 행에 표시) ----------
 const __kwCompanions = {}; // [readyEvent] -> version
 const __kwCompanionPingAt = {}; // [pluginId] -> 마지막 ping 시각
 let __kwCompanionListening = false;
@@ -917,7 +973,7 @@ function paintCompanions() {
         if (!pl || !pl.companion || !pl.companion.ready) return;
         if (pl.noOwner && isOwner()) return;
         if (__kwCompanions[pl.companion.ready]) return; // 확인됨
-        if (pluginIsOn(pl)) { setPluginOn(pl, false); changed = true; }
+        if (pluginIsOn(pl)) { setPluginOn(pl, false); __kwCompanionKilled[pl.id] = 1; changed = true; }
       });
       if (changed) renderSettings();
     } catch (e2) {}

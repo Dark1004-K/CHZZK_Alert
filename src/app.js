@@ -32,6 +32,7 @@ function buildUi() {
   panel.classList.add('show');
   applyHistVisibility();
   applySetVisibility();
+  try { maybeCompanionPrompt(); } catch (e) {}
   dlog('buildui', JSON.stringify({ running, dom: domMsgCount(), folded: isChatFolded() }));
   if (!running) showAskPrompt();
 }
