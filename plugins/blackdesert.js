@@ -368,7 +368,7 @@
           cpnEl.style.height = Math.min(cpnH, cpnHMax()) + 'px';
         }
         try { localStorage.setItem(LS_CPNH, String(cpnH)); } catch (er) {}
-        try { dlog('cpn-fit', JSON.stringify({ H: cpnH, top: cpnEl.style.top, fixed: cpnEl.style.position === 'fixed' })); } catch (er3) {}
+        try { console.log('[KW-BETA]', 'cpn-fit', JSON.stringify({ H: cpnH, top: cpnEl.style.top, fixed: cpnEl.style.position === 'fixed' })); } catch (er3) {}
       } catch (e5) {}
     }
     // 높이는 패널 통째로 명시 (내용 길이에 관계없이 조절이 바로 보이게). 접힘 상태는 자동 높이.
