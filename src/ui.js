@@ -887,12 +887,12 @@ function showCompanionPrompt(ch, items) {
     const box = document.createElement('div');
     box.id = '__kw_compreq';
     box.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:2147483647;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:12px 14px;border-radius:12px;border:2px solid #1f6feb;box-shadow:0 4px 16px rgba(0,0,0,.5);max-width:min(380px,92vw);box-sizing:border-box';
-    let h = '';
+    let h = `<div style="line-height:1.5"><b>${escapeHtml(ch)}</b> 채널은 다음과 같은 확장 활성을 사용할 수 있습니다.</div><div style="margin:8px 0">`;
     items.forEach((p) => {
-      h += `<div style="line-height:1.5"><b>${escapeHtml(ch)}</b> 채널은 <b>${escapeHtml(p.name || p.id)}</b>을(를) 활성화할 수 있습니다.<br>${escapeHtml(p.name || p.id)}을(를) 활성화하시려면 추가 기능을 설치해야 합니다.</div>` +
-        `<div style="display:flex;gap:8px;margin:8px 0 10px"><button class="__kw_b" data-companion-go="${escapeHtml(p.id)}" style="background:#1f6feb;color:#fff;flex:1">설치하기</button></div>`;
+      h += `<div style="display:flex;align-items:center;gap:8px;margin-top:4px"><span style="flex:1">- ${escapeHtml(p.name || p.id)}</span><button class="__kw_b" data-companion-go="${escapeHtml(p.id)}" style="background:#1f6feb;color:#fff;margin:0">설치</button></div>`;
     });
-    h += '<div style="display:flex;gap:8px"><button class="__kw_b" id="__kw_compreq_x" style="background:#444;color:#fff;flex:1">닫기</button></div>' +
+    h += '</div><div style="line-height:1.5;color:#bbb;font-size:12px">확장을 활성 하려면 추가 기능을 설치해야 합니다.<br>지금 설치하지 않더라도 설정 -&gt; 확장에서 설치가 가능합니다.</div>' +
+      '<div style="display:flex;gap:8px;margin-top:10px"><button class="__kw_b" id="__kw_compreq_x" style="background:#444;color:#fff;flex:1">닫기</button></div>' +
       '<div style="font-size:11px;color:#888;margin-top:6px">설치 후 방송 새로고침(F5)</div>';
     box.innerHTML = h;
     document.body.appendChild(box);
