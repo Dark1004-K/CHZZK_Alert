@@ -688,6 +688,12 @@
     const sig = [famQuery, guildQuery].join('|'); // 입력 중에는 다시 그리지 않음 (포커스 유지)
     if (sig === famSig) return;
     famSig = sig;
+    // 다시 그리기 전 포커스 기억 (innerHTML 교체로 포커스가 날아감 방지)
+    let refocus = null;
+    try {
+      const ae = document.activeElement;
+      if (ae && famEl.contains(ae) && ae.id) refocus = { id: ae.id, s: ae.selectionStart, e: ae.selectionEnd };
+    } catch (er) {}
     famEl.innerHTML = xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
       '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + '검은사막 검색</b></div>' +
       '<div style="display:flex;gap:6px;flex:none;margin-top:4px;padding-left:19px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>' +
@@ -703,7 +709,7 @@
       updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
       startLive('fam', famQuery);
     };
-    if (qi) qi.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    if (qi) qi.addEventListener('keydown', (e) => { try { e.stopPropagation(); } catch (er) {} if (e.key === 'Enter') go(); });
     if (qi) qi.addEventListener('input', () => { famQuery = qi.value; try { localStorage.setItem(LS_FAMQ, famQuery); } catch (er) {} });
     const gb = famEl.querySelector('#__kw_fam_go');
     if (gb) gb.onclick = go;
@@ -717,12 +723,19 @@
       updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
       startLive('guild', guildQuery);
     };
-    if (gi) gi.addEventListener('keydown', (e) => { if (e.key === 'Enter') goGuild(); });
+    if (gi) gi.addEventListener('keydown', (e) => { try { e.stopPropagation(); } catch (er) {} if (e.key === 'Enter') goGuild(); });
     if (gi) gi.addEventListener('input', () => { guildQuery = gi.value; try { localStorage.setItem(LS_GUILDQ, guildQuery); } catch (er) {} });
     const gg = famEl.querySelector('#__kw_guild_go');
     if (gg) gg.onclick = goGuild;
     const fx = famEl.querySelector('#__kw_bdo_family_x');
     if (fx) fx.onclick = (e) => { e.stopPropagation(); turnOff('family'); removeFamily(); removeFamRes(); };
+    // 다시 그리기로 날아간 포커스 복구 (커서 위치 포함)
+    try {
+      if (refocus) {
+        const el = famEl.querySelector('#' + refocus.id);
+        if (el) { el.focus({ preventScroll: true }); try { if (refocus.s != null) el.setSelectionRange(refocus.s, refocus.e); } catch (er2) {} }
+      }
+    } catch (er3) {}
   }
   function updateFamily(now) {
     const stack = document.getElementById('__kw_stack');
