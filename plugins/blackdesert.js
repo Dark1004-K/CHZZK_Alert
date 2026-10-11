@@ -350,15 +350,23 @@
     if (cpnFitNext && !cpnFolded()) { // 펼치기 직후: 아래 기준으로 내용만큼, 화면을 넘으면 거기까지만
       cpnFitNext = false;
       try {
+        const r0 = cpnEl.getBoundingClientRect(); // 펼치기 전(접힌) rect. 아래 모서리 기준용으로 먼저 잡음
         cpnEl.style.height = 'auto';
         const need = cpnEl.scrollHeight;
-        const r = cpnEl.getBoundingClientRect();
-        const roomF = cpnEl.style.position === 'fixed'
-          ? Math.max(CPN_H_MIN, r.bottom) // 띄움: 아래 모서리 고정 → 위로 늘어남
-          : Math.max(CPN_H_MIN, r.top + r.height); // 도크: 아래 고정 → 위로 늘어남
-        cpnH = Math.max(CPN_H_MIN, Math.min(need, roomF, cpnHMax()));
-        cpnEl.style.height = Math.min(cpnH, cpnHMax()) + 'px';
-        if (cpnEl.style.position === 'fixed') cpnEl.style.top = Math.max(0, Math.round(r.bottom - cpnH)) + 'px';
+        if (cpnEl.style.position === 'fixed') {
+          // 띄움: 펼치기 전 아래 모서리 고정 → 위로 늘어남
+          const room = Math.max(CPN_H_MIN, r0.bottom);
+          cpnH = Math.max(CPN_H_MIN, Math.min(need, room, cpnHMax()));
+          cpnEl.style.height = Math.min(cpnH, cpnHMax()) + 'px';
+          cpnEl.style.top = Math.max(0, Math.round(r0.bottom - cpnH)) + 'px';
+          try { bdoPosSaveEl(LS_CPNNPOS, cpnEl); } catch (er2) {}
+        } else {
+          // 도크: 레이아웃이 아래 고정 → 위로 늘어남
+          const r = cpnEl.getBoundingClientRect();
+          const room = Math.max(CPN_H_MIN, r.top + r.height);
+          cpnH = Math.max(CPN_H_MIN, Math.min(need, room, cpnHMax()));
+          cpnEl.style.height = Math.min(cpnH, cpnHMax()) + 'px';
+        }
         try { localStorage.setItem(LS_CPNH, String(cpnH)); } catch (er) {}
       } catch (e5) {}
     }
