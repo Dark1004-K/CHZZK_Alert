@@ -854,6 +854,7 @@ function renderOptWin() {
   if (cc) cc.onclick = () => {
     try { cc.classList.add('__kw_spin'); } catch (e) {}
     companionPing(p, true); // 수동 확인은 스로틀 무시
+    try { if (typeof refreshPluginsNow === 'function') refreshPluginsNow(() => {}); } catch (e2) {} // 플러그인 코드도 즉시 확인·갱신
     setTimeout(() => {
       try {
         cc.classList.remove('__kw_spin');

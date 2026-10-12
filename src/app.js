@@ -240,6 +240,52 @@ function loadPlugins() {
       .catch(() => {});
   } catch (e) {}
 }
+// 옵션 창 새로고침용: 매니페스트·플러그인 코드를 즉시 다시 받아 버전 비교. 새 버전이면
+// 토스트 후 새로고침으로 적용한다 (주입된 코드의 리스너·타이머 중복을 막기 위해 핫스왑 대신 재시작).
+function refreshPluginsNow(done) {
+  const over = (v) => { try { if (typeof done === 'function') done(v); } catch (e) {} };
+  let finished = false;
+  const finish = (v) => { if (finished) return; finished = true; over(v); };
+  try { setTimeout(() => finish('timeout'), 15000); } catch (e) {}
+  const codeVer = (t) => { try { const m = /version\s*:\s*['"]([^'"]+)['"]/.exec(String(t || '')); return m ? m[1] : ''; } catch (e2) { return ''; } };
+  const curVer = (id) => {
+    try { const m = pluginMetaOf(id); if (m && m.version) return String(m.version); } catch (e) {}
+    try { const sm = JSON.parse(localStorage.getItem(LS_PLUGVER)) || {}; if (sm[id]) return String(sm[id]); } catch (e2) {}
+    return '';
+  };
+  const isNewer = (cur, fresh) => { try { if (typeof cmpVersions === 'function') return cmpVersions(cur, fresh) < 0; } catch (e) {} return cur !== fresh; };
+  const bust = Date.now();
+  try {
+    fetch(PLUGIN_MANIFEST_URL + '?t=' + bust, { cache: 'no-store' })
+      .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
+      .then((j) => {
+        const list = j && Array.isArray(j.plugins) ? j.plugins.filter((p) => p && p.id && p.url) : [];
+        if (!list.length) throw new Error('empty');
+        try { pluginList = list; } catch (e) {}
+        const jobs = list
+          .filter((p) => { try { return pluginIdIsOn(p.id); } catch (e2) { return false; } })
+          .map((p) => fetch(p.url + (p.url.indexOf('?') >= 0 ? '&' : '?') + 't=' + bust, { cache: 'no-store' })
+            .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.text(); })
+            .then((t) => ({ id: p.id, name: p.name || p.id, ver: codeVer(t) }))
+            .catch(() => null));
+        return Promise.all(jobs);
+      })
+      .then((rows) => {
+        let best = null;
+        (rows || []).forEach((r) => {
+          if (!r || !r.ver) return;
+          const cur = curVer(r.id);
+          if (cur && isNewer(cur, r.ver) && !best) best = { name: r.name, from: cur, to: r.ver };
+        });
+        if (best) {
+          try { if (typeof showCallToast === 'function') showCallToast('확장 업데이트', best.name + ' ' + best.from + ' → ' + best.to + ' (새로고침으로 적용)'); } catch (e) {}
+          try { setTimeout(() => { try { location.reload(); } catch (e2) {} }, 1500); } catch (e3) {}
+          finish('updated');
+        } else finish('latest');
+      })
+      .catch(() => finish('error'));
+  } catch (e) { finish('error'); }
+}
 function injectPlugin(p) {
   try {
     fetch(p.url, { cache: 'no-store' })
