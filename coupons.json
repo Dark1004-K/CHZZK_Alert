@@ -1,16 +1,15 @@
 {
   "source": "https://www.kr.playblackdesert.com/ko-KR/News/Detail?groupContentNo=10748",
-  "updatedAt": 1791697521829,
+  "updatedAt": 1791796253948,
   "coupons": [
     {
-      "name": "째깍 쿠폰 12일차",
-      "code": "WEEK224HCOUPON12",
+      "name": "째깍 쿠폰 13일차",
+      "code": "WEEK224HCOUPON13",
       "rewards": [
-        "마력의 파편 50개",
-        "[이벤트] 강화 지원 상자 V"
+        "[이벤트] 희미한 어둠 포식의 기원 10개"
       ],
-      "expires": "2026년 10월 12일(월) 13:59",
-      "expiresAt": 1791781140000
+      "expires": "2026년 10월 13일(화) 13:59",
+      "expiresAt": 1791867540000
     },
     {
       "name": "한가위 쿠폰",
