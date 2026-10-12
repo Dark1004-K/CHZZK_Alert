@@ -1634,15 +1634,18 @@
       else subHtml = '<div style="margin-left:16px">' + recipeRows(sub.recipes, depth + 1) + '</div>';
     }
     const togBtn = 'flex:none;width:18px;height:18px;padding:0;border-radius:50%;border:1px solid #8a8a99;background:transparent;color:#ccc;font:bold 12px/16px sans-serif;cursor:pointer';
-    const tog = !gid ? '<span style="flex:none;width:18px"></span>'
+    const togGap = 'flex:none;width:6px'; // 미확인: 약간의 간격만
+    const togNone = 'flex:none;width:18px;text-align:center;font-size:14px;line-height:18px;color:#5a5a66'; // 하위 없음(확정): 다른 모양
+    const tog = !gid ? '<span style="' + togGap + '"></span>'
       : open ? '<button data-rcp-sub="' + esc(gid) + '" data-rcp-depth="' + depth + '" data-rcp-nm="' + esc(iname) + '" title="접기" style="' + togBtn + '">－</button>'
       : hasSub ? '<button data-rcp-sub="' + esc(gid) + '" data-rcp-depth="' + depth + '" data-rcp-nm="' + esc(iname) + '" title="하위 레시피 펼치기" style="' + togBtn + '">＋</button>'
       : subLoading ? '<span style="flex:none;width:18px;text-align:center;font-size:10px;color:#888">…</span>'
-      : '<span style="flex:none;width:18px"></span>'; // 하위 없음(확정) 또는 확인 전에는 + 숨김
+      : '<span title="하위 레시피 없음" style="' + togNone + '">·</span>';
+    const amt = (g && g.amount) == null ? '' : esc(String(g.amount)) + '개';
     return '<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.04);border-radius:8px;padding:6px 8px;margin-top:4px">' +
       tog +
-      '<span style="flex:none;min-width:26px;text-align:right;font-size:11px;color:#aaa">' + esc(String((g && g.amount) == null ? '' : g.amount)) + '</span>' +
       '<span style="flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(iname) + ((g && g.alt && g.alt.length) ? '<span style="color:#8a8a99;font-size:11px"> / ' + esc(g.alt.map((a) => a.name).join(' · ')) + '</span>' : '') + '</span>' +
+      '<span style="flex:none;font-size:11px;color:#aaa;white-space:nowrap">' + amt + '</span>' +
       (ic ? '<img loading="lazy" src="' + esc(ic) + '" width="34" height="34" style="flex:none;border-radius:6px;border:2px solid ' + gc + ';background:rgba(0,0,0,.4)" onerror="this.remove()">' : '') +
       '</div>' + subHtml;
   }
