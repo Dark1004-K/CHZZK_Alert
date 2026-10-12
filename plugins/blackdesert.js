@@ -948,6 +948,7 @@
     .trim();
   const CODEX_BASE = 'https://bdocodex.com'; // 아이템 상세 설명 (2차)
   const BDOLY_BASE = 'https://bdolytics.com'; // 아이템 목록·상세 (1차)
+  const BDOLY_IMG = 'https://cdn.questlog.gg/black-desert'; // bdolytics 아이콘 호스트 (API의 /assets/... 를 앞에 붙임)
   const CODEX_GRADE = { 0: '#c8c8c8', 1: '#3fb950', 2: '#58a6ff', 3: '#bc8cff', 4: '#f0883e' }; // 등급별 이름 색
   function bdoFetch(url, timeoutMs, base) {
     const call = () => KW.bridge('fetch', { url, base: base || BDO_BASE }, timeoutMs || 12000).then((r) => {
@@ -1088,7 +1089,7 @@
       const id = String((r.id == null ? '' : r.id));
       if (!id) continue;
       let iconUrl = String(r.icon || '');
-      if (iconUrl && iconUrl.charAt(0) === '/') iconUrl = BDOLY_BASE + iconUrl;
+      if (iconUrl && iconUrl.charAt(0) === '/') iconUrl = BDOLY_IMG + iconUrl;
       let grade = null;
       try { grade = (r.grade == null || r.grade === '' ? null : parseInt(r.grade, 10)); if (!isFinite(grade)) grade = null; } catch (e) { grade = null; }
       out.push({
@@ -1107,7 +1108,7 @@
     const d = (j && j.result && j.result.data) ? j.result.data : null;
     if (!d || typeof d !== 'object') return null;
     let icon = String(d.icon || '');
-    if (icon && icon.charAt(0) === '/') icon = BDOLY_BASE + icon;
+    if (icon && icon.charAt(0) === '/') icon = BDOLY_IMG + icon;
     const stats = [];
     const cat = [d.mainCategory, d.subCategory].filter((x) => x).join(' · ');
     if (cat) stats.push('종류: ' + cat);
