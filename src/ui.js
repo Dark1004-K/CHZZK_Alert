@@ -1136,17 +1136,8 @@ function paintCompanions() {
         label.style.opacity = canChange ? '' : '.6';
       }
     });
-    // 브릿지 미확인 상태가 확정되면(핑 무응답) 켜져 있던 동반 필요 확장은 해제
-    try {
-      let changed = false;
-      (pluginList || []).forEach((pl) => {
-        if (!pl || !pl.companion || !pl.companion.ready) return;
-        if (pl.noOwner && isOwner()) return;
-        if (__kwCompanions[pl.companion.ready]) return; // 확인됨
-        if (pluginIsOn(pl)) { setPluginOn(pl, false); changed = true; }
-      });
-      if (changed) renderSettings();
-    } catch (e2) {}
+    // 브릿지 미확인이어도 켜져 있던 확장은 그대로 유지 (사용자 선택을 덮어쓰지 않음).
+    // 미설치 상태에서 켜려고 하면 체크박스 잠금(canChange)으로 막고, 검색 실패는 각 기능이 안내.
   } catch (e) {}
 }
 function bindCompanionInstall(root) {
