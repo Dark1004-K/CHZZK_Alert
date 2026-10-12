@@ -228,7 +228,7 @@
     bdoOrder();
     const when = new Date(next.t + KST);
     const days = Math.floor((next.t + KST) / DAY) - Math.floor((now + KST) / DAY);
-    const dayTxt = days === 0 ? '' : days === 1 ? '내일 ' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + '요일 ';
+    const dayTxt = days <= 1 ? '' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + '요일 ';
     // 쿠폰 모아보기 창과 같은 디자인: 굵은 12px 제목 줄(이모지 아이콘 + 제목) → 보스 이름 줄 → 시각 줄
     nextEl.innerHTML = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SWORDS, '#3b9eff') + '다음 우두머리</b></div>' +
       // 한 줄: 보스 이름 · 출현 시각(11:00) ········· 남은 시간(34:08, 오른쪽 끝). 본문은 타이틀 글자 시작점에 맞춤
