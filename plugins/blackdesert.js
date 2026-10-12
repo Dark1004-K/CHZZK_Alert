@@ -8,7 +8,7 @@
   if (!KW || typeof KW.option !== 'function' || typeof KW.enabled !== 'function') return;
   if (window.__kwBdoLoaded) return;
   window.__kwBdoLoaded = true;
-  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.4' }); } catch (e) {}
+  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.5' }); } catch (e) {}
   const ID = 'blackdesert';
   // 설정 > 일반설정의 창 투명도를 결과창(fixed, 스택 밖)에도 적용. 본체 KW.opacity() 우선, 없으면 저장값 직접 읽기.
   function bdoOpacity() {
