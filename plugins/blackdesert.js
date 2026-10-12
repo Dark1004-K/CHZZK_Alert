@@ -760,7 +760,14 @@
   }
   function renderFamily() {
     if (!famEl || !famEl.isConnected) return;
-    const sig = [famQuery, guildQuery, itemQuery].join('|'); // 입력 중에는 다시 그리지 않음 (포커스 유지)
+    try { // 입력칸에 포커스가 있으면 다시 그리지 않음 (포커스·한글 조합 유지). 쿼리 변수는 input 이벤트에서 이미 동기화됨
+      const ae = document.activeElement;
+      if (ae && famEl.contains(ae) && ae.tagName && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) {
+        famSig = [famQuery, guildQuery, itemQuery].join('|');
+        return;
+      }
+    } catch (er) {}
+    const sig = [famQuery, guildQuery, itemQuery].join('|'); // 입력 중이 아닐 때만 다시 그림
     if (sig === famSig) return;
     famSig = sig;
     // 다시 그리기 전 포커스 기억 (innerHTML 교체로 포커스가 날아감 방지)
