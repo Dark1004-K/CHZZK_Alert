@@ -1245,7 +1245,9 @@
       let found = null;
       try {
         const items = parseBdolyticsItems(String(txt || '')) || [];
-        found = items.find((x) => x && decHtml(String(x.name || '')) === name) || null;
+        const cands = items.filter((x) => x && decHtml(String(x.name || '')) === name);
+        // 동명 item 중복 시 플레이스홀더 아이콘(00000000_*)이 아닌 진짜를 우선
+        found = cands.find((x) => x.icon && String(x.icon).indexOf('00000000_') < 0) || cands[0] || null;
       } catch (e) { found = null; }
       const out = found ? { id: String(found.id), icon: found.icon || '', grade: found.grade } : null;
       ingCache[name] = out;
@@ -1512,12 +1514,12 @@
   const LS_RCPH = '__kw_recipe_h';
   const RCP_H_DEF = 380, RCP_H_MIN = 200, RCP_W = 320;
   let rcpEl = null, rcpKey = '', rcpName = '', rcpIcon = '', rcpRecipes = [];
-  let rcpExpanded = {}, rcpSub = {}; // rcpExpanded[ingId:depth]=true, rcpSub[ingId]={loading|recipes[]}
+  let rcpExpanded = {}, rcpSub = {}, rcpInflight = {}; // rcpExpanded[ingId:depth]=true, rcpSub[ingId]={loading|recipes[]}
   let rcpH = RCP_H_DEF;
   try { const rhv = parseInt(localStorage.getItem(LS_RCPH), 10); if (rhv >= RCP_H_MIN && rhv <= 4000) rcpH = rhv; } catch (e) {}
   function removeRecipe() {
     if (rcpEl) { try { rcpEl.remove(); } catch (e) {} }
-    rcpEl = null; rcpKey = ''; rcpRecipes = []; rcpExpanded = {}; rcpSub = {};
+    rcpEl = null; rcpKey = ''; rcpRecipes = []; rcpExpanded = {}; rcpSub = {}; rcpInflight = {};
   }
   function placeRecipe() { // 시세창 오른쪽, 없으면 결과창 오른쪽, 그것도 없으면 화면 오른쪽
     if (!rcpEl) return;
@@ -1562,18 +1564,23 @@
     if (ic && ic.charAt(0) === '/') ic = BDOLY_IMG + ic;
     const gc = (g && g.grade != null && CODEX_GRADE[g.grade]) ? CODEX_GRADE[g.grade] : '#555';
     const open = !!rcpExpanded[gid + ':' + depth];
-    const sub = rcpSub[gid];
+    const sub = gid ? rcpSub[gid] : null;
+    const hasSub = !!(sub && sub.recipes && sub.recipes.length);
+    const subLoading = !!(sub && sub.loading);
     let subHtml = '';
     if (open) {
       if (!sub || sub.loading) subHtml = '<div style="font-size:11px;color:#888;margin:2px 0 2px 26px">불러오는 중...</div>';
-      else if (!(sub.recipes || []).length) subHtml = '<div style="font-size:11px;color:#666;margin:2px 0 2px 26px">하위 레시피 없음</div>';
+      else if (!hasSub) subHtml = '<div style="font-size:11px;color:#666;margin:2px 0 2px 26px">하위 레시피 없음</div>';
       else subHtml = '<div style="margin-left:16px">' + recipeRows(sub.recipes, depth + 1) + '</div>';
     }
-    const canSub = !!gid && depth < 3;
+    const togBtn = 'flex:none;width:18px;height:18px;padding:0;border-radius:50%;border:1px solid #8a8a99;background:transparent;color:#ccc;font:bold 12px/16px sans-serif;cursor:pointer';
+    const tog = !gid ? '<span style="flex:none;width:18px"></span>'
+      : open ? '<button data-rcp-sub="' + esc(gid) + '" data-rcp-depth="' + depth + '" data-rcp-nm="' + esc(iname) + '" title="접기" style="' + togBtn + '">－</button>'
+      : hasSub ? '<button data-rcp-sub="' + esc(gid) + '" data-rcp-depth="' + depth + '" data-rcp-nm="' + esc(iname) + '" title="하위 레시피 펼치기" style="' + togBtn + '">＋</button>'
+      : subLoading ? '<span style="flex:none;width:18px;text-align:center;font-size:10px;color:#888">…</span>'
+      : '<span style="flex:none;width:18px"></span>'; // 하위 없음(확정) 또는 확인 전에는 + 숨김
     return '<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.04);border-radius:8px;padding:6px 8px;margin-top:4px">' +
-      (canSub
-        ? '<button data-rcp-sub="' + esc(gid) + '" data-rcp-depth="' + depth + '" data-rcp-nm="' + esc(iname) + '" title="' + (open ? '접기' : '하위 레시피 펼치기') + '" style="flex:none;width:18px;height:18px;padding:0;border-radius:50%;border:1px solid #8a8a99;background:transparent;color:#ccc;font:bold 12px/16px sans-serif;cursor:pointer">' + (open ? '－' : '＋') + '</button>'
-        : '<span style="flex:none;width:18px"></span>') +
+      tog +
       '<span style="flex:none;min-width:26px;text-align:right;font-size:11px;color:#aaa">' + esc(String((g && g.amount) == null ? '' : g.amount)) + '</span>' +
       '<span style="flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(iname) + '</span>' +
       (ic ? '<img loading="lazy" src="' + esc(ic) + '" width="34" height="34" style="flex:none;border-radius:6px;border:2px solid ' + gc + ';background:rgba(0,0,0,.4)" onerror="this.remove()">' : '') +
@@ -1611,7 +1618,7 @@
         const k = gid + ':' + dep;
         if (rcpExpanded[k]) { delete rcpExpanded[k]; renderRecipe(); return; }
         rcpExpanded[k] = true;
-        if (!rcpSub[gid]) recipeSubFetch(gid, gnm);
+        ensureSub(gid, gnm, dep); // 미리 확인됐으면 즉시 펼침, 아니면 지금 조회
         renderRecipe();
       };
     });
@@ -1619,6 +1626,7 @@
     if (xe) xe.onclick = () => { try { window.open(BDOLY_BASE + '/ko/crafting/' + encodeURIComponent(rcpKey), '_blank', 'noopener'); } catch (er) {} };
     try { const sc1 = rcpEl.querySelector('.__kw_sb_rcp'); if (sc1) sc1.scrollTop = st0; } catch (e) {}
     wireRecipeWindow();
+    try { prefetchVisibleSubs(); } catch (e) {}
   }
   function wireRecipeWindow() { // innerHTML 재렌더로 날아간 이동·리사이즈 핸들을 매번 복구 (멱등)
     try {
@@ -1635,30 +1643,45 @@
       }
     } catch (e) {}
   }
-  function recipeSubFetch(gid, gname) { // 재료의 하위 레시피 지연 조회 (bdocodex 제작 재료 + 이름 해석)
-    gid = String(gid || '');
-    if (!gid) return;
-    const forKey = rcpKey;
-    rcpSub[gid] = { loading: true };
-    renderRecipe();
+  function fetchCodexRecipeList(gid) { // 재료의 제작법 (bdocodex 제작 재료 + 이름 해석, flat 반환)
     const cu = CODEX_BASE + '/kr/item/' + encodeURIComponent(gid) + '/';
-    const done = (flat) => {
-      if (forKey !== rcpKey) return; // 다른 아이템 창으로 넘어감
-      const recs = (flat || []).length ? [{ name: String(gname || gid), ingredients: flat }] : [];
-      rcpSub[gid] = { recipes: recs };
-      const all = [];
-      recs.forEach((r) => { (r.ingredients || []).forEach((g) => all.push(g)); });
-      enrichIngs(all).then(() => { if (forKey === rcpKey) { try { renderRecipe(); } catch (e) {} } });
-      try { renderRecipe(); } catch (e) {}
-    };
     let p = null;
     try { p = bdoFetch(cu, 15000, CODEX_BASE); } catch (e) { p = null; }
-    if (!p || !p.then) { done([]); return; }
-    p.then((html) => {
-      let recs = [];
-      try { recs = parseCodexRecipe(String(html || '')); } catch (e) { recs = []; }
-      done(recs);
-    }).catch(() => done([]));
+    if (!p || !p.then) return Promise.resolve([]);
+    return p.then((html) => {
+      let flat = [];
+      try { flat = parseCodexRecipe(String(html || '')); } catch (e) { flat = []; }
+      return enrichIngs(flat).then(() => flat).catch(() => flat);
+    }).catch(() => []);
+  }
+  function ensureSub(gid, gname, depth) { // 하위 레시피 확보 (있을 때만 + 표시, 중복 호출 방지)
+    gid = String(gid || '');
+    if (!gid || depth >= 3 || rcpSub[gid] || rcpInflight[gid]) return;
+    const forKey = rcpKey;
+    rcpInflight[gid] = true;
+    rcpSub[gid] = { loading: true };
+    fetchCodexRecipeList(gid).then((flat) => {
+      delete rcpInflight[gid];
+      if (forKey !== rcpKey) return; // 다른 아이템 창으로 넘어감
+      rcpSub[gid] = { recipes: (flat || []).length ? [{ name: String(gname || gid), ingredients: flat }] : [] };
+      try { renderRecipe(); } catch (e) {}
+    });
+  }
+  function prefetchVisibleSubs() { // 보이는 줄의 하위 레시피를 미리 확인 (확정된 것만 + 표시)
+    const visit = (ings, depth) => {
+      (ings || []).forEach((g) => {
+        if (g && g.id) ensureSub(g.id, g.name, depth);
+      });
+    };
+    (rcpRecipes || []).forEach((r) => visit(r.ingredients, 0));
+    Object.keys(rcpExpanded).forEach((k) => {
+      const li = k.lastIndexOf(':');
+      const gid = li >= 0 ? k.slice(0, li) : k;
+      const dep = li >= 0 ? (parseInt(k.slice(li + 1), 10) || 0) : 0;
+      const sub = rcpSub[gid];
+      if (!sub || !sub.recipes) return;
+      sub.recipes.forEach((r) => visit(r.ingredients, dep + 1));
+    });
   }
   function updateRecipe() {
     if (!rcpKey || !rcpRecipes.length) { removeRecipe(); return; }
@@ -1676,7 +1699,7 @@
     id = String(id || '');
     if (!id) return;
     rcpKey = id; rcpName = String(name || '제작 레시피'); rcpIcon = String(icon || '');
-    rcpExpanded = {}; rcpSub = {};
+    rcpExpanded = {}; rcpSub = {}; rcpInflight = {};
     const cv = recipeCache[id];
     const flat = ((typeof selId !== 'undefined' && selId === id && selData && selData.recipes) || (cv && cv.recipes) || []);
     rcpRecipes = flat.length ? [{ name: rcpName, ingredients: flat.map((g) => ({ name: g.name, amount: g.amount })) }] : [];
