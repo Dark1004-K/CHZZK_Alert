@@ -1394,17 +1394,27 @@
     if (bodyHtml) {
       const segs = bodyHtml.split(/<hr[^>]*>/);
       for (const sg of segs) {
-        if (/가격을 구입/.test(sg)) continue; // 구입 가격·판매 가격·수리비 제외
-        if (/real_price|게임 내 시장 가격|iconset_wrapper/.test(sg)) continue; // 게임 내 시장 가격·지식 아이콘 블록 제외
+        if (/가격을 구입/.test(sg)) continue; // 구입 가격·판매 가격·수리비 제외 (calculator 가격 표시)
+        if (/real_price|게임 내 시장 가격|iconset_wrapper/.test(sg)) { // 시장 가격·지식 블록: 가격 줄만 빼고 지식 등은 유지
+          sg.split(/<br\s*\/?>/).forEach((ln) => {
+            const s = decHtml(ln);
+            if (!s) return;
+            if (/게임 내 시장 가격/.test(s)) return;
+            if (/^KR:\s*[\d,]+/.test(s)) return;
+            if (/재고:\s*[\d,]+\s*$/.test(s)) return;
+            flags.push(s);
+          });
+          continue;
+        }
         if (/id="edescription"/.test(sg) || /아이템 효과/.test(sg)) {
           sg.split(/<br\s*\/?>/).forEach((ln) => {
             const s = decHtml(ln);
-            if (s && s !== '아이템 효과' && !/^[A-Z_0-9]+$/.test(s) && !/^-\s*/.test(s)) effects.push(s); // 섹션 제목·내부 코드·머리말('- ...')은 제외
+            if (s && s !== '아이템 효과' && !/^[A-Z_0-9]+$/.test(s)) effects.push(s); // 섹션 제목·내부 코드만 제외, '- ...' 내용은 그대로
           });
           continue;
         }
         if (/-\s*설명/.test(sg)) {
-          desc = decHtml(sg.replace(/[\s\S]*?-\s*설명\s*:?/, '').replace(/<br\s*\/?>/g, '\n')).trim();
+          desc = sg.replace(/[\s\S]*?-\s*설명\s*:?/, '').split(/<br\s*\/?>/).map((ln) => decHtml(ln)).filter((s) => s).join('\n').trim();
           continue;
         }
         sg.split(/<br\s*\/?>/).forEach((ln) => { const s = decHtml(ln); if (!s) return; if (/^\s*-?\s*획득\s*시\s*귀속\s*$/.test(s)) return; flags.push(s); }); // '(-) 획득 시 귀속' 표기는 빼고 하위 내용은 유지
@@ -1845,18 +1855,11 @@
       });
       h += '</div>';
     }
-    let dropNextFlag = false; // "- 내구도" 같은 머리말 줄 + 뒤따르는 값 조각(100 / 100)을 함께 제외
-    const flagRows = [];
-    (d.flags || []).forEach((s) => {
-      if (/^\s*-\s*/.test(s)) { dropNextFlag = true; return; }
-      if (dropNextFlag && /^[\d\s\/xX]+$/.test(s)) { dropNextFlag = false; return; }
-      dropNextFlag = false;
-      flagRows.push(s);
-    });
+    const flagRows = (d.flags || []).slice(); // bdocodex 본문 그대로 (획득 시 귀속 표기는 파싱 단계에서 제외)
     if (flagRows.length) {
       h += '<div style="margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.12)">';
       flagRows.forEach((s) => {
-        h += '<div style="font-size:11px;color:#9ecfff;margin-top:2px">· ' + esc(s) + '</div>';
+        h += '<div style="font-size:11px;color:#9ecfff;margin-top:2px">· ' + esc(String(s).replace(/^\s*-\s*/, '')) + '</div>';
       });
       h += '</div>';
     }
