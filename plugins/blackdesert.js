@@ -1618,6 +1618,7 @@
   }
   function recipeIngRow(g, depth) { // 재료 한 줄 (+ 펼치면 하위 레시피)
     const gid = String((g && g.id) || '');
+    const isSelf = !!(gid && rcpKey && gid === String(rcpKey)); // 메인 아이템과 같은 하위: 순환 방지, 확장 불가
     const iname = decHtml(String((g && g.name) || ''));
     let ic = String((g && g.icon) || '');
     if (ic && ic.charAt(0) === '/') ic = BDOLY_IMG + ic;
@@ -1627,7 +1628,7 @@
     const hasSub = !!(sub && sub.recipes && sub.recipes.length);
     const subLoading = !!(sub && sub.loading);
     let subHtml = '';
-    if (open) {
+    if (open && !isSelf) {
       if (!sub || sub.loading) subHtml = '<div style="font-size:11px;color:#888;margin:2px 0 2px 26px">불러오는 중...</div>';
       else if (!hasSub) subHtml = '<div style="font-size:11px;color:#666;margin:2px 0 2px 26px">하위 레시피 없음</div>';
       else subHtml = '<div style="margin-left:16px">' + recipeRows(sub.recipes, depth + 1) + '</div>';
@@ -1636,6 +1637,7 @@
     const togGap = 'flex:none;width:6px'; // 미확인: 약간의 간격만
     const togNone = 'flex:none;width:18px;text-align:center;font-size:14px;line-height:18px;color:#5a5a66'; // 하위 없음(확정): 다른 모양
     const tog = !gid ? '<span style="' + togGap + '"></span>'
+      : isSelf ? '<span title="현재 아이템 (펼치기 불가)" style="' + togNone + '">·</span>'
       : open ? '<button data-rcp-sub="' + esc(gid) + '" data-rcp-depth="' + depth + '" data-rcp-nm="' + esc(iname) + '" title="접기" style="' + togBtn + '">－</button>'
       : hasSub ? '<button data-rcp-sub="' + esc(gid) + '" data-rcp-depth="' + depth + '" data-rcp-nm="' + esc(iname) + '" title="하위 레시피 펼치기" style="' + togBtn + '">＋</button>'
       : subLoading ? '<span style="flex:none;width:18px;text-align:center;font-size:10px;color:#888">…</span>'
@@ -1678,6 +1680,7 @@
         const dep = parseInt(b.getAttribute('data-rcp-depth'), 10) || 0;
         const gnm = b.getAttribute('data-rcp-nm') || gid;
         if (!gid || dep >= 3) return;
+        if (rcpKey && gid === String(rcpKey)) return; // 메인 아이템과 같은 하위: 순환 방지
         const k = gid + ':' + dep;
         if (rcpExpanded[k]) { delete rcpExpanded[k]; renderRecipe(); return; }
         rcpExpanded[k] = true;
@@ -1751,6 +1754,7 @@
   function ensureSub(gid, gname, depth) { // 하위 레시피 확보 (있을 때만 + 표시, 중복 호출 방지)
     gid = String(gid || '');
     if (!gid || depth >= 3 || rcpSub[gid] || rcpInflight[gid]) return;
+    if (rcpKey && gid === String(rcpKey)) return; // 메인 아이템과 같은 하위: 순환 방지
     const forKey = rcpKey;
     rcpInflight[gid] = true;
     rcpSub[gid] = { loading: true };
