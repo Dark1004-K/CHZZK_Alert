@@ -1291,12 +1291,21 @@
         });
         return;
       }
-      selPhase = 'loading-desc'; selData = mergeDetail(d1, null); selData.descLoading = true;
+      selPhase = 'loading-desc'; selData = mergeDetail(d1, null); selData.descState = 'loading';
       resSig = null;
       try { renderRes(); } catch (e) {}
+      setTimeout(() => { // 2차 무한 대기 방지: 20초 넘으면 실패 박스로 확정
+        try {
+          if (selId !== id || !selData || selData.descState !== 'loading') return;
+          selData.descState = 'fail';
+          resSig = null;
+          renderRes();
+        } catch (e) {}
+      }, 20000);
       fetchCodexDetail(id).then((d2) => {
         if (selId !== id) return; // 다른 항목으로 넘어감
         const merged = mergeDetail(d1, d2);
+        merged.descState = d2 ? 'ok' : 'fail';
         selPhase = 'ok'; selData = merged;
         try { selCache[id] = { t: Date.now(), data: merged }; } catch (e) {}
         resSig = null;
@@ -1349,7 +1358,7 @@
     upd(Date.now());
   }
   function selBodyHtml(fI) { // 옆 상세 pane 본문 (선택된 아이템)
-    if (selPhase === 'loading' || !selData) return '<div style="font-size:11px;color:#aaa;margin-top:6px">1차 정보 불러오는 중...</div>';
+    if (selPhase === 'loading' || !selData) return '<div style="font-size:11px;color:#aaa;margin-top:6px">아이템 상세 불러오는 중...</div>';
     if (selPhase === 'miss') return '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">상세를 불러오지 못했습니다.<br>잠시 뒤 다시 시도하세요.</div>';
     const d = selData;
     const it = ((fI || []).find((x) => x && x.id === selId)) || null;
@@ -1361,8 +1370,8 @@
     let h = '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
       (icon ? '<img loading="lazy" src="' + esc(icon) + '" width="34" height="34" style="flex:none;border-radius:8px;background:rgba(255,255,255,.06)" onerror="__kwNoImg(this)">' : '') +
       '<b style="font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + gc + '">' + esc(nm) + '</b>' +
-      '<button class="__kw_ic" data-ext-open="' + esc(href) + '" title="bdolytics 페이지 열기" style="color:#00ffa3;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button>' +
-      '<button class="__kw_ic" data-ext-open="' + esc(codexHref) + '" title="bdocodex 페이지 열기" style="color:#7ab8ff;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button></div>' +
+      '<button class="__kw_ic" data-ext-open="' + esc(href) + '" title="bdolytics" style="color:#00ffa3;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button>' +
+      '<button class="__kw_ic" data-ext-open="' + esc(codexHref) + '" title="bdocodex" style="color:#7ab8ff;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button></div>' +
       ((d.eng) ? '<div style="font-size:11px;color:#888;margin-top:2px">영어 이름: ' + esc(d.eng) + '</div>' : '');
     (d.stats || []).forEach((s, i) => {
       h += '<div style="font-size:11px;margin-top:2px;color:' + (i === 0 ? '#fff;font-weight:bold' : '#888') + '">' + esc(s) + '</div>';
@@ -1374,7 +1383,8 @@
       dropNextFlag = false;
       h += '<div style="font-size:11px;color:#ccc;margin-top:2px">· ' + esc(s) + '</div>';
     });
-    if (d.descLoading) h += '<div style="margin-top:6px;font-size:11px;color:#7ab8ff;line-height:1.55">설명 불러오는 중... (상세 설명 확인 중)</div>';
+    if (d.descState === 'loading') h += '<div style="margin-top:6px;padding:8px;border:1px solid rgba(122,184,255,.4);border-radius:8px;background:rgba(122,184,255,.07);font-size:11px;color:#7ab8ff;display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;flex:none;border-radius:50%;border:2px solid rgba(122,184,255,.25);border-top-color:#7ab8ff;animation:__kwspin .8s linear infinite"></span>상세 설명 로딩 중...</div>';
+    else if (d.descState === 'fail') h += '<div style="margin-top:6px;padding:8px;border:1px solid rgba(255,123,123,.4);border-radius:8px;background:rgba(255,123,123,.07);font-size:11px;color:#ff9a9a;line-height:1.5">상세정보를 가져오는데 실패했습니다. 나중에 다시 확인하세요.</div>';
     else if (d.desc) h += '<div style="margin-top:6px;font-size:11px;color:#ddd;line-height:1.55;white-space:pre-line">' + esc(d.desc) + '</div>';
     if ((d.effects || []).length) {
       h += '<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)"><div style="font-size:11px;font-weight:bold;color:#ff9ec4">아이템 효과</div>';
@@ -1447,7 +1457,7 @@
       famResQ, fF ? fF.family : '', fF ? (fF.characters || []).length : 0, lvF ? lvF.phase : '-', liveFamRev,
       guildResQ, fG ? fG.guild : '', fG ? (fG.memberList || []).length : 0, fG ? fG.siege : '', lvG ? lvG.phase : '-', liveGuildRev,
       itemResQ, fI ? fI.length : 0, lvI ? lvI.phase : '-', (lvI && lvI.data && lvI.data.error) || '', (lvI && lvI.data && lvI.data.timeout) ? 't' : '', liveItemRev,
-      selId || '', selPhase, (selData && selData.descLoading) ? 'dl' : '',
+      selId || '', selPhase, (selData && selData.descState) || '',
       bridgeOn ? 'b' : '-'].join('|');
     if (sig === resSig) return;
     resSig = sig;
