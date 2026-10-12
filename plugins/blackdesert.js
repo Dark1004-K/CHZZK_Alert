@@ -869,7 +869,7 @@
       updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
       startLive('fam', famQuery);
     };
-    if (qi) qi.addEventListener('keydown', (e) => { try { e.stopPropagation(); } catch (er) {} }); // Enter 검색 없음 (돋보기 버튼만). 키는 페이지로 새지 않게 차단
+    if (qi) qi.addEventListener('keydown', (e) => { try { e.stopPropagation(); } catch (er) {} if (e && e.key === 'Enter') { try { e.preventDefault(); } catch (er2) {} go(); } }); // Enter=검색
     if (qi) qi.addEventListener('input', () => { famQuery = qi.value; try { localStorage.setItem(LS_FAMQ, famQuery); } catch (er) {} });
     const gb = famEl.querySelector('#__kw_fam_go');
     if (gb) gb.onclick = go;
@@ -884,7 +884,7 @@
       updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
       startLive('guild', guildQuery);
     };
-    if (gi) gi.addEventListener('keydown', (e) => { try { e.stopPropagation(); } catch (er) {} }); // Enter 검색 없음 (돋보기 버튼만). 키는 페이지로 새지 않게 차단
+    if (gi) gi.addEventListener('keydown', (e) => { try { e.stopPropagation(); } catch (er) {} if (e && e.key === 'Enter') { try { e.preventDefault(); } catch (er2) {} goGuild(); } }); // Enter=검색
     if (gi) gi.addEventListener('input', () => { guildQuery = gi.value; try { localStorage.setItem(LS_GUILDQ, guildQuery); } catch (er) {} });
     const gg = famEl.querySelector('#__kw_guild_go');
     if (gg) gg.onclick = goGuild;
@@ -900,7 +900,7 @@
       updateFamily(Date.now()); // 다시 그림 + 핸들(+/리사이즈) 즉시 복구
       startLive('item', itemQuery);
     };
-    if (ii) ii.addEventListener('keydown', (e) => { try { e.stopPropagation(); } catch (er) {} }); // Enter 검색 없음 (돋보기 버튼만). 키는 페이지로 새지 않게 차단
+    if (ii) ii.addEventListener('keydown', (e) => { try { e.stopPropagation(); } catch (er) {} if (e && e.key === 'Enter') { try { e.preventDefault(); } catch (er2) {} goItem(); } }); // Enter=검색
     if (ii) ii.addEventListener('input', () => { itemQuery = ii.value; try { localStorage.setItem(LS_ITEMQ, itemQuery); } catch (er) {} });
     const ig = famEl.querySelector('#__kw_item_go');
     if (ig) ig.onclick = goItem;
