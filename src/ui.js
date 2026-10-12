@@ -72,7 +72,11 @@ function ensureMidrow() {
 // ---------- 통일 핸들 (우하 리사이즈 .__kw_rsz + 좌상 이동 .__kw_mv) ----------
 // dir 'h'=가로만(스택너비 공유) 'v'=세로만 'd'=대각(가로+세로).
 // 떠있는 창(setp/optwin)은 wMode:'self'로 자기 너비를 쓴다 (범위만 225~600으로 감시중 창을 따름).
-const RSZ_GLYPH = { h: '↔', v: '↕', d: '⤡' };
+const RSZ_GLYPH = {
+  h: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16"/><path d="M7 9l-3 3 3 3"/><path d="M17 9l3 3-3 3"/></svg>',
+  v: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16"/><path d="M9 7l3-3 3 3"/><path d="M9 17l3 3 3-3"/></svg>',
+  d: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 17.5l11-11"/><path d="M12 6.5h5.5V12"/><path d="M12 17.5H6.5V12"/></svg>',
+};
 function kwStackW(v) {
   if (v === undefined) return curWidth;
   setStackWidth(v);
@@ -86,7 +90,7 @@ function kwRsz(el, o) {
   const dir = o.dir === 'h' ? 'h' : o.dir === 'v' ? 'v' : 'd';
   const h = document.createElement('div');
   h.className = '__kw_rsz ' + dir;
-  h.textContent = RSZ_GLYPH[dir];
+  h.innerHTML = RSZ_GLYPH[dir];
   h.title = dir === 'h' ? '드래그로 가로 조절' : dir === 'v' ? '드래그로 세로 조절' : '드래그로 크기 조절';
   if (o.color) h.style.color = o.color;
   el.appendChild(h);
@@ -238,7 +242,7 @@ function kwFloat(el, o) {
     if (!b) {
       b = document.createElement('div');
       b.className = '__kw_mv';
-      b.textContent = '+';
+      b.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
       b.title = '드래그로 창 띄우기 · 더블클릭: 원래 자리로';
       el.appendChild(b);
     }
