@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         chzzk_bridge
 // @namespace    https://chzzk.naver.com/
-// @version      1.1.6
+// @version      1.1.7
 // @description  검은사막 공식 홈페이지 검색을 GM_xmlhttpRequest로 호출해 CORS 없이 치지직 페이지에 전달합니다. 본체(CHZZK 채팅 호출 알림)의 동반 스크립트입니다.
 // @author       DarkAngel
 // @license      Proprietary - All rights reserved
@@ -9,6 +9,7 @@
 // @grant        GM_xmlhttpRequest
 // @connect      www.kr.playblackdesert.com
 // @connect      bdocodex.com
+// @connect      bdolytics.com
 // @connect      trade.kr.playblackdesert.com
 // @run-at       document-idle
 // @downloadURL  https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/chzzk_bridge.user.js
@@ -26,12 +27,13 @@
 // 파싱은 호출 측(플러그인 blackdesert.js)이 담당. 브릿지는 fetch 전용.
 (function () {
   'use strict';
-  const VERSION = '1.1.6';
+  const VERSION = '1.1.7';
   // 호출 측(플러그인)이 params.base 로 대상 사이트를 지정할 수 있다.
   // 반드시 아래 허용 목록 안에 있어야 하며, 새 사이트 추가時は @connect 도 함께 추가해야 한다.
   const ALLOWED_BASES = [
     'https://www.kr.playblackdesert.com',
-    'https://bdocodex.com', // 아이템 검색
+    'https://bdocodex.com', // 아이템 상세 설명 (2차)
+    'https://bdolytics.com', // 아이템 목록·상세 (1차)
     'https://trade.kr.playblackdesert.com', // 거래소 시험 (베타 전용)
   ];
   const DEFAULT_BASE = ALLOWED_BASES[0];

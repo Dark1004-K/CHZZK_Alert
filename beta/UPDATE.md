@@ -6,6 +6,10 @@
 **기준 버전(`3.1.0` 부분)이 바뀌면 베타 번호는 `001`부터 다시 시작해서 누적한다.** (예: `3.2.0-beta001` → `3.2.0-beta002`)
 정식 릴리즈로 승격되면 접미사를 떼고(`3.1.0`) 요약을 루트 UPDATE.md로 옮긴다.
 
+## v3.4.0-beta128
+
+* **아이템 검색 경로 변경**: 목록은 bdolytics `searchEntities` (`dbType: "item"`만, 기존 bdocodex `display:"목"` 대체). 상세는 1차 bdolytics `getItem`(기본·효과 먼저 표시) + 설명은 2차 bdocodex(로딩 중 `설명 불러오는 중...` 표시 후 중복 제거 병합). 외부 열기 버튼 2개(bdolytics·bdocodex). 동반 브릿지 v1.1.7 (bdolytics 허용, `minVersion` 상향).
+
 ## v3.4.0-beta127
 
 * **Enter 검색 제거**: 검색 3종·단어추가는 버튼 클릭만. 한글 조합 깨짐 원천 차단.

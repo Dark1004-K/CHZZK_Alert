@@ -935,7 +935,8 @@
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
-  const CODEX_BASE = 'https://bdocodex.com'; // 아이템 검색 (display:"목"만)
+  const CODEX_BASE = 'https://bdocodex.com'; // 아이템 상세 설명 (2차)
+  const BDOLY_BASE = 'https://bdolytics.com'; // 아이템 목록·상세 (1차)
   const CODEX_GRADE = { 0: '#c8c8c8', 1: '#3fb950', 2: '#58a6ff', 3: '#bc8cff', 4: '#f0883e' }; // 등급별 이름 색
   function bdoFetch(url, timeoutMs, base) {
     const call = () => KW.bridge('fetch', { url, base: base || BDO_BASE }, timeoutMs || 12000).then((r) => {
@@ -1066,30 +1067,92 @@
       });
     }).catch(() => null);
   }
-  function parseCodexItems(html) { // bdocodex 검색: {aaData:[[id, iconHtml, nameHtml, grade, {display}]} — display:"목"만
+  function parseBdolyticsItems(text) { // bdolytics 목록: {result:{data:[{id,name(icon 상대경로),grade,dbType}]}} — dbType:"item"만
     let j = null;
-    try { j = JSON.parse(html); } catch (e) { return null; }
-    const rows = (j && Array.isArray(j.aaData)) ? j.aaData : [];
+    try { j = JSON.parse(text); } catch (e) { return null; }
+    const rows = (j && j.result && Array.isArray(j.result.data)) ? j.result.data : [];
     const out = [];
     for (const r of rows) {
-      if (!Array.isArray(r)) continue;
-      const meta = r[4];
-      if (!meta || meta.display !== '목') continue;
-      const id = String((r[0] == null ? '' : r[0]));
+      if (!r || r.dbType !== 'item') continue;
+      const id = String((r.id == null ? '' : r.id));
       if (!id) continue;
-      const icon = String(r[1] || '');
-      const im = /src="([^"]+)"/.exec(icon);
-      let iconUrl = im ? im[1] : '';
-      if (iconUrl && iconUrl.charAt(0) === '/') iconUrl = CODEX_BASE + iconUrl;
+      let iconUrl = String(r.icon || '');
+      if (iconUrl && iconUrl.charAt(0) === '/') iconUrl = BDOLY_BASE + iconUrl;
+      let grade = null;
+      try { grade = (r.grade == null || r.grade === '' ? null : parseInt(r.grade, 10)); if (!isFinite(grade)) grade = null; } catch (e) { grade = null; }
       out.push({
         id,
-        name: decHtml(String(r[2] || '')),
+        name: decHtml(String(r.name || '')),
         icon: iconUrl,
-        href: CODEX_BASE + '/kr/item/' + encodeURIComponent(id) + '/',
-        grade: (typeof r[3] === 'number' ? r[3] : null),
+        href: BDOLY_BASE + '/ko/db/item/' + encodeURIComponent(id),
+        grade,
       });
     }
     return out;
+  }
+  function parseBdolyticsDetail(text) { // bdolytics 1차 상세: database.getItem — 기본정보+효과 (설명은 비어 있는 경우가 많아 2차에서 보충)
+    let j = null;
+    try { j = JSON.parse(text); } catch (e) { return null; }
+    const d = (j && j.result && j.result.data) ? j.result.data : null;
+    if (!d || typeof d !== 'object') return null;
+    let icon = String(d.icon || '');
+    if (icon && icon.charAt(0) === '/') icon = BDOLY_BASE + icon;
+    const stats = [];
+    const cat = [d.mainCategory, d.subCategory].filter((x) => x).join(' · ');
+    if (cat) stats.push('종류: ' + cat);
+    if (d.weight != null && Number(d.weight) > 0) stats.push('무게: ' + d.weight + ' LT');
+    try {
+      if (d.buyPrice != null && Number(d.buyPrice) > 0) stats.push('구입가: ' + Number(d.buyPrice).toLocaleString('ko-KR'));
+      if (d.sellPrice != null && Number(d.sellPrice) > 0) stats.push('판매가: ' + Number(d.sellPrice).toLocaleString('ko-KR'));
+    } catch (e) {}
+    let desc = decHtml(String(d.description || ''));
+    const effects = [];
+    try {
+      const enh = Array.isArray(d.itemEnhancements) ? d.itemEnhancements.slice().sort((a, b) => (a.enhancementLevel || 0) - (b.enhancementLevel || 0)) : [];
+      const base = enh.length ? enh[0] : null;
+      const tips = (base && Array.isArray(base.tooltip)) ? base.tooltip : [];
+      let cut = false; // "- 강화 효과" 이후는 강화 정보라 1차에서 제외
+      for (const row of tips) {
+        if (cut) break;
+        const cells = Array.isArray(row) ? row : [row];
+        for (const cell of cells) {
+          const s = decHtml(String(cell || ''));
+          if (!s || s === '아이템 효과') continue;
+          if (/^-\s*/.test(s)) { cut = true; break; }
+          if (!/^[A-Z_0-9]+$/.test(s)) effects.push(s);
+        }
+      }
+    } catch (e) {}
+    return { icon, eng: '', stats, flags: [], desc, effects };
+  }
+  function normLine(s) { return String(s || '').replace(/\s+/g, ' ').trim(); }
+  function mergeDetail(first, second) { // 1차(bdolytics)+2차(bdocodex) 합치기 — 중복 줄은 하나만
+    const f = first || { stats: [], flags: [], desc: '', effects: [] };
+    const s = second || { stats: [], flags: [], desc: '', effects: [] };
+    const seen = {};
+    (f.stats || []).concat(f.flags || []).concat(f.effects || []).forEach((x) => { const n = normLine(x); if (n) seen[n] = 1; });
+    if (f.desc) { const n = normLine(f.desc); if (n) seen[n] = 1; }
+    const stats = (f.stats || []).slice();
+    (s.stats || []).forEach((x) => { const n = normLine(x); if (n && !seen[n]) { seen[n] = 1; stats.push(x); } });
+    const flags = (f.flags || []).slice();
+    (s.flags || []).forEach((x) => { const n = normLine(x); if (n && !seen[n]) { seen[n] = 1; flags.push(x); } });
+    const effects = (f.effects || []).slice();
+    (s.effects || []).forEach((x) => {
+      const n = normLine(x);
+      if (!n || seen[n]) return;
+      let dup = false; // 한쪽이 다른 쪽을 포함하면 같은 내용으로 간주
+      for (const k in seen) { if (k && (k.includes(n) || n.includes(k))) { dup = true; break; } }
+      if (!dup) { seen[n] = 1; effects.push(x); }
+    });
+    let desc = f.desc || '';
+    const sd = s.desc || '';
+    if (sd) {
+      const n1 = normLine(desc), n2 = normLine(sd);
+      if (!n1) desc = sd;
+      else if (n1 !== n2 && !n1.includes(n2) && !n2.includes(n1)) desc = desc + '\n' + sd;
+      else if (n2.length > n1.length) desc = sd;
+    }
+    return { icon: f.icon || s.icon || '', eng: s.eng || f.eng || '', stats, flags, desc, effects };
   }
   function parseCodexDetail(html) { // bdocodex 상세: 스탯·특성·설명·효과 (ID·구입/판매/수리비·강화 시뮬레이터 제외)
     html = String(html || '');
@@ -1143,25 +1206,30 @@
     }
     return { icon, eng, stats, flags, desc, effects };
   }
-  const selCache = {}; // [itemId] -> { t, data } 상세 캐시
-  function fetchCodexDetail(id) {
-    try {
-      const c = selCache[id];
-      if (c && Date.now() - c.t < 3600000) return Promise.resolve(c.data);
-    } catch (e) {}
-    return bdoFetch(CODEX_BASE + '/kr/item/' + encodeURIComponent(id) + '/', 12000, CODEX_BASE).then((html) => {
+  const selCache = {}; // [itemId] -> { t, data } 상세 캐시 (1+2차 병합 결과)
+  function fetchBdolyticsDetail(id) { // 1차: bdolytics getItem (빠른 구조화 정보)
+    const su = BDOLY_BASE + '/api/trpc/database.getItem?input=' + encodeURIComponent(JSON.stringify({ id: String(id), language: 'ko' }));
+    return bdoFetch(su, 12000, BDOLY_BASE).then((text) => {
+      if (!text) return null;
+      let d = null;
+      try { d = parseBdolyticsDetail(text); } catch (e) { d = null; }
+      if (!d || (!d.stats.length && !d.flags.length && !d.desc && !d.effects.length && !d.icon)) return null;
+      return d;
+    }).catch(() => null);
+  }
+  function fetchCodexDetail(id) { // 2차: bdocodex 상세 (설명 보충, 로딩이 김)
+    return bdoFetch(CODEX_BASE + '/kr/item/' + encodeURIComponent(id) + '/', 15000, CODEX_BASE).then((html) => {
       if (!html) return null;
       const d = parseCodexDetail(html);
       if (!d || (!d.stats.length && !d.flags.length && !d.desc && !d.effects.length)) return null;
-      try { selCache[id] = { t: Date.now(), data: d }; } catch (e) {}
       return d;
     }).catch(() => null);
   }
   function searchLiveItem(q) {
     const run = () => {
-      const su = CODEX_BASE + '/query.php?a=search&l=kr&sq=' + encodeURIComponent(q);
+      const su = BDOLY_BASE + '/api/trpc/database.searchEntities?input=' + encodeURIComponent(JSON.stringify({ searchTerm: q, language: 'ko', extendSearch: true }));
       let p = null;
-      try { p = KW.bridge('fetch', { url: su, base: CODEX_BASE }, 12000); } catch (e) { p = null; }
+      try { p = KW.bridge('fetch', { url: su, base: BDOLY_BASE }, 12000); } catch (e) { p = null; }
       if (!p || typeof p.then !== 'function') return Promise.resolve({ miss: true, error: '호출 실패' });
       return p.then((r) => {
       if (!r || !r.ok || !r.data || typeof r.data.html !== 'string') {
@@ -1174,7 +1242,7 @@
       }
       bdoMaint = false;
       let items = null;
-      try { items = parseCodexItems(r.data.html); } catch (e) { items = null; }
+      try { items = parseBdolyticsItems(r.data.html); } catch (e) { items = null; }
       if (!items || !items.length) return { miss: true, error: '일치 항목 없음' };
       return { query: q, items };
       }).catch(() => ({ miss: true, error: '예외 발생' }));
@@ -1182,7 +1250,7 @@
     if (KW.bridgeReady && KW.bridgeReady()) return run();
     return ensureBridge(1500).then((ok) => (ok ? run() : { miss: true, error: '브릿지 없음' }));
   }
-  function openCodexDetail(id) { // 목록 클릭 → 옆 pane에 상세 표시
+  function openCodexDetail(id) { // 목록 클릭 → 1차(bdolytics) 먼저 표시 → 설명은 2차(bdocodex) 로딩 표시 후 병합
     id = String(id || '');
     if (!id) return;
     selId = id; selPhase = 'loading'; selData = null;
@@ -1195,12 +1263,33 @@
         if (w && w < 520) resEl.style.width = Math.min(560, window.innerWidth - 32) + 'px';
       }
     } catch (e) {}
-    fetchCodexDetail(id).then((d) => {
+    try {
+      const c = selCache[id];
+      if (c && Date.now() - c.t < 3600000) { selPhase = 'ok'; selData = c.data; resSig = null; try { renderRes(); } catch (e) {} return; }
+    } catch (e) {}
+    fetchBdolyticsDetail(id).then((d1) => {
       if (selId !== id) return; // 다른 항목으로 넘어감
-      if (d) { selPhase = 'ok'; selData = d; }
-      else selPhase = 'miss';
+      if (!d1) { // 1차가 비면 2차만 시도
+        fetchCodexDetail(id).then((d2) => {
+          if (selId !== id) return;
+          if (d2) { selPhase = 'ok'; selData = d2; try { selCache[id] = { t: Date.now(), data: d2 }; } catch (e) {} }
+          else selPhase = 'miss';
+          resSig = null;
+          try { renderRes(); } catch (e2) {}
+        });
+        return;
+      }
+      selPhase = 'loading-desc'; selData = mergeDetail(d1, null); selData.descLoading = true;
       resSig = null;
-      try { renderRes(); } catch (e2) {}
+      try { renderRes(); } catch (e) {}
+      fetchCodexDetail(id).then((d2) => {
+        if (selId !== id) return; // 다른 항목으로 넘어감
+        const merged = mergeDetail(d1, d2);
+        selPhase = 'ok'; selData = merged;
+        try { selCache[id] = { t: Date.now(), data: merged }; } catch (e) {}
+        resSig = null;
+        try { renderRes(); } catch (e2) {}
+      });
     });
   }
   function startLive(kind, q) {
@@ -1248,18 +1337,20 @@
     upd(Date.now());
   }
   function selBodyHtml(fI) { // 옆 상세 pane 본문 (선택된 아이템)
-    if (selPhase === 'loading' || !selData) return '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
+    if (selPhase === 'loading' || !selData) return '<div style="font-size:11px;color:#aaa;margin-top:6px">1차 정보 불러오는 중...</div>';
     if (selPhase === 'miss') return '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">상세를 불러오지 못했습니다.<br>잠시 뒤 다시 시도하세요.</div>';
     const d = selData;
     const it = ((fI || []).find((x) => x && x.id === selId)) || null;
     const nm = (it && it.name) || itemResQ || '아이템';
     const gc = (it && it.grade != null && CODEX_GRADE[it.grade]) ? CODEX_GRADE[it.grade] : '#fff';
-    const href = (it && it.href) || (CODEX_BASE + '/kr/item/' + encodeURIComponent(selId) + '/');
+    const href = (it && it.href) || (BDOLY_BASE + '/ko/db/item/' + encodeURIComponent(selId));
+    const codexHref = CODEX_BASE + '/kr/item/' + encodeURIComponent(selId) + '/';
     const icon = (d && d.icon) || (it && it.icon) || '';
     let h = '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
       (icon ? '<img loading="lazy" src="' + esc(icon) + '" width="34" height="34" style="flex:none;border-radius:8px;background:rgba(255,255,255,.06)" onerror="__kwNoImg(this)">' : '') +
       '<b style="font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + gc + '">' + esc(nm) + '</b>' +
-      '<button class="__kw_ic" data-ext-open="' + esc(href) + '" title="bdocodex 페이지 열기" style="color:#00ffa3;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button></div>' +
+      '<button class="__kw_ic" data-ext-open="' + esc(href) + '" title="bdolytics 페이지 열기" style="color:#00ffa3;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button>' +
+      '<button class="__kw_ic" data-ext-open="' + esc(codexHref) + '" title="bdocodex 페이지 열기" style="color:#7ab8ff;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button></div>' +
       ((d.eng) ? '<div style="font-size:11px;color:#888;margin-top:2px">영어 이름: ' + esc(d.eng) + '</div>' : '');
     (d.stats || []).forEach((s, i) => {
       h += '<div style="font-size:11px;margin-top:2px;color:' + (i === 0 ? '#fff;font-weight:bold' : '#888') + '">' + esc(s) + '</div>';
@@ -1271,7 +1362,8 @@
       dropNextFlag = false;
       h += '<div style="font-size:11px;color:#ccc;margin-top:2px">· ' + esc(s) + '</div>';
     });
-    if (d.desc) h += '<div style="margin-top:6px;font-size:11px;color:#ddd;line-height:1.55;white-space:pre-line">' + esc(d.desc) + '</div>';
+    if (d.descLoading) h += '<div style="margin-top:6px;font-size:11px;color:#7ab8ff;line-height:1.55">설명 불러오는 중... (상세 설명 확인 중)</div>';
+    else if (d.desc) h += '<div style="margin-top:6px;font-size:11px;color:#ddd;line-height:1.55;white-space:pre-line">' + esc(d.desc) + '</div>';
     if ((d.effects || []).length) {
       h += '<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)"><div style="font-size:11px;font-weight:bold;color:#ff9ec4">아이템 효과</div>';
       d.effects.forEach((s) => {
@@ -1343,7 +1435,7 @@
       famResQ, fF ? fF.family : '', fF ? (fF.characters || []).length : 0, lvF ? lvF.phase : '-', liveFamRev,
       guildResQ, fG ? fG.guild : '', fG ? (fG.memberList || []).length : 0, fG ? fG.siege : '', lvG ? lvG.phase : '-', liveGuildRev,
       itemResQ, fI ? fI.length : 0, lvI ? lvI.phase : '-', (lvI && lvI.data && lvI.data.error) || '', (lvI && lvI.data && lvI.data.timeout) ? 't' : '', liveItemRev,
-      selId || '', selPhase,
+      selId || '', selPhase, (selData && selData.descLoading) ? 'dl' : '',
       bridgeOn ? 'b' : '-'].join('|');
     if (sig === resSig) return;
     resSig = sig;
@@ -1367,7 +1459,7 @@
             (m.role ? '<span style="background:#3a2a33;color:#ff9aab;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:bold;white-space:nowrap">' + esc(m.role) + '</span>' : '') + '</div>';
         });
       } else body = '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">검색 결과가 없습니다.<br>길드명을 정확히 입력했는지 확인하세요.</div>';
-    } else if (resKind === 'item') { // 목록 + 옆 상세 (bdocodex display:"목"만)
+    } else if (resKind === 'item') { // 목록 + 옆 상세 (bdolytics 1차 + bdocodex 설명 2차)
       const n = fI ? fI.length : 0;
       title = TI(TI_SEARCH, '#ff7ab8') + (fI ? esc(itemResQ) + '&nbsp;<span style="color:#ff7ab8">(' + n + ')</span>' : esc(itemResQ || '검색 결과'));
       liveTag = !!fI;
