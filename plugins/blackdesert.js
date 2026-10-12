@@ -1677,7 +1677,7 @@
   const LS_MKTPOS = '__kw_market_pos';
   const LS_MKTH = '__kw_market_h';
   const MKT_H_DEF = 400, MKT_H_MIN = 200, MKT_W = 340;
-  let marketEl = null, marketPhase = 'idle', marketName = '', marketData = null;
+  let marketEl = null, marketPhase = 'idle', marketName = '', marketData = null, marketKey = '';
   let marketPending = null; // 버튼 요청 보관 (현황창은 토큰 확보 후에만 염)
   let marketH = MKT_H_DEF;
   try { const mhv = parseInt(localStorage.getItem(LS_MKTH), 10); if (mhv >= MKT_H_MIN && mhv <= 4000) marketH = mhv; } catch (e) {}
@@ -1735,9 +1735,7 @@
     const last = pts[pts.length - 1];
     return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" style="display:block;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:8px">' +
       '<polyline points="' + line + '" fill="none" stroke="#00ffa3" stroke-width="1.6"/>' +
-      '<circle cx="' + X(pts.length - 1) + '" cy="' + Y(Number(last.value)) + '" r="2.4" fill="#00ffa3"/></svg>' +
-      '<div style="display:flex;justify-content:space-between;font-size:10px;color:#888;margin-top:2px"><span>' + fmtN(mx) + '</span><span>' + fmtN(mn) + '</span></div>' +
-      '<div style="font-size:11px;color:#fff;margin-top:2px">최근 <b>' + fmtN(last.value) + '</b> <span style="color:#888">(' + esc(String(last.days || '').slice(5)) + ')</span></div>';
+      '<circle cx="' + X(pts.length - 1) + '" cy="' + Y(Number(last.value)) + '" r="2.4" fill="#00ffa3"/></svg>';
   }
   function renderMarket() {
     if (!marketEl || !marketEl.isConnected) return;
@@ -1750,8 +1748,11 @@
       const buys = cond.filter((c) => Number(c.buyCount) > 0);
       const sellMin = sells.length ? Math.min.apply(null, sells.map((c) => Number(c.pricePerOne))) : 0;
       const buyMin = buys.length ? Math.min.apply(null, buys.map((c) => Number(c.pricePerOne))) : 0;
+      const buyMax = buys.length ? Math.max.apply(null, buys.map((c) => Number(c.pricePerOne))) : 0;
+      const sellShow = sellMin || buyMax; // 판매대기 없으면 구매최고가로 표시
       const sellTot = sells.reduce((n, c) => n + Number(c.sellCount), 0);
       const buyTot = buys.reduce((n, c) => n + Number(c.buyCount), 0);
+      const lastH = (marketData.hist || []).slice(-1)[0] || null;
       const rows = cond.slice().sort((a, b) => Number(b.pricePerOne) - Number(a.pricePerOne)).map((c) => {
         const p = Number(c.pricePerOne), s = Number(c.sellCount), b = Number(c.buyCount);
         let tag = '';
@@ -1763,16 +1764,17 @@
       body =
         '<div style="display:flex;gap:10px;margin-top:6px;flex:none">' +
         '<div style="flex:none">' + marketGraphSvg(marketData.hist) + '</div>' +
-        '<div style="flex:1;min-width:0;font-size:11px;line-height:1.9">' +
-        '<div>판매 최저가<br><b style="font-size:13px;color:#7dffb3">' + (sellMin ? fmtN(sellMin) : '없음') + '</b> <span style="color:#888">(' + fmtN(sellTot) + '건)</span></div>' +
-        '<div>구매 최저가<br><b style="font-size:13px;color:#ff9a9a">' + (buyMin ? fmtN(buyMin) : '없음') + '</b> <span style="color:#888">(' + fmtN(buyTot) + '건)</span></div>' +
-        '<div style="color:#888">기준가 ' + fmtN(marketData.basePrice) + '</div>' +
+        '<div style="flex:1;min-width:0;font-size:11px;line-height:2">' +
+        '<div style="display:flex;justify-content:space-between;gap:6px"><span>판매최저가 <b style="font-size:12px;color:#7dffb3">' + (sellShow ? fmtN(sellShow) : '없음') + '</b></span><span style="color:#888;white-space:nowrap">' + fmtN(sellTot) + '개</span></div>' +
+        '<div style="display:flex;justify-content:space-between;gap:6px"><span>구매최저가 <b style="font-size:12px;color:#ff9a9a">' + (buyMin ? fmtN(buyMin) : '없음') + '</b></span><span style="color:#888;white-space:nowrap">' + fmtN(buyTot) + '개</span></div>' +
         '</div></div>' +
+        '<div style="font-size:11px;color:#bbb;margin-top:6px;flex:none">최근 거래: ' + (lastH ? esc(String(lastH.days || '')) : '-') + '</div>' +
+        '<div style="font-size:11px;color:#bbb;flex:none">누적 거래: ' + fmtN(sellTot + buyTot) + '건</div>' +
         '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:8px -10px 0"></div>' +
         '<div class="__kw_sb_mkt" style="flex:1;min-height:0;overflow-y:auto;margin:0 -10px -18px;border-radius:0 0 12px 12px">' + (rows || '<div style="font-size:11px;color:#888;padding:8px 10px">목록 없음</div>') + '</div>';
     }
     marketEl.innerHTML = xBtn('__kw_bdo_mk_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
-      '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;overflow:hidden">' + TI(TI_SEARCH, '#ff7ab8') + esc(marketName || '거래소 현황') + '</b></div>' +
+      '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;overflow:hidden">' + (marketKey ? '<img src="https://static.pearlcdn.com/asset/trade/bdo_kr/Common/img/BDO/item/' + esc(String(marketKey)) + '.png" width="26" height="26" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06);margin-right:6px" onerror="this.remove()">' : '') + esc(marketName || '거래소 현황') + '</b></div>' +
       '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' + body;
     const mx = marketEl.querySelector('#__kw_bdo_mk_x');
     if (mx) mx.onclick = () => { marketData = null; marketPhase = 'idle'; removeMarket(); };
@@ -1805,6 +1807,7 @@
   function marketQueryWithToken(key, token) { // GetItemSellBuyInfo 1회 조회 → 현황창에 표시
     if (marketPending && marketPending.key === String(key) && marketPending.name) marketName = marketPending.name;
     if (!marketName) marketName = itemResQ || '거래소 현황';
+    marketKey = String(key);
     marketPhase = 'loading';
     try { updateMarket(); } catch (e) {} // 현황창은 토큰 확보된 뒤에 처음 염
     const body = '__RequestVerificationToken=' + encodeURIComponent(token) + '&keyType=0&mainKey=' + encodeURIComponent(key) + '&subKey=0&isUp=false';
@@ -1884,6 +1887,7 @@
   if (KW.beta) { // 정식 앱에서는 테스트 후크를 만들지 않는다
     window.__kwBdoMarketTest = (mainKey, name) => {
       const key = String(mainKey || '4998');
+      marketKey = key;
       marketPending = { key, name: String(name || itemResQ || '거래소 현황') };
       marketProbeOnce(key).then((done) => {
         if (done) return; // 로그인됨 → 바로 조회 끝. 창을 열지 않음
