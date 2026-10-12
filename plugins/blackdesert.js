@@ -469,7 +469,9 @@
           cpnEl.style.height = Math.min(cpnH, cpnHMax()) + 'px';
         }
         try { localStorage.setItem(LS_CPNH, String(cpnH)); } catch (er) {}
+        // [BETA-TEST-ONLY:start] 쿠폰 맞춤 진단 로그
         try { console.log('[KW-BETA]', 'cpn-fit', JSON.stringify({ need, anchorB: Math.round(anchorB), H: cpnH, topAfter: cpnEl.style.top, isFx: cpnEl.style.position === 'fixed' })); } catch (er3) {}
+        // [BETA-TEST-ONLY:end]
       } catch (e5) {}
     }
     // 높이는 패널 통째로 명시 (내용 길이에 관계없이 조절이 바로 보이게). 접힘 상태는 자동 높이.
@@ -498,7 +500,9 @@
       } else {
         try { cpnFoldB = Math.round(cpnEl.getBoundingClientRect().bottom); } catch (ex3) { cpnFoldB = 0; }
       }
+      // [BETA-TEST-ONLY:start] 쿠폰 펼치기 진단 로그
       try { console.log('[KW-BETA]', 'cpn-unfold-click', JSON.stringify({ was })); } catch (ex) {}
+      // [BETA-TEST-ONLY:end]
       cpnSig = '';
     };
     const cx = cpnEl.querySelector('#__kw_cpn_x');
