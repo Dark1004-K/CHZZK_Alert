@@ -1402,7 +1402,7 @@
       '<button class="__kw_ic" data-ext-open="' + esc(href) + '" title="bdolytics" style="color:#00ffa3;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button>' +
       '<button class="__kw_ic" data-ext-open="' + esc(codexHref) + '" title="bdocodex" style="color:#7ab8ff;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button></div>';
     const marketHook = (typeof window !== 'undefined' && typeof window.__kwBdoMarketTest === 'function');
-    if (marketHook) h += '<button data-market-open="' + esc(selId) + '" title="거래소 현황 보기" style="margin-top:8px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35);color:#7dffb3;border-radius:8px;padding:6px;font-size:11px;font-weight:bold;cursor:pointer"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>거래소 현황 보기</button>';
+    if (marketHook) h += '<button data-market-open="' + esc(selId) + '" data-market-name="' + esc(nm) + '" title="거래소 현황 보기" style="margin-top:8px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35);color:#7dffb3;border-radius:8px;padding:6px;font-size:11px;font-weight:bold;cursor:pointer"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>거래소 현황 보기</button>';
     if ((d.stats || []).length) {
       h += '<div style="margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.12)">';
       (d.stats || []).forEach((s, i) => {
@@ -1600,7 +1600,8 @@
       b.onclick = (e) => {
         try { e.stopPropagation(); } catch (er) {}
         const id = b.getAttribute('data-market-open');
-        if (id && typeof window.__kwBdoMarketTest === 'function') { try { window.__kwBdoMarketTest(id); } catch (er2) {} }
+        const nm = b.getAttribute('data-market-name');
+        if (id && typeof window.__kwBdoMarketTest === 'function') { try { window.__kwBdoMarketTest(id, nm); } catch (er2) {} }
       };
     });
   }
@@ -1672,23 +1673,156 @@
     const m = /name="__RequestVerificationToken"[^>]*value="([^"]+)"/.exec(String(html || ''));
     return m ? m[1] : null;
   }
-  function marketQueryWithToken(key, token) { // 토큰으로 시세 1회 조회 → 성공 시 true
-    const body = '__RequestVerificationToken=' + encodeURIComponent(token) + '&mainKey=' + encodeURIComponent(key) + '&usingCleint=0';
-    try { mlog('query', 'mainKey=' + key, 'token ' + String(token || '').length + '자: ' + String(token || '').slice(0, 20) + '...'); } catch (e) {}
-    return marketCall('postForm', { url: TRADE_BASE + '/Home/GetWorldMarketSubList', body }).then((pr) => {
+  // ---------- 거래소 현황창 (#__kw_bdo_mk, 결과창 오른쪽) ----------
+  const LS_MKTPOS = '__kw_market_pos';
+  const LS_MKTH = '__kw_market_h';
+  const MKT_H_DEF = 400, MKT_H_MIN = 200, MKT_W = 340;
+  let marketEl = null, marketPhase = 'idle', marketName = '', marketData = null;
+  let marketH = MKT_H_DEF;
+  try { const mhv = parseInt(localStorage.getItem(LS_MKTH), 10); if (mhv >= MKT_H_MIN && mhv <= 4000) marketH = mhv; } catch (e) {}
+  const fmtN = (n) => { try { return Number(n).toLocaleString('ko-KR'); } catch (e) { return String(n); } };
+  function removeMarket() {
+    if (marketEl) { try { marketEl.remove(); } catch (e) {} }
+    marketEl = null;
+  }
+  function placeMarket() { // 결과창 오른쪽, 없으면 검색창 오른쪽, 그것도 없으면 화면 오른쪽
+    if (!marketEl) return;
+    let done = false;
+    try {
+      const o = JSON.parse(localStorage.getItem(LS_MKTPOS));
+      if (o && isFinite(o.x) && isFinite(o.y)) {
+        const w = isFinite(o.w) ? Math.max(225, Math.min(600, Math.round(o.w))) : MKT_W;
+        marketEl.style.position = 'fixed';
+        marketEl.style.left = Math.max(0, Math.min(window.innerWidth - w, o.x)) + 'px';
+        marketEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, o.y)) + 'px';
+        marketEl.style.bottom = 'auto';
+        marketEl.style.width = w + 'px';
+        done = true;
+      }
+    } catch (e) {}
+    if (done) return;
+    try {
+      const anchor = (typeof resEl !== 'undefined' && resEl && resEl.isConnected) ? resEl.getBoundingClientRect()
+        : (typeof famEl !== 'undefined' && famEl && famEl.isConnected) ? famEl.getBoundingClientRect() : null;
+      const w = MKT_W;
+      marketEl.style.position = 'fixed';
+      marketEl.style.width = w + 'px';
+      marketEl.style.bottom = 'auto';
+      if (anchor && anchor.width > 0 && anchor.right + 8 + w <= window.innerWidth) {
+        marketEl.style.left = Math.round(anchor.right + 8) + 'px';
+        marketEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, Math.round(anchor.top))) + 'px';
+      } else if (anchor && anchor.width > 0 && anchor.left - 8 - w >= 0) {
+        marketEl.style.left = Math.round(anchor.left - 8 - w) + 'px';
+        marketEl.style.top = Math.max(0, Math.min(window.innerHeight - 100, Math.round(anchor.top))) + 'px';
+      } else {
+        marketEl.style.left = Math.max(0, window.innerWidth - w - 16) + 'px';
+        marketEl.style.top = '70px';
+      }
+    } catch (e2) {}
+  }
+  function marketGraphSvg(hist) { // 최근 시세 간략 그래프 (인라인 SVG, 외부 라이브러리 없음)
+    const W = 150, H = 64, P = 5;
+    const pts = (hist || []).slice(-30);
+    if (pts.length < 2) return '<div style="font-size:11px;color:#888">시세 기록 없음</div>';
+    let mn = Infinity, mx = -Infinity;
+    pts.forEach((p) => { const v = Number(p.value); if (isFinite(v)) { if (v < mn) mn = v; if (v > mx) mx = v; } });
+    if (!isFinite(mn)) return '<div style="font-size:11px;color:#888">시세 기록 없음</div>';
+    if (mx === mn) mx = mn + 1;
+    const X = (i) => (P + (W - P * 2) * (i / (pts.length - 1))).toFixed(1);
+    const Y = (v) => (H - P - (H - P * 2) * ((v - mn) / (mx - mn))).toFixed(1);
+    const line = pts.map((p, i) => X(i) + ',' + Y(Number(p.value))).join(' ');
+    const last = pts[pts.length - 1];
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" style="display:block;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:8px">' +
+      '<polyline points="' + line + '" fill="none" stroke="#00ffa3" stroke-width="1.6"/>' +
+      '<circle cx="' + X(pts.length - 1) + '" cy="' + Y(Number(last.value)) + '" r="2.4" fill="#00ffa3"/></svg>' +
+      '<div style="display:flex;justify-content:space-between;font-size:10px;color:#888;margin-top:2px"><span>' + fmtN(mx) + '</span><span>' + fmtN(mn) + '</span></div>' +
+      '<div style="font-size:11px;color:#fff;margin-top:2px">최근 <b>' + fmtN(last.value) + '</b> <span style="color:#888">(' + esc(String(last.days || '').slice(5)) + ')</span></div>';
+  }
+  function renderMarket() {
+    if (!marketEl || !marketEl.isConnected) return;
+    let body = '';
+    if (marketPhase === 'loading') body = '<div style="font-size:11px;color:#aaa;margin-top:8px">시세 불러오는 중...</div>';
+    else if (marketPhase === 'miss' || !marketData) body = '<div style="font-size:11px;color:#ff9a9a;margin-top:8px;line-height:1.6">시세를 불러오지 못했습니다.<br>로그인 상태를 확인하고 다시 눌러주세요.</div>';
+    else {
+      const cond = marketData.cond || [];
+      const sells = cond.filter((c) => Number(c.sellCount) > 0);
+      const buys = cond.filter((c) => Number(c.buyCount) > 0);
+      const sellMin = sells.length ? Math.min.apply(null, sells.map((c) => Number(c.pricePerOne))) : 0;
+      const buyMin = buys.length ? Math.min.apply(null, buys.map((c) => Number(c.pricePerOne))) : 0;
+      const sellTot = sells.reduce((n, c) => n + Number(c.sellCount), 0);
+      const buyTot = buys.reduce((n, c) => n + Number(c.buyCount), 0);
+      const rows = cond.slice().sort((a, b) => Number(b.pricePerOne) - Number(a.pricePerOne)).map((c) => {
+        const p = Number(c.pricePerOne), s = Number(c.sellCount), b = Number(c.buyCount);
+        let tag = '';
+        if (s > 0) tag += '<div style="font-size:10px;color:#7dffb3;white-space:nowrap">판매 대기 ' + fmtN(s) + '건</div>';
+        if (b > 0) tag += '<div style="font-size:10px;color:#aaa;white-space:nowrap">구매 대기 ' + fmtN(b) + '건</div>';
+        return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;background:rgba(255,120,120,.10);border-bottom:1px solid rgba(0,0,0,.5)">' +
+          '<b style="font-size:12px;color:#ff9a9a">' + fmtN(p) + '</b><div style="text-align:right">' + (tag || '<span style="font-size:10px;color:#555">-</span>') + '</div></div>';
+      }).join('');
+      body =
+        '<div style="display:flex;gap:10px;margin-top:6px;flex:none">' +
+        '<div style="flex:none">' + marketGraphSvg(marketData.hist) + '</div>' +
+        '<div style="flex:1;min-width:0;font-size:11px;line-height:1.9">' +
+        '<div>판매 최저가<br><b style="font-size:13px;color:#7dffb3">' + (sellMin ? fmtN(sellMin) : '없음') + '</b> <span style="color:#888">(' + fmtN(sellTot) + '건)</span></div>' +
+        '<div>구매 최저가<br><b style="font-size:13px;color:#ff9a9a">' + (buyMin ? fmtN(buyMin) : '없음') + '</b> <span style="color:#888">(' + fmtN(buyTot) + '건)</span></div>' +
+        '<div style="color:#888">기준가 ' + fmtN(marketData.basePrice) + '</div>' +
+        '</div></div>' +
+        '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:8px -10px 0"></div>' +
+        '<div class="__kw_sb_mkt" style="flex:1;min-height:0;overflow-y:auto;margin:0 -10px -18px;border-radius:0 0 12px 12px">' + (rows || '<div style="font-size:11px;color:#888;padding:8px 10px">목록 없음</div>') + '</div>';
+    }
+    marketEl.innerHTML = xBtn('__kw_bdo_mk_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
+      '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;overflow:hidden">' + TI(TI_SEARCH, '#ff7ab8') + esc(marketName || '거래소 현황') + '</b></div>' +
+      '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' + body;
+    const mx = marketEl.querySelector('#__kw_bdo_mk_x');
+    if (mx) mx.onclick = () => { marketData = null; marketPhase = 'idle'; removeMarket(); };
+  }
+  function updateMarket() {
+    if (!opt('family', true)) { removeMarket(); return; }
+    if (marketPhase === 'idle' && !marketData) { removeMarket(); return; }
+    if (!marketEl || !marketEl.isConnected) {
+      marketEl = document.createElement('div');
+      marketEl.id = '__kw_bdo_mk';
+      marketEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;opacity:' + bdoOpacity() + ';height:' + Math.min(marketH, resHMax()) + 'px';
+      document.body.appendChild(marketEl);
+      placeMarket();
+    }
+    renderMarket();
+    try { // 창 기본형 상속: 현황창=가로+세로
+      if (KW && typeof KW.window === 'function') {
+        KW.window(marketEl, {
+          color: '#ff7ab8', posKey: LS_MKTPOS, rsz: 'd', dock: () => placeMarket(),
+          getH: () => marketH,
+          setH: (v) => {
+            marketH = Math.max(MKT_H_MIN, Math.min(resHMax(), v));
+            marketEl.style.height = Math.min(marketH, resHMax()) + 'px';
+          },
+          saveH: () => { try { localStorage.setItem(LS_MKTH, String(marketH)); } catch (er) {} },
+        });
+      }
+    } catch (e) {}
+  }
+  function marketQueryWithToken(key, token) { // GetItemSellBuyInfo 1회 조회 → 현황창에 표시
+    const body = '__RequestVerificationToken=' + encodeURIComponent(token) + '&keyType=0&mainKey=' + encodeURIComponent(key) + '&subKey=0&isUp=false';
+    try { mlog('query', 'mainKey=' + key, 'token ' + String(token || '').length + '자'); } catch (e) {}
+    return marketCall('postForm', { url: TRADE_BASE + '/Home/GetItemSellBuyInfo', body }).then((pr) => {
       const txt = (pr && pr.ok && pr.data) ? String(pr.data.text || '') : '';
       try { mlog('query-res', 'mainKey=' + key, 'ok=' + (pr && pr.ok), 'len=' + txt.length, txt.slice(0, 1000)); } catch (e) {}
-      if (!txt) return false;
-      let summary = '토큰 찾음. 응답 ' + txt.length + '자';
-      try {
-        const j = JSON.parse(txt);
-        summary += ' / resultCode=' + j.resultCode + ' ' + (j.resultMsg || '');
-        if (Number(j.resultCode) === 0) summary += ' 성공!';
-      } catch (e) { summary += ' (JSON 아님: ' + txt.slice(0, 80) + ')'; }
-      try { if (typeof KW.toast === 'function') KW.toast('거래소 테스트', summary); } catch (e) {}
+      if (!txt) { marketPhase = 'miss'; renderMarket(); return false; }
+      let j = null;
+      try { j = JSON.parse(txt); } catch (e) {}
+      if (!j || Number(j.resultCode) !== 0) {
+        marketPhase = 'miss'; renderMarket();
+        try { if (typeof KW.toast === 'function') KW.toast('거래소 현황', '조회 실패 (resultCode=' + (j && j.resultCode) + ')'); } catch (e) {}
+        return false;
+      }
+      let hist = [];
+      try { const h = JSON.parse(j.resultMsg); if (Array.isArray(h)) hist = h; } catch (e) {}
+      marketData = { key, cond: Array.isArray(j.marketConditionList) ? j.marketConditionList : [], basePrice: Number(j.basePrice) || 0, hist };
+      marketPhase = 'ok';
       try { window.__kwBdoMarketLast = { key, reqBody: body, response: txt.slice(0, 5000) }; } catch (e) {}
+      renderMarket();
       return true;
-    }).catch(() => false);
+    }).catch(() => { marketPhase = 'miss'; renderMarket(); return false; });
   }
   function marketProbeOnce(key) { // 로그인 확인용 1회 시도: 결과가 오면 로그인됨 (창을 열지 않음)
     const pages = [TRADE_BASE + '/', TRADE_BASE + '/Home/list'];
@@ -1716,7 +1850,10 @@
           if (t) { await marketQueryWithToken(key, t); return; }
         }
         if (left > 0) setTimeout(() => marketTestPoll(key, left - 1), 3000);
-        else { try { if (typeof KW.toast === 'function') KW.toast('거래소 테스트', '토큰을 못 찾았습니다. 로그인 상태를 확인하세요.'); } catch (e) {} }
+        else {
+          try { if (typeof KW.toast === 'function') KW.toast('거래소 테스트', '토큰을 못 찾았습니다. 로그인 상태를 확인하세요.'); } catch (e) {}
+          marketPhase = 'miss'; try { renderMarket(); } catch (e) {}
+        }
       } catch (e) {}
     })();
     return step;
@@ -1740,8 +1877,11 @@
     } catch (e) {}
   }
   if (KW.beta) { // 정식 앱에서는 테스트 후크를 만들지 않는다
-    window.__kwBdoMarketTest = (mainKey) => {
+    window.__kwBdoMarketTest = (mainKey, name) => {
       const key = String(mainKey || '4998');
+      marketName = String(name || itemResQ || '거래소 현황');
+      marketPhase = 'loading';
+      try { updateMarket(); } catch (e) {}
       marketProbeOnce(key).then((done) => {
         if (done) return; // 로그인됨 → 바로 조회 끝. 창을 열지 않음
         marketLoginModal(() => { // 미로그인 → 안내 후 로그인용 팝업 윈도우 (새 탭이 아님). 로그인 후 폴링이 자동 조회
@@ -1769,11 +1909,11 @@
           selId = null; selPhase = ''; selData = null;
           try { localStorage.removeItem(LS_FAMQ); localStorage.removeItem(LS_GUILDQ); localStorage.removeItem(LS_ITEMQ); } catch (e) {}
           famSig = null; resSig = null;
-          removeFamily(); removeRes();
+          removeFamily(); removeRes(); marketData = null; marketPhase = 'idle'; removeMarket();
         }
         lastHref = href;
       } catch (e) {}
-      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); removeRes(); return; }
+      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); removeRes(); marketData = null; marketPhase = 'idle'; removeMarket(); return; }
       const now = Date.now();
       if (now - bossFetchedAt >= BOSS_REFRESH_MS) loadSchedule(); // 처음 켜질 때 한 번, 이후 6시간마다
       if (bossSlotDue(now)) { // 매주 수요일 12:27 (액션 17분 뒤)
@@ -1785,6 +1925,7 @@
       updateParty(now);
       updateFamily(now);
       updateRes(now);
+      try { updateMarket(); } catch (e2) {}
       const lead = Math.max(1, Math.min(30, Number(opt('lead', 3)) || 3)) * 60000;
       const sel = opt('bosses', null);
       const active = new Set();
