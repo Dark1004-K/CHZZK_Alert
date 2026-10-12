@@ -1407,7 +1407,7 @@
           desc = decHtml(sg.replace(/[\s\S]*?-\s*설명\s*:?/, '').replace(/<br\s*\/?>/g, '\n')).trim();
           continue;
         }
-        sg.split(/<br\s*\/?>/).forEach((ln) => { const s = decHtml(ln); if (s) flags.push(s); });
+        sg.split(/<br\s*\/?>/).forEach((ln) => { const s = decHtml(ln); if (!s) return; if (/^\s*-?\s*획득\s*시\s*귀속\s*$/.test(s)) return; flags.push(s); }); // '(-) 획득 시 귀속' 표기는 빼고 하위 내용은 유지
       }
     }
     return { icon, eng, stats, flags, desc, effects };
