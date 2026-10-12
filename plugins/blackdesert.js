@@ -798,16 +798,16 @@
   function openFamSrc(anchor) {
     if (famSrcEl && famSrcEl.isConnected) { removeFamSrc(); return; } // 토글 닫기
     removeFamSrc();
-    const W = Math.min(300, window.innerWidth - 16);
+    const W = Math.min(320, window.innerWidth - 16);
     const w = document.createElement('div');
     w.id = '__kw_bdo_famsrc';
-    w.style.cssText = 'position:fixed;z-index:2147483646;width:' + W + 'px;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px/1.7 sans-serif;padding:10px 12px 12px;border-radius:12px;border:1px solid #ff7ab8;box-shadow:0 4px 16px rgba(0,0,0,.5);opacity:' + bdoOpacity();
-    const link = (url, label) => '<div><button data-src-go="' + url + '" title="' + label + ' 열기" style="border:0;background:transparent;color:#7ab8ff;font-size:11px;padding:0;cursor:pointer;text-decoration:underline">' + label + '</button></div>';
-    w.innerHTML = xBtn('__kw_bdo_famsrc_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
-      '<div style="font-size:12px;font-weight:bold;margin-bottom:4px;padding-right:26px">데이터 출처</div>' +
-      '<div style="font-size:11px;color:#ccc">본 데이터는 아래의 사이트를 참고합니다.</div>' +
+    w.style.cssText = 'position:fixed;z-index:2147483646;width:' + W + 'px;max-height:60vh;overflow-y:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px/1.55 sans-serif;padding:12px 14px 14px;border-radius:12px;border:1px solid #777;box-shadow:0 8px 28px rgba(0,0,0,.6);scrollbar-width:thin;opacity:' + bdoOpacity();
+    const link = (url, label) => '<div style="color:#ccc">' + '<button data-src-go="' + url + '" title="' + label + ' 열기" style="border:0;background:transparent;color:#7ab8ff;font-size:13px;padding:0;cursor:pointer;text-decoration:underline">' + label + '</button></div>';
+    w.innerHTML = xBtn('__kw_bdo_famsrc_x', '#aaaab9', 'position:absolute;top:2px;right:3px;z-index:2') +
+      '<div style="display:flex;align-items:center;min-height:22px;padding-right:26px;margin-bottom:6px"><b style="font-size:13px">데이터 출처</b></div>' +
+      '<div style="color:#ccc">본 데이터는 아래의 사이트를 참고합니다.</div>' +
       '<div style="margin-top:2px">' + link('https://bdocodex.com', 'bdocodex.com') + link('https://bdolytics.com', 'bdolytics.com') + link('https://www.kr.playblackdesert.com', 'www.kr.playblackdesert.com') + '</div>' +
-      '<div style="margin-top:6px;font-size:11px;color:#ccc">위 사이트와 협약은 맺지 않아 기능이 사라질 수 있습니다.<br>또한, 해당 기능이 사이트 침해를 한다면 제작자에게 연락을 부탁 드립니다.</div>';
+      '<div style="margin-top:6px;color:#ccc">위 사이트와 협약은 맺지 않아 기능이 사라질 수 있습니다.<br>또한, 해당 기능이 사이트 침해를 한다면 제작자에게 연락을 부탁 드립니다.</div>';
     document.body.appendChild(w);
     try { // ? 버튼 바로 위 (위 공간 부족이면 아래)
       const r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : null;
@@ -854,7 +854,7 @@
     } catch (er) {}
     famEl.innerHTML = xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
       '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + '검은사막 검색</b>' +
-      '<button id="__kw_fam_src" title="데이터 출처" style="width:16px;height:16px;margin-left:6px;padding:0;border-radius:50%;border:1px solid #8a8a99;background:transparent;color:#ccc;font:bold 11px/14px sans-serif;cursor:pointer;flex:none">?</button></div>' +
+      '<button id="__kw_fam_src" title="데이터 출처" style="align-self:center;width:16px;height:16px;margin-left:6px;padding:0;border-radius:50%;border:1px solid #8a8a99;background:transparent;color:#ccc;font:bold 11px/14px sans-serif;cursor:pointer;flex:none">?</button></div>' +
       '<div style="display:flex;gap:6px;flex:none;margin-top:4px;padding-left:19px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>' +
       '<div style="display:flex;gap:6px;flex:none;margin-top:6px;padding-left:19px"><input id="__kw_guild_q" class="__kw_in" placeholder="길드명 입력" value="' + esc(guildQuery) + '" style="flex:1;min-width:0"><button id="__kw_guild_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>' +
       '<div style="display:flex;gap:6px;flex:none;margin-top:6px;padding-left:19px"><input id="__kw_item_q" class="__kw_in" placeholder="아이템명 입력" value="' + esc(itemQuery) + '" style="flex:1;min-width:0"><button id="__kw_item_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>';
