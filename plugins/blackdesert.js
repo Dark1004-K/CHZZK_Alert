@@ -1233,11 +1233,11 @@
       const nm = (m && m.name) || String(ing.itemId);
       return { name: nm, amount: ing.quantity, id: String(ing.itemId), icon: calcIcon(m), grade: (m && m.grade != null ? m.grade : null) };
     }
-    if (ing.groupId != null) { // 대체재 그룹: 첫 항목을 대표로, 나머지는 alt에 보관
+    if (ing.groupId != null) { // 대체재 그룹: crafting과 동일하게 value===1인 항목을 대표로 (없으면 첫 항목)
       const items = calcGroupOf(ing.groupId) || [];
       if (!items.length) return { name: '재료 그룹 ' + ing.groupId, amount: ing.quantity, id: '', icon: '', grade: null };
-      const rep = items[0], m0 = calcMetaOf(rep.itemId);
-      const alts = items.slice(1).map((x) => {
+      const rep = items.find((x) => Number(x.value) === 1) || items[0], m0 = calcMetaOf(rep.itemId);
+      const alts = items.filter((x) => x !== rep).map((x) => {
         const mm = calcMetaOf(x.itemId);
         return { name: (mm && mm.name) || String(x.itemId), amount: ing.quantity, id: String(x.itemId), icon: calcIcon(mm), grade: (mm && mm.grade != null ? mm.grade : null), value: x.value };
       });
