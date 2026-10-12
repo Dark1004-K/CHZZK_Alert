@@ -8,7 +8,7 @@
   if (!KW || typeof KW.option !== 'function' || typeof KW.enabled !== 'function') return;
   if (window.__kwBdoLoaded) return;
   window.__kwBdoLoaded = true;
-  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.3' }); } catch (e) {}
+  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.4' }); } catch (e) {}
   const ID = 'blackdesert';
   // 썸네일 박스: 로딩 중 스피너 → 완료 시 이미지 → 실패 시 "NO"
   // (onload/onerror="..." 인라인에서 호출. 박스(.​__kw_thumb) 구조에 의존)
@@ -1226,7 +1226,7 @@
         if (/id="edescription"/.test(sg) || /아이템 효과/.test(sg)) {
           sg.split(/<br\s*\/?>/).forEach((ln) => {
             const s = decHtml(ln);
-            if (s && s !== '아이템 효과' && !/^[A-Z_0-9]+$/.test(s)) effects.push(s); // 섹션 제목·내부 코드는 제외
+            if (s && s !== '아이템 효과' && !/^[A-Z_0-9]+$/.test(s) && !/^-\s*/.test(s)) effects.push(s); // 섹션 제목·내부 코드·머리말('- ...')은 제외
           });
           continue;
         }
@@ -1389,12 +1389,14 @@
     const codexHref = CODEX_BASE + '/kr/item/' + encodeURIComponent(selId) + '/';
     const icon = (d && d.icon) || (it && it.icon) || '';
     let h = '<div style="margin-top:6px;border:1px solid rgba(255,255,255,.16);border-top:2px solid ' + gc + ';border-radius:10px;background:linear-gradient(180deg,rgba(36,36,46,.98),rgba(18,18,24,.98));padding:10px;box-shadow:0 2px 10px rgba(0,0,0,.5)">' +
-      '<div style="display:flex;align-items:center;gap:9px">' +
+      '<div style="display:flex;align-items:flex-start;gap:9px">' +
       (icon ? '<img loading="lazy" src="' + esc(icon) + '" width="44" height="44" style="flex:none;border-radius:9px;border:2px solid ' + gc + ';background:rgba(0,0,0,.5)" onerror="__kwNoImg(this)">' : '') +
-      '<div style="flex:1;min-width:0"><b style="display:block;font-size:14px;color:' + gc + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(nm) + '</b>' +
+      '<div style="flex:1;min-width:0;align-self:center"><b style="display:block;font-size:14px;color:' + gc + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(nm) + '</b>' +
       ((d.eng) ? '<span style="display:block;font-size:11px;color:#8a8a99;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(d.eng) + '</span>' : '') + '</div>' +
       '<button class="__kw_ic" data-ext-open="' + esc(href) + '" title="bdolytics" style="color:#00ffa3;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button>' +
       '<button class="__kw_ic" data-ext-open="' + esc(codexHref) + '" title="bdocodex" style="color:#7ab8ff;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button></div>';
+    const marketHook = (typeof window !== 'undefined' && typeof window.__kwBdoMarketTest === 'function');
+    if (marketHook) h += '<button data-market-open="' + esc(selId) + '" title="거래소 현황 보기" style="margin-top:8px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35);color:#7dffb3;border-radius:8px;padding:6px;font-size:11px;font-weight:bold;cursor:pointer"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>거래소 현황 보기</button>';
     if ((d.stats || []).length) {
       h += '<div style="margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.12)">';
       (d.stats || []).forEach((s, i) => {
@@ -1588,6 +1590,13 @@
         if (u) { try { window.open(u, '_blank', 'noopener'); } catch (er2) {} }
       };
     });
+    resEl.querySelectorAll('[data-market-open]').forEach((b) => {
+      b.onclick = (e) => {
+        try { e.stopPropagation(); } catch (er) {}
+        const id = b.getAttribute('data-market-open');
+        if (id && typeof window.__kwBdoMarketTest === 'function') { try { window.__kwBdoMarketTest(id); } catch (er2) {} }
+      };
+    });
   }
   function updateRes(now) {
     const stack = document.getElementById('__kw_stack');
@@ -1693,19 +1702,39 @@
     })();
     return step;
   }
+  function marketLoginModal(onLogin) { // 1회 로그인 안내 팝업 (로그인/닫기)
+    try { const ex = document.getElementById('__kw_trade_login'); if (ex) ex.remove(); } catch (e) {}
+    const w = document.createElement('div');
+    w.id = '__kw_trade_login';
+    w.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6)';
+    w.innerHTML = '<div style="width:min(420px,90vw);box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:16px;border-radius:12px;border:1px solid #ff9f1a;box-shadow:0 4px 24px rgba(0,0,0,.6)">' +
+      '<b style="font-size:13px">검은사막 거래소 로그인</b>' +
+      '<div style="margin-top:8px;font-size:12px;color:#ddd;line-height:1.7;white-space:pre-line">검은사막 거래소 현황을 보기 위해서는 1회 로그인이 필요합니다.\nCHZZK Alert는 절대적으로 개인 PC에서만 구동되며,\n로그인 정보 및 개인 정보를 절대 수집하지 않으니 안심하시고 사용하셔도 됩니다.</div>' +
+      '<div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button id="__kw_trade_login_no" style="border:1px solid rgba(255,255,255,.25);background:transparent;color:#ccc;border-radius:8px;padding:7px 16px;font-size:12px;cursor:pointer">닫기</button>' +
+      '<button id="__kw_trade_login_yes" style="border:0;background:#00ffa3;color:#000;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:bold;cursor:pointer">로그인</button></div></div>';
+    const close = () => { try { w.remove(); } catch (e) {} };
+    try {
+      w.addEventListener('mousedown', (e) => { if (e.target === w) close(); });
+      w.querySelector('#__kw_trade_login_no').onclick = close;
+      w.querySelector('#__kw_trade_login_yes').onclick = () => { close(); try { onLogin(); } catch (e) {} };
+      document.body.appendChild(w);
+    } catch (e) {}
+  }
   if (KW.beta) { // 정식 앱에서는 테스트 후크를 만들지 않는다
     window.__kwBdoMarketTest = (mainKey) => {
       const key = String(mainKey || '4998');
       marketProbeOnce(key).then((done) => {
         if (done) return; // 로그인됨 → 바로 조회 끝. 창을 열지 않음
-        try { // 미로그인 → 로그인용 팝업 윈도우 (새 탭이 아님). 로그인 후 폴링이 자동 조회
-          const w = window.open(TRADE_BASE + '/', 'kwTradeLogin', 'width=560,height=720,menubar=no,toolbar=no,location=yes,resizable=yes,scrollbars=yes');
-          if (!w) { try { if (typeof KW.toast === 'function') KW.toast('거래소 테스트', '팝업이 차단됐습니다. 팝업을 허용하고 다시 누르세요.'); } catch (e) {} return; }
-          try { if (w.focus) w.focus(); } catch (e) {}
-        } catch (e) {}
-        marketTestPoll(key, 30);
+        marketLoginModal(() => { // 미로그인 → 안내 후 로그인용 팝업 윈도우 (새 탭이 아님). 로그인 후 폴링이 자동 조회
+          try {
+            const w = window.open(TRADE_BASE + '/', 'kwTradeLogin', 'width=560,height=720,menubar=no,toolbar=no,location=yes,resizable=yes,scrollbars=yes');
+            if (!w) { try { if (typeof KW.toast === 'function') KW.toast('거래소 테스트', '팝업이 차단됐습니다. 팝업을 허용하고 다시 누르세요.'); } catch (e) {} return; }
+            try { if (w.focus) w.focus(); } catch (e) {}
+          } catch (e) {}
+          marketTestPoll(key, 30);
+        });
       });
-      return '로그인 상태 확인 중... (로그인이 안 되어 있으면 팝업이 열립니다)';
+      return '로그인 상태 확인 중... (로그인이 안 되어 있으면 안내 창이 열립니다)';
     };
   }
   // [BETA-TEST-ONLY:end]
