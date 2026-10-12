@@ -1666,7 +1666,7 @@
       ? recipeRows(rcpRecipes, 0)
       : '<div style="font-size:11px;color:#888;margin-top:8px">레시피가 없습니다.</div>';
     rcpEl.innerHTML = xBtn('__kw_bdo_rcp_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
-      '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;overflow:hidden">' + (rcpIcon ? '<img src="' + esc(rcpIcon) + '" width="26" height="26" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06);margin-right:6px" onerror="this.remove()">' : '') + esc(rcpName || '제작 레시피') + '</b></div>' +
+      '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;overflow:hidden">' + (rcpIcon ? '<img src="' + esc(rcpIcon) + '" width="26" height="26" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06);margin-right:6px" onerror="this.remove()">' : '') + esc(rcpName ? rcpName + ' - 제작 레시피' : '제작 레시피') + '</b></div>' +
       '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' +
       '<div class="__kw_sb_rcp" style="flex:1;min-height:0;overflow-y:auto;margin-top:2px">' + body + '</div>' +
       (hasCalcCrafting() ? '<button data-rcp-ext style="margin-top:8px;width:100%;box-sizing:border-box;background:transparent;border:1px solid rgba(255,255,255,.2);color:#7ab8ff;border-radius:8px;padding:6px;font-size:11px;cursor:pointer;flex:none">bdolytics 제작 페이지 열기</button>' : '');
@@ -1802,11 +1802,11 @@
   function openRecipeWindow(id, name, icon) {
     id = String(id || '');
     if (!id) return;
-    rcpKey = id; rcpName = String(name || '제작 레시피'); rcpIcon = String(icon || '');
+    rcpKey = id; rcpName = String(name || ''); rcpIcon = String(icon || '');
     rcpExpanded = {}; rcpSub = {}; rcpInflight = {};
     const cv = recipeCache[id];
     const flat = ((typeof selId !== 'undefined' && selId === id && selData && selData.recipes) || (cv && cv.recipes) || []);
-    rcpRecipes = flat.length ? [{ name: rcpName, ingredients: flat.map((g) => ({ name: g.name, amount: g.amount, id: g.id || '', icon: g.icon || '', grade: (g.grade != null ? g.grade : null), alt: g.alt || null })) }] : [];
+    rcpRecipes = flat.length ? [{ name: rcpName || '제작 레시피', ingredients: flat.map((g) => ({ name: g.name, amount: g.amount, id: g.id || '', icon: g.icon || '', grade: (g.grade != null ? g.grade : null), alt: g.alt || null })) }] : [];
     updateRecipe();
     const all = [];
     rcpRecipes.forEach((r) => { (r.ingredients || []).forEach((g) => all.push(g)); });
@@ -2261,7 +2261,7 @@
         '<div class="__kw_sb_mkt" style="flex:1;min-height:0;overflow-y:auto;margin:0 -10px -18px;border-radius:0 0 12px 12px">' + (rows || '<div style="font-size:11px;color:#888;padding:8px 10px">목록 없음</div>') + '</div>';
     }
     marketEl.innerHTML = xBtn('__kw_bdo_mk_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
-      '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;overflow:hidden">' + (marketKey ? '<img src="https://static.pearlcdn.com/asset/trade/bdo_kr/Common/img/BDO/item/' + esc(String(marketKey)) + '.png" width="26" height="26" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06);margin-right:6px" onerror="this.remove()">' : '') + esc(marketName || '거래소 현황') + '</b></div>' +
+      '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;overflow:hidden">' + (marketKey ? '<img src="https://static.pearlcdn.com/asset/trade/bdo_kr/Common/img/BDO/item/' + esc(String(marketKey)) + '.png" width="26" height="26" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06);margin-right:6px" onerror="this.remove()">' : '') + esc(marketName && marketName !== '거래소 현황' ? marketName + ' - 거래소 현황' : '거래소 현황') + '</b></div>' +
       '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' + body;
     const mx = marketEl.querySelector('#__kw_bdo_mk_x');
     if (mx) mx.onclick = () => { marketData = null; marketPhase = 'idle'; removeMarket(); };
