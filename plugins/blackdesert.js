@@ -135,12 +135,15 @@
       if (!stack) return;
       const hist = document.getElementById('__kw_histp');
       const ref = (hist && hist.parentNode === stack) ? hist : null;
-      [nextEl, cpnEl, partyEl, famEl].forEach((el) => {
-        if (el && el.isConnected && el.parentNode === stack && el.style.position !== 'fixed' && ref && el !== ref) {
-          if (el.nextSibling === ref) return; // 이미 제자리면 떼었다 붙이지 않음 (Safari에서 포커스가 날아감)
-          try { stack.insertBefore(el, ref); } catch (er) {}
-        }
-      });
+      if (!ref) return;
+      let anchor = ref; // 뒤에서부터 제자리 확인 — 이미 맞으면 DOM을 손대지 않음 (조상 이동 시 포커스가 날아감)
+      const seq = [nextEl, cpnEl, partyEl, famEl];
+      for (let i = seq.length - 1; i >= 0; i--) {
+        const el = seq[i];
+        if (!el || !el.isConnected || el.parentNode !== stack || el.style.position === 'fixed' || el === ref) continue;
+        if (el.nextSibling !== anchor) { try { stack.insertBefore(el, anchor); } catch (er) {} }
+        anchor = el;
+      }
     } catch (e) {}
   }
   // 띄우기 위치 {x,y,w} (본체 KW.float이 읽는 형식과 동일). w는 225~600으로 감시중 창을 따름.
