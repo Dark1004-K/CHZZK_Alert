@@ -801,7 +801,7 @@
     const W = Math.min(320, window.innerWidth - 16);
     const w = document.createElement('div');
     w.id = '__kw_bdo_famsrc';
-    w.style.cssText = 'position:fixed;z-index:2147483646;width:' + W + 'px;max-height:60vh;overflow-y:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px/1.55 sans-serif;padding:12px 14px 14px;border-radius:12px;border:1px solid #777;box-shadow:0 8px 28px rgba(0,0,0,.6);scrollbar-width:thin;opacity:' + bdoOpacity();
+    w.style.cssText = 'position:fixed;z-index:2147483647;width:' + W + 'px;max-height:60vh;overflow-y:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px/1.55 sans-serif;padding:12px 14px 14px;border-radius:12px;border:1px solid #777;box-shadow:0 8px 28px rgba(0,0,0,.6);scrollbar-width:thin;opacity:' + bdoOpacity();
     const link = (url, label) => '<div style="color:#ccc">' + '<button data-src-go="' + url + '" title="' + label + ' 열기" style="border:0;background:transparent;color:#7ab8ff;font-size:13px;padding:0;cursor:pointer;text-decoration:underline">' + label + '</button></div>';
     w.innerHTML = xBtn('__kw_bdo_famsrc_x', '#aaaab9', 'position:absolute;top:2px;right:3px;z-index:2') +
       '<div style="display:flex;align-items:center;min-height:22px;padding-right:26px;margin-bottom:6px"><b style="font-size:13px">데이터 출처</b></div>' +
