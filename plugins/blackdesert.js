@@ -1145,7 +1145,13 @@
     (f.stats || []).concat(f.flags || []).concat(f.effects || []).forEach((x) => { const n = normLine(x); if (n) seen[n] = 1; });
     if (f.desc) { const n = normLine(f.desc); if (n) seen[n] = 1; }
     const stats = (f.stats || []).slice();
-    (s.stats || []).forEach((x) => { const n = normLine(x); if (n && !seen[n]) { seen[n] = 1; stats.push(x); } });
+    const hasWeight = stats.some((x) => /^무게\s*:/.test(normLine(x)));
+    (s.stats || []).forEach((x) => {
+      const n = normLine(x);
+      if (!n || seen[n]) return;
+      if (hasWeight && /무\s*게\s*:|적재량\s*:/.test(n)) return; // 1차 무게와 중복
+      seen[n] = 1; stats.push(x);
+    });
     const flags = (f.flags || []).slice();
     (s.flags || []).forEach((x) => { const n = normLine(x); if (n && !seen[n]) { seen[n] = 1; flags.push(x); } });
     const effects = (f.effects || []).slice();
@@ -1167,7 +1173,7 @@
     return { icon: f.icon || s.icon || '', eng: s.eng || f.eng || '', stats, flags, desc, effects };
   }
   function parseCodexDetail(html) { // bdocodex 상세: 스탯·특성·설명·효과 (ID·구입/판매/수리비·강화 시뮬레이터 제외)
-    html = String(html || '');
+    html = String(html || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, ''); // 시세 스크립트(edescription 아님) 제거
     const card = html.split('<div class="addon_info')[0];
     let icon = '';
     const im = /<td class="icon_cell"><img src="([^"]+)"/.exec(card);
@@ -1202,6 +1208,7 @@
       const segs = bodyHtml.split(/<hr[^>]*>/);
       for (const sg of segs) {
         if (/가격을 구입/.test(sg)) continue; // 구입 가격·판매 가격·수리비 제외
+        if (/real_price|게임 내 시장 가격|iconset_wrapper/.test(sg)) continue; // 게임 내 시장 가격·지식 아이콘 블록 제외
         if (/id="edescription"/.test(sg) || /아이템 효과/.test(sg)) {
           sg.split(/<br\s*\/?>/).forEach((ln) => {
             const s = decHtml(ln);
@@ -1367,32 +1374,46 @@
     const href = (it && it.href) || (BDOLY_BASE + '/ko/db/item/' + encodeURIComponent(selId));
     const codexHref = CODEX_BASE + '/kr/item/' + encodeURIComponent(selId) + '/';
     const icon = (d && d.icon) || (it && it.icon) || '';
-    let h = '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
-      (icon ? '<img loading="lazy" src="' + esc(icon) + '" width="34" height="34" style="flex:none;border-radius:8px;background:rgba(255,255,255,.06)" onerror="__kwNoImg(this)">' : '') +
-      '<b style="font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + gc + '">' + esc(nm) + '</b>' +
+    let h = '<div style="margin-top:6px;border:1px solid rgba(255,255,255,.16);border-top:2px solid ' + gc + ';border-radius:10px;background:linear-gradient(180deg,rgba(36,36,46,.98),rgba(18,18,24,.98));padding:10px;box-shadow:0 2px 10px rgba(0,0,0,.5)">' +
+      '<div style="display:flex;align-items:center;gap:9px">' +
+      (icon ? '<img loading="lazy" src="' + esc(icon) + '" width="44" height="44" style="flex:none;border-radius:9px;border:2px solid ' + gc + ';background:rgba(0,0,0,.5)" onerror="__kwNoImg(this)">' : '') +
+      '<div style="flex:1;min-width:0"><b style="display:block;font-size:14px;color:' + gc + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(nm) + '</b>' +
+      ((d.eng) ? '<span style="display:block;font-size:11px;color:#8a8a99;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(d.eng) + '</span>' : '') + '</div>' +
       '<button class="__kw_ic" data-ext-open="' + esc(href) + '" title="bdolytics" style="color:#00ffa3;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button>' +
-      '<button class="__kw_ic" data-ext-open="' + esc(codexHref) + '" title="bdocodex" style="color:#7ab8ff;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button></div>' +
-      ((d.eng) ? '<div style="font-size:11px;color:#888;margin-top:2px">영어 이름: ' + esc(d.eng) + '</div>' : '');
-    (d.stats || []).forEach((s, i) => {
-      h += '<div style="font-size:11px;margin-top:2px;color:' + (i === 0 ? '#fff;font-weight:bold' : '#888') + '">' + esc(s) + '</div>';
-    });
+      '<button class="__kw_ic" data-ext-open="' + esc(codexHref) + '" title="bdocodex" style="color:#7ab8ff;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button></div>';
+    if ((d.stats || []).length) {
+      h += '<div style="margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.12)">';
+      (d.stats || []).forEach((s, i) => {
+        h += '<div style="font-size:11px;margin-top:2px;color:' + (i === 0 ? '#fff;font-weight:bold' : '#a9a9b8') + '">' + esc(s) + '</div>';
+      });
+      h += '</div>';
+    }
     let dropNextFlag = false; // "- 내구도" 같은 머리말 줄 + 뒤따르는 값 조각(100 / 100)을 함께 제외
+    const flagRows = [];
     (d.flags || []).forEach((s) => {
       if (/^\s*-\s*/.test(s)) { dropNextFlag = true; return; }
       if (dropNextFlag && /^[\d\s\/xX]+$/.test(s)) { dropNextFlag = false; return; }
       dropNextFlag = false;
-      h += '<div style="font-size:11px;color:#ccc;margin-top:2px">· ' + esc(s) + '</div>';
+      flagRows.push(s);
     });
-    if (d.descState === 'loading') h += '<div style="margin-top:6px;padding:8px;border:1px solid rgba(122,184,255,.4);border-radius:8px;background:rgba(122,184,255,.07);font-size:11px;color:#7ab8ff;display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;flex:none;border-radius:50%;border:2px solid rgba(122,184,255,.25);border-top-color:#7ab8ff;animation:__kwspin .8s linear infinite"></span>상세 설명 로딩 중...</div>';
-    else if (d.descState === 'fail') h += '<div style="margin-top:6px;padding:8px;border:1px solid rgba(255,123,123,.4);border-radius:8px;background:rgba(255,123,123,.07);font-size:11px;color:#ff9a9a;line-height:1.5">상세정보를 가져오는데 실패했습니다. 나중에 다시 확인하세요.</div>';
-    else if (d.desc) h += '<div style="margin-top:6px;font-size:11px;color:#ddd;line-height:1.55;white-space:pre-line">' + esc(d.desc) + '</div>';
-    if ((d.effects || []).length) {
-      h += '<div style="margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)"><div style="font-size:11px;font-weight:bold;color:#ff9ec4">아이템 효과</div>';
-      d.effects.forEach((s) => {
-        h += '<div style="margin-top:3px;font-size:11px;color:#ccc;line-height:1.5">' + esc(s) + '</div>';
+    if (flagRows.length) {
+      h += '<div style="margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.12)">';
+      flagRows.forEach((s) => {
+        h += '<div style="font-size:11px;color:#9ecfff;margin-top:2px">· ' + esc(s) + '</div>';
       });
       h += '</div>';
     }
+    if (d.descState === 'loading') h += '<div style="margin-top:8px;padding:9px;border:1px solid rgba(122,184,255,.4);border-radius:8px;background:rgba(122,184,255,.07);font-size:11px;color:#7ab8ff;display:flex;align-items:center;gap:7px"><span style="width:12px;height:12px;flex:none;border-radius:50%;border:2px solid rgba(122,184,255,.25);border-top-color:#7ab8ff;animation:__kwspin .8s linear infinite"></span>상세 설명 로딩 중...</div>';
+    else if (d.descState === 'fail') h += '<div style="margin-top:8px;padding:9px;border:1px solid rgba(255,123,123,.4);border-radius:8px;background:rgba(255,123,123,.07);font-size:11px;color:#ff9a9a;line-height:1.5">상세정보를 가져오는데 실패했습니다. 나중에 다시 확인하세요.</div>';
+    else if (d.desc) h += '<div style="margin-top:8px;padding:8px 9px;border-left:2px solid #e9bd23;border-radius:0 8px 8px 0;background:rgba(233,189,35,.06);font-size:11px;color:#e5d6a4;line-height:1.6;white-space:pre-line">' + esc(d.desc) + '</div>';
+    if ((d.effects || []).length) {
+      h += '<div style="margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.12)"><div style="font-size:11px;font-weight:bold;color:#ffd76a">◆ 아이템 효과</div>';
+      d.effects.forEach((s) => {
+        h += '<div style="margin-top:3px;font-size:11px;color:#ffdf7e;line-height:1.5">' + esc(s) + '</div>';
+      });
+      h += '</div>';
+    }
+    h += '</div>';
     return h;
   }
   function resKinds() {
