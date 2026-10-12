@@ -2137,10 +2137,9 @@
   let marketH = MKT_H_DEF;
   const marketPreCache = {}; // 상세창 미리보기용 { [mainKey]: { cond, basePrice } | { miss:true } }
   const marketInflight = {}; // 조회 중 { [mainKey]: true }
-  // [BETA-TEST-ONLY:start]
-  // 거래소 연동 시험 (베타 전용 — 떼려면 이 블록 삭제): 로그인 팝업 → 토큰 추출 → 시세 조회
+  // 거래소 현황: 로그인 팝업 → 토큰 추출 → 시세 조회 (v3.4.0까지 베타 시험, v3.4.1부터 정식 포함)
   const TRADE_BASE = 'https://trade.kr.playblackdesert.com';
-  function mlog(...a) { try { console.log('[KW-BETA]', 'market', ...a); } catch (e) {} }
+  function mlog(...a) { try { console.log('[KW-market]', ...a); } catch (e) {} }
   function marketCall(kind, params) {
     const p = Object.assign({ base: TRADE_BASE }, params || {});
     try { mlog('req', kind, p.url, kind === 'postForm' ? ('body ' + String(p.body || '').length + '자: ' + String(p.body || '').slice(0, 200)) : ''); } catch (e) {}
@@ -2480,7 +2479,7 @@
       document.body.appendChild(w);
     } catch (e) {}
   }
-  if (KW.beta) { // 정식 앱에서는 테스트 후크를 만들지 않는다
+  { // 거래소 조회 후크 (상세창 버튼이 호출)
     window.__kwBdoMarketTest = (mainKey, name, icon) => {
       const key = String(mainKey || '4998');
       marketKey = key;
@@ -2492,7 +2491,6 @@
       return '로그인 상태 확인 중... (로그인이 안 되어 있으면 안내 창이 열립니다)';
     };
   }
-  // [BETA-TEST-ONLY:end]
   let lastHref = ''; // 방송 이동 감지용
   function tick() {
     try {
