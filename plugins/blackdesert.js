@@ -1185,8 +1185,7 @@
     try { j = JSON.parse(text); } catch (e) { return null; }
     const d = (j && j.result && j.result.data) ? j.result.data : null;
     if (!d || typeof d !== 'object') return null;
-    const recs = Array.isArray(d.itemIsProductOfProcessingRecipes) ? d.itemIsProductOfProcessingRecipes : [];
-    try { recipeCache[String(d.id)] = { has: recs.length > 0, recipes: recs }; } catch (e) {}
+    // 제작 여부는 2차(bdocodex 제작 재료)에서 확정. 1차 getItem의 쓰임새(역방향) 필드는 사용 안 함.
     let icon = String(d.icon || '');
     if (icon && icon.charAt(0) === '/') icon = BDOLY_IMG + icon;
     const stats = [];
@@ -1215,7 +1214,53 @@
         }
       }
     } catch (e) {}
-    return { icon, eng: '', stats, flags: [], desc, effects, hasRecipe: recs.length > 0, recipes: recs };
+    return { icon, eng: '', stats, flags: [], desc, effects };
+  }
+  function parseCodexRecipe(html) { // bdocodex "- 제작 재료" 섹션 → [{ name, amount }] (이 아이템의 제작법, 정방향)
+    try {
+      let t = String(html || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
+      t = t.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '\n');
+      t = t.replace(/&nbsp;|&#160;/g, ' ').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+      const lines = t.split('\n').map((s) => s.replace(/\s+/g, ' ').trim());
+      const out = [];
+      let on = false;
+      for (const ln of lines) {
+        if (!on) { if (/^-\s*제작\s*재료/.test(ln)) on = true; continue; }
+        if (!ln) continue;
+        if (/^[※-]/.test(ln) || /대량 제작/.test(ln)) break;
+        const m = /^(.+?)\s*x\s*(\d+)\s*$/.exec(ln);
+        if (m) out.push({ name: m[1].trim(), amount: parseInt(m[2], 10) });
+        else break;
+      }
+      return out;
+    } catch (e) { return []; }
+  }
+  const ingCache = {}; // 재료명 -> { id, icon, grade } | null (bdolytics 검색 정확일치)
+  function resolveIng(name) { // 재료명 → id/아이콘/등급 (캐시, 실패해도 null)
+    name = String(name || '').trim();
+    if (!name) return Promise.resolve(null);
+    if (ingCache[name] !== undefined) return Promise.resolve(ingCache[name]);
+    const su = BDOLY_BASE + '/api/trpc/database.searchEntities?input=' + encodeURIComponent(JSON.stringify({ searchTerm: name, language: 'ko', extendSearch: true }));
+    return bdoFetch(su, 12000, BDOLY_BASE).then((txt) => {
+      let found = null;
+      try {
+        const items = parseBdolyticsItems(String(txt || '')) || [];
+        found = items.find((x) => x && decHtml(String(x.name || '')) === name) || null;
+      } catch (e) { found = null; }
+      const out = found ? { id: String(found.id), icon: found.icon || '', grade: found.grade } : null;
+      ingCache[name] = out;
+      return out;
+    });
+  }
+  function enrichIngs(ings) { // [{ name, amount }]에 id/icon/grade 부착 (직접 수정, 실패해도 이름은 표시)
+    ings = Array.isArray(ings) ? ings : [];
+    return Promise.all(ings.map((g) => {
+      if (!g || g.id) return Promise.resolve(g);
+      return resolveIng(g.name).then((o) => {
+        if (o) { g.id = o.id; g.icon = o.icon; g.grade = o.grade; }
+        return g;
+      }).catch(() => g);
+    }));
   }
   function normLine(s) { return String(s || '').replace(/\s+/g, ' ').trim(); }
   function mergeDetail(first, second) { // 1차(bdolytics)+2차(bdocodex) 합치기 — 중복 줄은 하나만
@@ -1250,7 +1295,7 @@
       else if (n1 !== n2 && !n1.includes(n2) && !n2.includes(n1)) desc = desc + '\n' + sd;
       else if (n2.length > n1.length) desc = sd;
     }
-    return { icon: f.icon || s.icon || '', eng: s.eng || f.eng || '', stats, flags, desc, effects, hasRecipe: !!((f && f.hasRecipe) || (s && s.hasRecipe)), recipes: (f.recipes || []).concat((s.recipes || []).filter((r) => r && !(f.recipes || []).some((x) => x && x.id === r.id))) };
+    return { icon: f.icon || s.icon || '', eng: s.eng || f.eng || '', stats, flags, desc, effects, hasRecipe: !!(((s && s.recipes) || []).length || ((f && f.recipes) || []).length), recipes: ((s && s.recipes) || []).length ? s.recipes : ((f && f.recipes) || []) };
   }
   function parseCodexDetail(html) { // bdocodex 상세: 스탯·특성·설명·효과 (ID·구입/판매/수리비·강화 시뮬레이터 제외)
     html = String(html || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, ''); // 시세 스크립트(edescription 아님) 제거
@@ -1317,11 +1362,16 @@
       return d;
     }).catch(() => null);
   }
-  function fetchCodexDetail(id) { // 2차: bdocodex 상세 (설명 보충, 로딩이 김)
+  function fetchCodexDetail(id) { // 2차: bdocodex 상세 (설명 보충 + 제작 재료, 로딩이 김)
     return bdoFetch(CODEX_BASE + '/kr/item/' + encodeURIComponent(id) + '/', 15000, CODEX_BASE).then((html) => {
       if (!html) return null;
       const d = parseCodexDetail(html);
       if (!d || (!d.stats.length && !d.flags.length && !d.desc && !d.effects.length)) return null;
+      let recs = [];
+      try { recs = parseCodexRecipe(html); } catch (e) { recs = []; }
+      d.recipes = recs;
+      d.hasRecipe = recs.length > 0;
+      try { recipeCache[String(id)] = { has: recs.length > 0, recipes: recs }; } catch (e) {}
       return d;
     }).catch(() => null);
   }
@@ -1447,14 +1497,6 @@
     bump();
     upd(Date.now());
   }
-  function recipesOf(text) { // getItem 응답에서 제작 레시피 배열만 추출 (없으면 빈 배열, 실패면 null)
-    let j = null;
-    try { j = JSON.parse(text); } catch (e) { return null; }
-    const d = (j && j.result && j.result.data) ? j.result.data : null;
-    if (!d || typeof d !== 'object') return null;
-    const r = d.itemIsProductOfProcessingRecipes;
-    return Array.isArray(r) ? r : [];
-  }
   function recipeBtnHtml(nm, icon) { // 제작 레시피 버튼 3상태 (거래소 버튼 아래)
     if (!selId || selPhase === 'miss') return '';
     const base = 'margin-top:8px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:8px;padding:6px;font-size:11px;font-weight:bold;';
@@ -1527,8 +1569,11 @@
       else if (!(sub.recipes || []).length) subHtml = '<div style="font-size:11px;color:#666;margin:2px 0 2px 26px">하위 레시피 없음</div>';
       else subHtml = '<div style="margin-left:16px">' + recipeRows(sub.recipes, depth + 1) + '</div>';
     }
+    const canSub = !!gid && depth < 3;
     return '<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.04);border-radius:8px;padding:6px 8px;margin-top:4px">' +
-      '<button data-rcp-sub="' + esc(gid) + '" data-rcp-depth="' + depth + '" title="' + (open ? '접기' : '하위 레시피 펼치기') + '" style="flex:none;width:18px;height:18px;padding:0;border-radius:50%;border:1px solid #8a8a99;background:transparent;color:#ccc;font:bold 12px/16px sans-serif;cursor:pointer">' + (open ? '－' : '＋') + '</button>' +
+      (canSub
+        ? '<button data-rcp-sub="' + esc(gid) + '" data-rcp-depth="' + depth + '" data-rcp-nm="' + esc(iname) + '" title="' + (open ? '접기' : '하위 레시피 펼치기') + '" style="flex:none;width:18px;height:18px;padding:0;border-radius:50%;border:1px solid #8a8a99;background:transparent;color:#ccc;font:bold 12px/16px sans-serif;cursor:pointer">' + (open ? '－' : '＋') + '</button>'
+        : '<span style="flex:none;width:18px"></span>') +
       '<span style="flex:none;min-width:26px;text-align:right;font-size:11px;color:#aaa">' + esc(String((g && g.amount) == null ? '' : g.amount)) + '</span>' +
       '<span style="flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(iname) + '</span>' +
       (ic ? '<img loading="lazy" src="' + esc(ic) + '" width="34" height="34" style="flex:none;border-radius:6px;border:2px solid ' + gc + ';background:rgba(0,0,0,.4)" onerror="this.remove()">' : '') +
@@ -1537,12 +1582,15 @@
   function recipeRows(recs, depth) {
     return (recs || []).map((r, ri) => {
       const ings = (r && Array.isArray(r.ingredients)) ? r.ingredients : [];
-      const head = '<div style="font-size:11px;font-weight:bold;color:#ffd76a;margin:8px 0 0">' + esc((r && r.name) || ('레시피 ' + (ri + 1))) + ((r && r.actionType) ? ' <span style="color:#8a8a99;font-weight:normal">· ' + esc(r.actionType) + '</span>' : '') + '</div>';
+      const skipHead = depth === 0 && (recs || []).length === 1 && r && r.name && r.name === rcpName;
+      const head = skipHead ? '' : '<div style="font-size:11px;font-weight:bold;color:#ffd76a;margin:8px 0 0">' + esc((r && r.name) || ('레시피 ' + (ri + 1))) + ((r && r.actionType) ? ' <span style="color:#8a8a99;font-weight:normal">· ' + esc(r.actionType) + '</span>' : '') + '</div>';
       return head + ings.map((g) => recipeIngRow(g, depth || 0)).join('');
     }).join('');
   }
   function renderRecipe() {
     if (!rcpEl || !rcpEl.isConnected) return;
+    const sc0 = rcpEl.querySelector('.__kw_sb_rcp');
+    const st0 = sc0 ? sc0.scrollTop : 0;
     const body = rcpRecipes.length
       ? recipeRows(rcpRecipes, 0)
       : '<div style="font-size:11px;color:#888;margin-top:8px">레시피가 없습니다.</div>';
@@ -1558,50 +1606,23 @@
         try { e.stopPropagation(); } catch (er) {}
         const gid = b.getAttribute('data-rcp-sub');
         const dep = parseInt(b.getAttribute('data-rcp-depth'), 10) || 0;
+        const gnm = b.getAttribute('data-rcp-nm') || gid;
         if (!gid || dep >= 3) return;
         const k = gid + ':' + dep;
         if (rcpExpanded[k]) { delete rcpExpanded[k]; renderRecipe(); return; }
         rcpExpanded[k] = true;
-        if (!rcpSub[gid]) recipeSubFetch(gid);
+        if (!rcpSub[gid]) recipeSubFetch(gid, gnm);
         renderRecipe();
       };
     });
     const xe = rcpEl.querySelector('[data-rcp-ext]');
     if (xe) xe.onclick = () => { try { window.open(BDOLY_BASE + '/ko/crafting/' + encodeURIComponent(rcpKey), '_blank', 'noopener'); } catch (er) {} };
+    try { const sc1 = rcpEl.querySelector('.__kw_sb_rcp'); if (sc1) sc1.scrollTop = st0; } catch (e) {}
+    wireRecipeWindow();
   }
-  function recipeSubFetch(gid) { // 재료의 하위 레시피 지연 조회
-    gid = String(gid || '');
-    if (!gid) return;
-    const forKey = rcpKey;
-    rcpSub[gid] = { loading: true };
-    renderRecipe();
-    const su = BDOLY_BASE + '/api/trpc/database.getItem?input=' + encodeURIComponent(JSON.stringify({ id: gid, language: 'ko' }));
-    let p = null;
-    try { p = KW.bridge('fetch', { url: su, base: BDOLY_BASE }, 12000); } catch (e) { p = null; }
-    const done = (recs) => {
-      if (forKey !== rcpKey) return; // 다른 아이템 창으로 넘어감
-      try { recipeCache[gid] = { has: !!((recs || []).length), recipes: recs || [] }; } catch (e) {}
-      rcpSub[gid] = { recipes: recs || [] };
-      try { renderRecipe(); } catch (e) {}
-    };
-    if (!p || !p.then) { done([]); return; }
-    p.then((r) => {
-      const txt = (r && r.ok && r.data && r.data.html) ? String(r.data.html) : '';
-      done(recipesOf(txt) || []);
-    }).catch(() => done([]));
-  }
-  function updateRecipe() {
-    if (!rcpKey || !rcpRecipes.length) { removeRecipe(); return; }
-    if (!rcpEl || !rcpEl.isConnected) {
-      rcpEl = document.createElement('div');
-      rcpEl.id = '__kw_bdo_rcp';
-      rcpEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;opacity:' + bdoOpacity() + ';height:' + Math.min(rcpH, resHMax()) + 'px';
-      document.body.appendChild(rcpEl);
-      placeRecipe();
-    }
-    renderRecipe();
-    try { // 창 기본형 상속: 레시피창=가로+세로
-      if (KW && typeof KW.window === 'function') {
+  function wireRecipeWindow() { // innerHTML 재렌더로 날아간 이동·리사이즈 핸들을 매번 복구 (멱등)
+    try {
+      if (rcpEl && rcpEl.isConnected && KW && typeof KW.window === 'function') {
         KW.window(rcpEl, {
           color: '#ff7ab8', posKey: LS_RCPPOS, rsz: 'd', dock: () => placeRecipe(),
           getH: () => rcpH,
@@ -1614,14 +1635,55 @@
       }
     } catch (e) {}
   }
+  function recipeSubFetch(gid, gname) { // 재료의 하위 레시피 지연 조회 (bdocodex 제작 재료 + 이름 해석)
+    gid = String(gid || '');
+    if (!gid) return;
+    const forKey = rcpKey;
+    rcpSub[gid] = { loading: true };
+    renderRecipe();
+    const cu = CODEX_BASE + '/kr/item/' + encodeURIComponent(gid) + '/';
+    const done = (flat) => {
+      if (forKey !== rcpKey) return; // 다른 아이템 창으로 넘어감
+      const recs = (flat || []).length ? [{ name: String(gname || gid), ingredients: flat }] : [];
+      rcpSub[gid] = { recipes: recs };
+      const all = [];
+      recs.forEach((r) => { (r.ingredients || []).forEach((g) => all.push(g)); });
+      enrichIngs(all).then(() => { if (forKey === rcpKey) { try { renderRecipe(); } catch (e) {} } });
+      try { renderRecipe(); } catch (e) {}
+    };
+    let p = null;
+    try { p = bdoFetch(cu, 15000, CODEX_BASE); } catch (e) { p = null; }
+    if (!p || !p.then) { done([]); return; }
+    p.then((html) => {
+      let recs = [];
+      try { recs = parseCodexRecipe(String(html || '')); } catch (e) { recs = []; }
+      done(recs);
+    }).catch(() => done([]));
+  }
+  function updateRecipe() {
+    if (!rcpKey || !rcpRecipes.length) { removeRecipe(); return; }
+    if (!rcpEl || !rcpEl.isConnected) {
+      rcpEl = document.createElement('div');
+      rcpEl.id = '__kw_bdo_rcp';
+      rcpEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;opacity:' + bdoOpacity() + ';height:' + Math.min(rcpH, resHMax()) + 'px';
+      document.body.appendChild(rcpEl);
+      placeRecipe();
+    }
+    renderRecipe();
+    wireRecipeWindow();
+  }
   function openRecipeWindow(id, name, icon) {
     id = String(id || '');
     if (!id) return;
     rcpKey = id; rcpName = String(name || '제작 레시피'); rcpIcon = String(icon || '');
     rcpExpanded = {}; rcpSub = {};
     const cv = recipeCache[id];
-    rcpRecipes = (cv && cv.recipes) || ((typeof selId !== 'undefined' && selId === id && selData && selData.recipes) || []);
+    const flat = ((typeof selId !== 'undefined' && selId === id && selData && selData.recipes) || (cv && cv.recipes) || []);
+    rcpRecipes = flat.length ? [{ name: rcpName, ingredients: flat.map((g) => ({ name: g.name, amount: g.amount })) }] : [];
     updateRecipe();
+    const all = [];
+    rcpRecipes.forEach((r) => { (r.ingredients || []).forEach((g) => all.push(g)); });
+    enrichIngs(all).then(() => { if (rcpKey === id) { try { renderRecipe(); } catch (e) {} } });
   }
   function selBodyHtml(fI) { // 옆 상세 pane 본문 (선택된 아이템)
     if (selPhase === 'loading' || !selData) return '<div style="font-size:11px;color:#aaa;margin-top:6px">아이템 상세 불러오는 중...</div>';
