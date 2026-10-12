@@ -1834,7 +1834,7 @@
     const gc = (it && it.grade != null && CODEX_GRADE[it.grade]) ? CODEX_GRADE[it.grade] : '#fff';
     const href = (it && it.href) || (BDOLY_BASE + '/ko/db/item/' + encodeURIComponent(selId));
     const codexHref = CODEX_BASE + '/kr/item/' + encodeURIComponent(selId) + '/';
-    const icon = (d && d.icon) || (it && it.icon) || '';
+    const icon = (it && it.icon) || (d && d.icon) || ''; // 목록 썸네일 우선 (전체 창 통일)
     let h = '<div style="margin-top:6px;border:1px solid rgba(255,255,255,.16);border-top:2px solid ' + gc + ';border-radius:10px;background:linear-gradient(180deg,rgba(36,36,46,.98),rgba(18,18,24,.98));padding:10px;box-shadow:0 2px 10px rgba(0,0,0,.5)">' +
       '<div style="display:flex;align-items:flex-start;gap:9px">' +
       (icon ? '<img loading="lazy" src="' + esc(icon) + '" width="44" height="44" style="flex:none;border-radius:9px;border:2px solid ' + gc + ';background:rgba(0,0,0,.5)" onerror="__kwNoImg(this)">' : '') +
@@ -1848,7 +1848,7 @@
       // 로그인됨 + 조회 성공 + 매물 없음 → 버튼을 "거래소 정보 없음"으로 바꾸고 비활성 (그 외는 기존 버튼 유지)
       let mkEmpty = false;
       try { const mc = marketPreCache[selId]; mkEmpty = !!(mc && !mc.miss && Array.isArray(mc.cond) && !mc.cond.length); } catch (e) {}
-      h += '<button data-market-open="' + esc(selId) + '" data-market-name="' + esc(nm) + '" title="' + (mkEmpty ? '거래소 정보 없음' : '거래소 현황 보기') + '"' + (mkEmpty ? ' disabled' : '') + ' style="margin-top:8px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35);color:#7dffb3;border-radius:8px;padding:6px;font-size:11px;font-weight:bold;' + (mkEmpty ? 'cursor:default;opacity:.45' : 'cursor:pointer') + '"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>' + (mkEmpty ? '거래소 정보 없음' : '거래소 현황 보기') + '</button>';
+      h += '<button data-market-open="' + esc(selId) + '" data-market-name="' + esc(nm) + '" data-market-icon="' + esc(icon) + '" title="' + (mkEmpty ? '거래소 정보 없음' : '거래소 현황 보기') + '"' + (mkEmpty ? ' disabled' : '') + ' style="margin-top:8px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35);color:#7dffb3;border-radius:8px;padding:6px;font-size:11px;font-weight:bold;' + (mkEmpty ? 'cursor:default;opacity:.45' : 'cursor:pointer') + '"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>' + (mkEmpty ? '거래소 정보 없음' : '거래소 현황 보기') + '</button>';
     }
     h += recipeBtnHtml(nm, icon);
     if ((d.stats || []).length) {
@@ -2064,7 +2064,8 @@
         try { e.stopPropagation(); } catch (er) {}
         const id = b.getAttribute('data-market-open');
         const nm = b.getAttribute('data-market-name');
-        if (id && typeof window.__kwBdoMarketTest === 'function') { try { window.__kwBdoMarketTest(id, nm); } catch (er2) {} }
+        const ic = b.getAttribute('data-market-icon');
+        if (id && typeof window.__kwBdoMarketTest === 'function') { try { window.__kwBdoMarketTest(id, nm, ic); } catch (er2) {} }
       };
     });
     try { // 저장해 둔 스크롤 복원 (목록/상세 각각)
@@ -2126,7 +2127,7 @@
   const LS_MKTPOS = '__kw_market_pos';
   const LS_MKTH = '__kw_market_h';
   const MKT_H_DEF = 400, MKT_H_MIN = 200, MKT_W = 340;
-  let marketEl = null, marketPhase = 'idle', marketName = '', marketData = null, marketKey = '';
+  let marketEl = null, marketPhase = 'idle', marketName = '', marketData = null, marketKey = '', marketIcon = '';
   let marketPending = null; // 버튼 요청 보관 (현황창은 토큰 확보 후에만 염)
   let marketSig = null, marketRev = 0; // 같은 내용 반복 렌더 방지 (스크롤 유지)
   let marketH = MKT_H_DEF;
@@ -2270,7 +2271,7 @@
         '<div class="__kw_sb_mkt" style="flex:1;min-height:0;overflow-y:auto;margin:0 -10px -18px;border-radius:0 0 12px 12px">' + (rows || '<div style="font-size:11px;color:#888;padding:8px 10px">목록 없음</div>') + '</div>';
     }
     marketEl.innerHTML = xBtn('__kw_bdo_mk_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
-      '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;overflow:hidden">' + (marketKey ? '<img src="https://static.pearlcdn.com/asset/trade/bdo_kr/Common/img/BDO/item/' + esc(String(marketKey)) + '.png" width="26" height="26" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06);margin-right:6px" onerror="this.remove()">' : '') + esc(marketName && marketName !== '거래소 현황' ? marketName + ' - 거래소 현황' : '거래소 현황') + '</b></div>' +
+      '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;overflow:hidden">' + (marketIcon ? '<img src="' + esc(marketIcon) + '" width="26" height="26" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06);margin-right:6px" onerror="this.remove()">' : (marketKey ? '<img src="https://static.pearlcdn.com/asset/trade/bdo_kr/Common/img/BDO/item/' + esc(String(marketKey)) + '.png" width="26" height="26" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06);margin-right:6px" onerror="this.remove()">' : '')) + esc(marketName && marketName !== '거래소 현황' ? marketName + ' - 거래소 현황' : '거래소 현황') + '</b></div>' +
       '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' + body;
     const mx = marketEl.querySelector('#__kw_bdo_mk_x');
     if (mx) mx.onclick = () => { marketData = null; marketPhase = 'idle'; removeMarket(); };
@@ -2391,6 +2392,7 @@
   function marketQueryWithToken(key, token) { // GetItemSellBuyInfo 1회 조회 → 결과 확정 후에만 현황창을 염
     if (marketPending && marketPending.key === String(key) && marketPending.name) marketName = marketPending.name;
     if (!marketName) marketName = itemResQ || '거래소 현황';
+    if (marketPending && marketPending.key === String(key) && marketPending.icon) marketIcon = marketPending.icon;
     marketKey = String(key);
     marketPhase = 'loading';
     marketRev++;
@@ -2475,10 +2477,10 @@
     } catch (e) {}
   }
   if (KW.beta) { // 정식 앱에서는 테스트 후크를 만들지 않는다
-    window.__kwBdoMarketTest = (mainKey, name) => {
+    window.__kwBdoMarketTest = (mainKey, name, icon) => {
       const key = String(mainKey || '4998');
       marketKey = key;
-      marketPending = { key, name: String(name || itemResQ || '거래소 현황') };
+      marketPending = { key, name: String(name || itemResQ || '거래소 현황'), icon: String(icon || '') };
       marketProbeOnce(key).then((done) => {
         if (done) return; // 로그인됨 → 바로 조회 끝. 창을 열지 않음
         marketAskLogin(key); // 미로그인 → 안내만 (로그인 후 폴링이 자동 조회)
