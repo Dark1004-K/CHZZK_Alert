@@ -236,6 +236,18 @@ function clearFloatPos(el) {
 // 자석: snapRect()가 화면 끝·다른 창에 14px 안이면 맞춤. 위치는 localStorage {x,y,w}.
 // innerHTML을 매번 다시 그리는 창(드롭스/보스/쿠폰)은 버튼이 지워지므로 매 렌더 후 KW.float을
 // 다시 호출해도 되게 멱등(idempotent)하게 만들었다: 이미 떠 있으면 저장 위치로 리셋하지 않음.
+// ---------- 클릭한 창을 최상단으로 (좌클릭 depth) ----------
+let __kwTopZ = 100;
+function kwBringToFront(el) {
+  try {
+    if (!el || !el.isConnected) return;
+    if (__kwTopZ > 9000) { // 오버플로 방지: 전체 정규화 후 재시작
+      try { document.querySelectorAll('[data-kw-float]').forEach((w) => { try { w.style.zIndex = ''; } catch (e) {} }); } catch (e2) {}
+      __kwTopZ = 100;
+    }
+    el.style.zIndex = String(++__kwTopZ);
+  } catch (e) {}
+}
 function kwFloat(el, o) {
   if (!el || !o) return;
   const firstWire = !el.__kwFloatWired;
@@ -260,8 +272,15 @@ function kwFloat(el, o) {
   el.__kwFloatSave = o.save || null;
   el.__kwFloatClear = o.clear || null;
   el.__kwFloatDock = o.dock || null;
-  // 첫 연결 때만 저장 위치 복구. 이미 fixed(떠 있음)면 렌더 중에도 건드리지 않는다.
-  if (firstWire && el.style.position !== 'fixed') {
+  // 첫 연결 때만 저장 위치 복구 + 좌클릭 최상단 훅. 이미 떠 있는 창도 첫 연결이면 복구한다
+  // (생성 시 position:fixed를 미리 박는 창이 있어 position 검사는 하지 않는다).
+  if (firstWire) {
+    try {
+      el.addEventListener('pointerdown', (ev) => {
+        try { if (ev && ev.button !== undefined && ev.button !== 0) return; } catch (e) {}
+        kwBringToFront(el);
+      });
+    } catch (e5) {}
     try {
       const p = o.load ? o.load() : null;
       if (p && isFinite(p.x) && isFinite(p.y) && o.apply) o.apply(p);
@@ -1723,8 +1742,8 @@ function setupDragToAdd() {
     }
     const s = window.getSelection();
     const text = s ? s.toString().trim() : '';
-    // 우리 앱 창 안에서 끌었으면 아무 것도 띄우지 않는다
-    const inApp = (n) => { try { const el = n && (n.nodeType === 1 ? n : n.parentElement); return !!(el && el.closest && el.closest('#__kw_stack,#__kw_upd,#__kw_ask,#__kw_box,#__kw_sel,#__kw_optwin,.__kw_rsz,.__kw_mv')); } catch (e) { return false; } };
+    // 우리 앱 창(id가 __kw_로 시작) 안에서 끌었으면 아무 것도 띄우지 않는다
+    const inApp = (n) => { try { const el = n && (n.nodeType === 1 ? n : n.parentElement); return !!(el && el.closest && (el.closest('[id^="__kw_"]') || el.closest('.__kw_rsz,.__kw_mv'))); } catch (e) { return false; } };
     if (inApp(ev && ev.target) || (s && (inApp(s.anchorNode) || inApp(s.focusNode)))) { sel.style.display = 'none'; return; }
     if (!text || text.length > 30 || text.includes('\n')) { sel.style.display = 'none'; return; }
     const range = s.getRangeAt(0);
