@@ -1651,11 +1651,20 @@
   // [BETA-TEST-ONLY:start]
   // 거래소 연동 시험 (베타 전용 — 떼려면 이 블록 삭제): 로그인 팝업 → 토큰 추출 → 시세 조회
   const TRADE_BASE = 'https://trade.kr.playblackdesert.com';
+  function mlog(...a) { try { console.log('[KW-BETA]', 'market', ...a); } catch (e) {} }
   function marketCall(kind, params) {
     const p = Object.assign({ base: TRADE_BASE }, params || {});
+    try { mlog('req', kind, p.url, kind === 'postForm' ? ('body ' + String(p.body || '').length + '자: ' + String(p.body || '').slice(0, 200)) : ''); } catch (e) {}
     try {
       const r = KW.bridge(kind, p, 15000);
-      if (r && typeof r.then === 'function') return r.catch(() => ({ ok: false, error: 'exception' }));
+      if (r && typeof r.then === 'function') return r.then((v) => {
+        try {
+          const d = (v && v.data) || {};
+          const bodyTxt = d.text != null ? String(d.text) : (d.html != null ? String(d.html) : '');
+          mlog('res', kind, p.url, 'ok=' + (v && v.ok), v && v.error ? ('error=' + v.error) : '', 'len=' + bodyTxt.length, bodyTxt.slice(0, 500));
+        } catch (e) {}
+        return v;
+      }).catch((er) => { try { mlog('res-err', kind, p.url, String((er && er.message) || er)); } catch (e) {} return { ok: false, error: 'exception' }; });
     } catch (e) {}
     return Promise.resolve({ ok: false, error: '호출 실패' });
   }
@@ -1665,8 +1674,10 @@
   }
   function marketQueryWithToken(key, token) { // 토큰으로 시세 1회 조회 → 성공 시 true
     const body = '__RequestVerificationToken=' + encodeURIComponent(token) + '&mainKey=' + encodeURIComponent(key) + '&usingCleint=0';
+    try { mlog('query', 'mainKey=' + key, 'token ' + String(token || '').length + '자: ' + String(token || '').slice(0, 20) + '...'); } catch (e) {}
     return marketCall('postForm', { url: TRADE_BASE + '/Home/GetWorldMarketSubList', body }).then((pr) => {
       const txt = (pr && pr.ok && pr.data) ? String(pr.data.text || '') : '';
+      try { mlog('query-res', 'mainKey=' + key, 'ok=' + (pr && pr.ok), 'len=' + txt.length, txt.slice(0, 1000)); } catch (e) {}
       if (!txt) return false;
       let summary = '토큰 찾음. 응답 ' + txt.length + '자';
       try {
@@ -1675,7 +1686,7 @@
         if (Number(j.resultCode) === 0) summary += ' 성공!';
       } catch (e) { summary += ' (JSON 아님: ' + txt.slice(0, 80) + ')'; }
       try { if (typeof KW.toast === 'function') KW.toast('거래소 테스트', summary); } catch (e) {}
-      try { window.__kwBdoMarketLast = { key, response: txt.slice(0, 2000) }; } catch (e) {}
+      try { window.__kwBdoMarketLast = { key, reqBody: body, response: txt.slice(0, 5000) }; } catch (e) {}
       return true;
     }).catch(() => false);
   }
@@ -1686,6 +1697,7 @@
         for (const u of pages) {
           const r = await marketCall('fetch', { url: u });
           const t = (r && r.ok && r.data && r.data.html) ? marketFindToken(r.data.html) : null;
+          try { mlog('probe', u, t ? ('token 찾음 ' + String(t).length + '자') : 'token 없음'); } catch (e) {}
           if (t) return marketQueryWithToken(key, t);
         }
       } catch (e) {}
@@ -1700,6 +1712,7 @@
         for (const u of pages) {
           const r = await marketCall('fetch', { url: u });
           const t = (r && r.ok && r.data && r.data.html) ? marketFindToken(r.data.html) : null;
+          try { mlog('poll', u, '남은횟수=' + left, t ? 'token 찾음' : 'token 없음'); } catch (e) {}
           if (t) { await marketQueryWithToken(key, t); return; }
         }
         if (left > 0) setTimeout(() => marketTestPoll(key, left - 1), 3000);
