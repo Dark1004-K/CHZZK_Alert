@@ -137,6 +137,7 @@
       const ref = (hist && hist.parentNode === stack) ? hist : null;
       [nextEl, cpnEl, partyEl, famEl].forEach((el) => {
         if (el && el.isConnected && el.parentNode === stack && el.style.position !== 'fixed' && ref && el !== ref) {
+          if (el.nextSibling === ref) return; // 이미 제자리면 떼었다 붙이지 않음 (Safari에서 포커스가 날아감)
           try { stack.insertBefore(el, ref); } catch (er) {}
         }
       });
