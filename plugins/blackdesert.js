@@ -912,6 +912,8 @@
     if (resEl) { try { resEl.remove(); } catch (e) {} }
     resEl = null;
     resSig = null;
+    marketData = null; marketPhase = 'idle'; // 결과창이 닫히면 현황창도 함께 닫음
+    try { if (typeof removeMarket === 'function') removeMarket(); } catch (e) {}
   }
   // 결과창 위치: 저장된 곳, 없으면 검색창 오른쪽
   function placeRes() {
@@ -1803,8 +1805,7 @@
       body =
         '<div style="margin-top:6px;flex:none">' + marketGraphSvg(marketData.hist) + '</div>' +
         '<div style="flex:1;min-width:0;font-size:11px;line-height:2">' + marketSummaryHtml(cond) + '</div>' +
-        '<div style="font-size:11px;color:#bbb;margin-top:6px;flex:none">최근 거래: ' + (lastH ? esc(String(lastH.days || '')) : '-') + '</div>' +
-        '<div style="font-size:11px;color:#bbb;flex:none">누적 거래: ' + fmtN(sellTot + buyTot) + '건</div>' +
+        '<div style="display:flex;justify-content:space-between;gap:6px;font-size:11px;color:#bbb;margin-top:6px;flex:none"><span>최근 거래: ' + (lastH ? esc(String(lastH.days || '')) : '-') + '</span><span>누적 거래: ' + fmtN(sellTot + buyTot) + '건</span></div>' +
         '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:8px -10px 0"></div>' +
         '<div class="__kw_sb_mkt" style="flex:1;min-height:0;overflow-y:auto;margin:0 -10px -18px;border-radius:0 0 12px 12px">' + (rows || '<div style="font-size:11px;color:#888;padding:8px 10px">목록 없음</div>') + '</div>';
     }
@@ -1858,8 +1859,8 @@
     const sellShow = sellMin || buyMax; // 판매대기 없으면 구매최고가로 표시
     const sellTot = sells.reduce((n, c) => n + Number(c.sellCount), 0);
     const buyTot = buys.reduce((n, c) => n + Number(c.buyCount), 0);
-    return '<div style="display:flex;justify-content:space-between;gap:6px"><span>판매최저가: <b style="font-size:12px;color:#7dffb3">' + (sellShow ? fmtN(sellShow) : '없음') + '</b></span><span style="color:#888;white-space:nowrap">예약구매 ' + fmtN(buyTot) + '개</span></div>' +
-      '<div style="display:flex;justify-content:space-between;gap:6px"><span>구매최저가: <b style="font-size:12px;color:#ff9a9a">' + (buyMin ? fmtN(buyMin) : '없음') + '</b></span><span style="color:#888;white-space:nowrap">판매대기 ' + fmtN(sellTot) + '개</span></div>';
+    return '<div style="display:flex;justify-content:space-between;gap:6px"><span>판매최저가: <b style="font-size:12px;color:#7dffb3">' + (sellShow ? fmtN(sellShow) : '없음') + '</b></span><span style="color:#888;white-space:nowrap;display:inline-block;min-width:118px;text-align:right">예약구매 ' + fmtN(buyTot) + '개</span></div>' +
+      '<div style="display:flex;justify-content:space-between;gap:6px"><span>구매최저가: <b style="font-size:12px;color:#ff9a9a">' + (buyMin ? fmtN(buyMin) : '없음') + '</b></span><span style="color:#888;white-space:nowrap;display:inline-block;min-width:118px;text-align:right">판매대기 ' + fmtN(sellTot) + '개</span></div>';
   }
   function marketPrefetch(key) { // 상세창 미리보기용 조용한 1회 조회 (팝업·현황창·토스트 없음, 실패하면 조용히 miss)
     key = String(key || '');
