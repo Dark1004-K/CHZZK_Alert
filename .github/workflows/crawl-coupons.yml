@@ -4,7 +4,7 @@ name: crawl-coupons
 # (브라우저에서는 CORS 때문에 직접 읽을 수 없어서, 앱은 이 파일을 받아간다)
 on:
   schedule:
-    - cron: '17,47 * * * *' # 30분마다 (매시 17분·47분). 스케줄 실행이 밀릴 때가 있어 여유 있게.
+    - cron: '0 * * * *' # 매시간 00분 (앱은 매시간 17분에 받아감)
   workflow_dispatch: {}
 
 permissions:
