@@ -230,11 +230,10 @@
     const days = Math.floor((next.t + KST) / DAY) - Math.floor((now + KST) / DAY);
     const dayTxt = days <= 1 ? '' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + '요일 ';
     // 쿠폰 모아보기 창과 같은 디자인: 굵은 12px 제목 줄(이모지 아이콘 + 제목) → 보스 이름 줄 → 시각 줄
-    nextEl.innerHTML = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SWORDS, '#3b9eff') + '다음 우두머리</b></div>' +
-      // 한 줄: 보스 이름 · 출현 시각(11:00) ········· 남은 시간(34:08, 오른쪽 끝). 본문은 타이틀 글자 시작점에 맞춤
+    nextEl.innerHTML = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SWORDS, '#3b9eff') + '다음 우두머리 (' + dayTxt + next.hhmm + ')</b></div>' +
+      // 한 줄: 보스 이름 ········· 남은 시간(34:08, 오른쪽 끝). 본문은 타이틀 글자 시작점에 맞춤
       '<div style="display:flex;align-items:center;gap:8px;margin-top:2px;padding-left:19px;padding-right:19px">' +
       '<div style="font-size:13px;font-weight:bold;display:flex;flex-wrap:wrap;gap:2px 10px;word-break:keep-all;min-width:0">' + next.bosses.map((n) => '<span>' + esc(n) + '</span>').join('') + '</div>' +
-      '<span style="flex:none;font-size:12px;color:#3b9eff;white-space:nowrap">' + dayTxt + next.hhmm + '</span>' +
       '<span style="flex:none;margin-left:auto;font-size:12px;font-weight:bold;color:#3b9eff;white-space:nowrap">' + fmtLong(next.t - now) + '</span></div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:2px;right:3px');
     try { // 창 기본형 상속: 우두머리=가로 (dock=스택공유, float=자기너비)
       if (KW && typeof KW.window === 'function') KW.window(nextEl, { color: '#3b9eff', posKey: LS_BDOPPOS, rsz: 'h', dock: () => bdoOrder() });
