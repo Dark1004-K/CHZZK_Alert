@@ -807,7 +807,7 @@
       '<div style="display:flex;align-items:center;min-height:22px;padding-right:26px;margin-bottom:6px"><b style="font-size:13px">데이터 출처</b></div>' +
       '<div style="color:#ccc">본 데이터는 아래의 사이트를 참고합니다.</div>' +
       '<div style="margin-top:2px">' + link('https://bdocodex.com', 'bdocodex.com') + link('https://bdolytics.com', 'bdolytics.com') + link('https://www.kr.playblackdesert.com', 'www.kr.playblackdesert.com') + '</div>' +
-      '<div style="margin-top:6px;color:#ccc">위 사이트와 협약은 맺지 않아 기능이 사라질 수 있습니다.<br>또한, 해당 기능이 사이트 침해를 한다면 제작자에게 연락을 부탁 드립니다.</div>';
+      '<div style="margin-top:6px;color:#ccc">위 사이트와 협약은 맺지 않아 기능이 사라질 수 있습니다. 해당 기능이 사이트의 재산권 침해를 한다면 제작자에게 연락을 부탁 드립니다.</div>';
     document.body.appendChild(w);
     try { // ? 버튼 바로 위 (위 공간 부족이면 아래)
       const r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : null;
@@ -1180,41 +1180,102 @@
     }
     return out;
   }
-  function parseBdolyticsDetail(text) { // bdolytics 1차 상세: database.getItem — 기본정보+효과 (설명은 비어 있는 경우가 많아 2차에서 보충)
-    let j = null;
-    try { j = JSON.parse(text); } catch (e) { return null; }
-    const d = (j && j.result && j.result.data) ? j.result.data : null;
-    if (!d || typeof d !== 'object') return null;
-    // 제작 여부는 2차(bdocodex 제작 재료)에서 확정. 1차 getItem의 쓰임새(역방향) 필드는 사용 안 함.
-    let icon = String(d.icon || '');
-    if (icon && icon.charAt(0) === '/') icon = BDOLY_IMG + icon;
-    const stats = [];
-    const cat = [d.mainCategory, d.subCategory].filter((x) => x).join(' · ');
-    if (cat) stats.push('종류: ' + cat);
-    if (d.weight != null && Number(d.weight) > 0) stats.push('무게: ' + d.weight + ' LT');
+  // ---------- calculator 1차 상세 (crafting 페이지와 동일 소스, database.getItem 대체) ----------
+  // /ko/crafting/:id 가 쓰는 3종: getCraftingRecipes(990) + getMaterialGroups(105) + getCraftingItemMetadata(1663)
+  // 최초 1회만 받아 캐시하고, 이후 상세·버튼·하위 레시피는 메모리에서 해결 (항목당 추가 호출 없음)
+  let calcRecipes = null, calcGroups = null, calcMeta = null, calcInflight = null;
+  function ensureCalcData() {
+    if (calcRecipes && calcGroups && calcMeta) return Promise.resolve(true);
+    if (calcInflight) return calcInflight;
+    const ru = BDOLY_BASE + '/api/trpc/calculator.getCraftingRecipes?input=' + encodeURIComponent(JSON.stringify(null));
+    const gu = BDOLY_BASE + '/api/trpc/calculator.getMaterialGroups?input=' + encodeURIComponent(JSON.stringify(null));
+    const mu = BDOLY_BASE + '/api/trpc/calculator.getCraftingItemMetadata?input=' + encodeURIComponent(JSON.stringify({ language: 'ko' }));
+    calcInflight = Promise.all([
+      bdoFetch(ru, 12000, BDOLY_BASE),
+      bdoFetch(gu, 12000, BDOLY_BASE),
+      bdoFetch(mu, 12000, BDOLY_BASE),
+    ]).then((arr) => {
+      let r = null, g = null, m = null;
+      try { r = JSON.parse(arr[0]).result.data; } catch (e) { r = null; }
+      try { g = JSON.parse(arr[1]).result.data; } catch (e) { g = null; }
+      try { m = JSON.parse(arr[2]).result.data; } catch (e) { m = null; }
+      const ok = !!(r && g && m);
+      calcRecipes = ok ? r : null; calcGroups = ok ? g : null; calcMeta = ok ? m : null;
+      calcInflight = null;
+      return ok;
+    }).catch(() => { calcRecipes = calcGroups = calcMeta = null; calcInflight = null; return false; });
+    return calcInflight;
+  }
+  function calcMetaOf(id) { // meta[id] -> { name, icon(상대경로), grade, ... } | null
     try {
-      if (d.buyPrice != null && Number(d.buyPrice) > 0) stats.push('구입가: ' + Number(d.buyPrice).toLocaleString('ko-KR'));
-      if (d.sellPrice != null && Number(d.sellPrice) > 0) stats.push('판매가: ' + Number(d.sellPrice).toLocaleString('ko-KR'));
-    } catch (e) {}
-    let desc = decHtml(String(d.description || ''));
-    const effects = [];
+      const m = calcMeta && calcMeta[String(id)];
+      return (m && typeof m === 'object') ? m : null;
+    } catch (e) { return null; }
+  }
+  function calcIcon(m) {
+    let ic = String((m && m.icon) || '');
+    if (ic && ic.charAt(0) === '/') ic = BDOLY_IMG + ic;
+    return ic;
+  }
+  function calcGroupOf(gid) { // groupId -> [{ itemId, value }] | null
     try {
-      const enh = Array.isArray(d.itemEnhancements) ? d.itemEnhancements.slice().sort((a, b) => (a.enhancementLevel || 0) - (b.enhancementLevel || 0)) : [];
-      const base = enh.length ? enh[0] : null;
-      const tips = (base && Array.isArray(base.tooltip)) ? base.tooltip : [];
-      let cut = false; // "- 강화 효과" 이후는 강화 정보라 1차에서 제외
-      for (const row of tips) {
-        if (cut) break;
-        const cells = Array.isArray(row) ? row : [row];
-        for (const cell of cells) {
-          const s = decHtml(String(cell || ''));
-          if (!s || s === '아이템 효과') continue;
-          if (/^-\s*/.test(s)) { cut = true; break; }
-          if (!/^[A-Z_0-9]+$/.test(s)) effects.push(s);
-        }
+      gid = Number(gid);
+      for (const g of (calcGroups || [])) {
+        if (g && Number(g.groupId) === gid) return g.items || g.candidates || null;
       }
     } catch (e) {}
-    return { icon, eng: '', stats, flags: [], desc, effects };
+    return null;
+  }
+  function calcIngToRow(ing) { // calculator 재료 1개 -> { name, amount, id, icon, grade, alt } (id 확정, 검색 불필요)
+    if (!ing) return null;
+    if (ing.type === 'item') {
+      const m = calcMetaOf(ing.itemId);
+      const nm = (m && m.name) || String(ing.itemId);
+      return { name: nm, amount: ing.quantity, id: String(ing.itemId), icon: calcIcon(m), grade: (m && m.grade != null ? m.grade : null) };
+    }
+    if (ing.groupId != null) { // 대체재 그룹: 첫 항목을 대표로, 나머지는 alt에 보관
+      const items = calcGroupOf(ing.groupId) || [];
+      if (!items.length) return { name: '재료 그룹 ' + ing.groupId, amount: ing.quantity, id: '', icon: '', grade: null };
+      const rep = items[0], m0 = calcMetaOf(rep.itemId);
+      const alts = items.slice(1).map((x) => {
+        const mm = calcMetaOf(x.itemId);
+        return { name: (mm && mm.name) || String(x.itemId), amount: ing.quantity, id: String(x.itemId), icon: calcIcon(mm), grade: (mm && mm.grade != null ? mm.grade : null), value: x.value };
+      });
+      return { name: (m0 && m0.name) || String(rep.itemId), amount: ing.quantity, id: String(rep.itemId), icon: calcIcon(m0), grade: (m0 && m0.grade != null ? m0.grade : null), value: rep.value, alt: alts };
+    }
+    return null;
+  }
+  function calcRecipesByProduct(id) { // productItemId == id 인 레시피 목록 (보통 0~1개)
+    const out = [];
+    try {
+      const nid = Number(id);
+      for (const r of (calcRecipes || [])) {
+        if (r && Number(r.productItemId) === nid) out.push(r);
+      }
+    } catch (e) {}
+    return out;
+  }
+  function buildCalcDetail(id) { // 1차 상세: 메타(종류·무게·가격) + 대표 레시피 (id 확정 행)
+    const m = calcMetaOf(id);
+    const recs = calcRecipesByProduct(id);
+    const rows = [];
+    if (recs.length) {
+      for (const ing of (recs[0].ingredients || [])) {
+        const row = calcIngToRow(ing);
+        if (row) rows.push(row);
+      }
+    }
+    const stats = [];
+    if (m) {
+      const cat = [m.mainCategory, m.subCategory].filter((x) => x).join(' · ');
+      if (cat) stats.push('종류: ' + cat);
+      if (m.weight != null && Number(m.weight) > 0) stats.push('무게: ' + m.weight + ' LT');
+      try {
+        if (m.buyPrice != null && Number(m.buyPrice) > 0) stats.push('구입가: ' + Number(m.buyPrice).toLocaleString('ko-KR'));
+        if (m.vendorPrice != null && Number(m.vendorPrice) > 0) stats.push('판매가: ' + Number(m.vendorPrice).toLocaleString('ko-KR'));
+      } catch (e) {}
+    }
+    return { icon: calcIcon(m), eng: '', stats, flags: [], desc: '', effects: [], hasRecipe: recs.length > 0, recipes: rows };
   }
   function parseCodexRecipe(html) { // bdocodex "- 제작 재료" 섹션 → [{ name, amount }] (이 아이템의 제작법, 정방향)
     try {
@@ -1297,7 +1358,7 @@
       else if (n1 !== n2 && !n1.includes(n2) && !n2.includes(n1)) desc = desc + '\n' + sd;
       else if (n2.length > n1.length) desc = sd;
     }
-    return { icon: f.icon || s.icon || '', eng: s.eng || f.eng || '', stats, flags, desc, effects, hasRecipe: !!(((s && s.recipes) || []).length || ((f && f.recipes) || []).length), recipes: ((s && s.recipes) || []).length ? s.recipes : ((f && f.recipes) || []) };
+    return { icon: f.icon || s.icon || '', eng: s.eng || f.eng || '', stats, flags, desc, effects, hasRecipe: !!(((f && f.recipes) || []).length || ((s && s.recipes) || []).length), recipes: ((f && f.recipes) || []).length ? f.recipes : ((s && s.recipes) || []) };
   }
   function parseCodexDetail(html) { // bdocodex 상세: 스탯·특성·설명·효과 (ID·구입/판매/수리비·강화 시뮬레이터 제외)
     html = String(html || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, ''); // 시세 스크립트(edescription 아님) 제거
@@ -1353,14 +1414,13 @@
     return { icon, eng, stats, flags, desc, effects };
   }
   const selCache = {}; // [itemId] -> { t, data } 상세 캐시 (1+2차 병합 결과)
-  const recipeCache = {}; // [itemId] -> true/false 제작 레시피 존재 여부 (getItem 응답 기준)
-  function fetchBdolyticsDetail(id) { // 1차: bdolytics getItem (빠른 구조화 정보)
-    const su = BDOLY_BASE + '/api/trpc/database.getItem?input=' + encodeURIComponent(JSON.stringify({ id: String(id), language: 'ko' }));
-    return bdoFetch(su, 12000, BDOLY_BASE).then((text) => {
-      if (!text) return null;
+  const recipeCache = {}; // [itemId] -> { has, recipes } 제작 레시피 존재 여부 (calculator + bdocodex 기준)
+  function fetchCalcDetail(id) { // 1차: calculator 메타+레시피 (상세 미리 표시 + 버튼 활성화용)
+    return ensureCalcData().then((ok) => {
+      if (!ok) return null;
       let d = null;
-      try { d = parseBdolyticsDetail(text); } catch (e) { d = null; }
-      if (!d || (!d.stats.length && !d.flags.length && !d.desc && !d.effects.length && !d.icon)) return null;
+      try { d = buildCalcDetail(id); } catch (e) { d = null; }
+      if (!d || (!d.stats.length && !d.icon && !d.hasRecipe)) return null;
       return d;
     }).catch(() => null);
   }
@@ -1402,7 +1462,7 @@
     if (KW.bridgeReady && KW.bridgeReady()) return run();
     return ensureBridge(1500).then((ok) => (ok ? run() : { miss: true, error: '브릿지 없음' }));
   }
-  function openCodexDetail(id) { // 목록 클릭 → 1차(bdolytics) 먼저 표시 → 설명은 2차(bdocodex) 로딩 표시 후 병합
+  function openCodexDetail(id) { // 목록 클릭 → 1차(calculator) 먼저 표시 → 설명은 2차(bdocodex) 로딩 표시 후 병합
     id = String(id || '');
     if (!id) return;
     selId = id; selPhase = 'loading'; selData = null;
@@ -1421,7 +1481,7 @@
       const cHas = c && c.data && typeof c.data.hasRecipe === 'boolean';
       if (c && Date.now() - c.t < 3600000 && cHas) { selPhase = 'ok'; selData = c.data; resSig = null; try { renderRes(); } catch (e) {} return; }
     } catch (e) {}
-    fetchBdolyticsDetail(id).then((d1) => {
+    fetchCalcDetail(id).then((d1) => {
       if (selId !== id) return; // 다른 항목으로 넘어감
       if (!d1) { // 1차가 비면 2차만 시도
         fetchCodexDetail(id).then((d2) => {
@@ -1582,7 +1642,7 @@
     return '<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.04);border-radius:8px;padding:6px 8px;margin-top:4px">' +
       tog +
       '<span style="flex:none;min-width:26px;text-align:right;font-size:11px;color:#aaa">' + esc(String((g && g.amount) == null ? '' : g.amount)) + '</span>' +
-      '<span style="flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(iname) + '</span>' +
+      '<span style="flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(iname) + ((g && g.alt && g.alt.length) ? '<span style="color:#8a8a99;font-size:11px"> / ' + esc(g.alt.map((a) => a.name).join(' · ')) + '</span>' : '') + '</span>' +
       (ic ? '<img loading="lazy" src="' + esc(ic) + '" width="34" height="34" style="flex:none;border-radius:6px;border:2px solid ' + gc + ';background:rgba(0,0,0,.4)" onerror="this.remove()">' : '') +
       '</div>' + subHtml;
   }
@@ -1596,6 +1656,7 @@
   }
   function renderRecipe() {
     if (!rcpEl || !rcpEl.isConnected) return;
+    if (!calcRecipes && !calcInflight) { try { ensureCalcData().then(() => { try { renderRecipe(); } catch (e) {} }); } catch (e) {} }
     const sc0 = rcpEl.querySelector('.__kw_sb_rcp');
     const st0 = sc0 ? sc0.scrollTop : 0;
     const body = rcpRecipes.length
@@ -1605,7 +1666,7 @@
       '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;overflow:hidden">' + (rcpIcon ? '<img src="' + esc(rcpIcon) + '" width="26" height="26" style="flex:none;border-radius:6px;background:rgba(255,255,255,.06);margin-right:6px" onerror="this.remove()">' : '') + esc(rcpName || '제작 레시피') + '</b></div>' +
       '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' +
       '<div class="__kw_sb_rcp" style="flex:1;min-height:0;overflow-y:auto;margin-top:2px">' + body + '</div>' +
-      '<button data-rcp-ext style="margin-top:8px;width:100%;box-sizing:border-box;background:transparent;border:1px solid rgba(255,255,255,.2);color:#7ab8ff;border-radius:8px;padding:6px;font-size:11px;cursor:pointer;flex:none">bdolytics 제작 페이지 열기</button>';
+      (hasCalcCrafting() ? '<button data-rcp-ext style="margin-top:8px;width:100%;box-sizing:border-box;background:transparent;border:1px solid rgba(255,255,255,.2);color:#7ab8ff;border-radius:8px;padding:6px;font-size:11px;cursor:pointer;flex:none">bdolytics 제작 페이지 열기</button>' : '');
     const xx = rcpEl.querySelector('#__kw_bdo_rcp_x');
     if (xx) xx.onclick = removeRecipe;
     rcpEl.querySelectorAll('[data-rcp-sub]').forEach((b) => {
@@ -1623,7 +1684,14 @@
       };
     });
     const xe = rcpEl.querySelector('[data-rcp-ext]');
-    if (xe) xe.onclick = () => { try { window.open(BDOLY_BASE + '/ko/crafting/' + encodeURIComponent(rcpKey), '_blank', 'noopener'); } catch (er) {} };
+    if (xe) xe.onclick = (e) => {
+      try { if (e && e.stopPropagation) e.stopPropagation(); } catch (er) {}
+      try {
+        const w = window.open(BDOLY_BASE + '/ko/crafting/' + encodeURIComponent(rcpKey), 'kwCrafting', 'width=720,height=860,menubar=no,toolbar=no,location=yes,resizable=yes,scrollbars=yes');
+        if (w && w.focus) { try { w.focus(); } catch (er2) {} }
+        else if (!w && typeof KW.toast === 'function') KW.toast('제작 페이지', '팝업이 차단됐습니다. 팝업을 허용하고 다시 누르세요.');
+      } catch (er3) {}
+    };
     try { const sc1 = rcpEl.querySelector('.__kw_sb_rcp'); if (sc1) sc1.scrollTop = st0; } catch (e) {}
     wireRecipeWindow();
     try { prefetchVisibleSubs(); } catch (e) {}
@@ -1643,6 +1711,30 @@
       }
     } catch (e) {}
   }
+  function hasCalcCrafting() { // calculator에 해당 아이템 레시피가 있을 때만 외부 버튼 표시
+    try {
+      if (!calcRecipes || !rcpKey) return false;
+      const nid = Number(rcpKey);
+      if (!isFinite(nid)) return false;
+      for (const r of calcRecipes) {
+        if (r && Number(r.productItemId) === nid) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+  function fetchCalcSubList(gid) { // 재료의 제작법 (calculator, id 확정 행 반환)
+    return ensureCalcData().then((ok) => {
+      if (!ok) return [];
+      const recs = calcRecipesByProduct(gid);
+      if (!recs.length) return [];
+      const rows = [];
+      for (const ing of (recs[0].ingredients || [])) {
+        const row = calcIngToRow(ing);
+        if (row) rows.push(row);
+      }
+      return rows;
+    }).catch(() => []);
+  }
   function fetchCodexRecipeList(gid) { // 재료의 제작법 (bdocodex 제작 재료 + 이름 해석, flat 반환)
     const cu = CODEX_BASE + '/kr/item/' + encodeURIComponent(gid) + '/';
     let p = null;
@@ -1660,11 +1752,20 @@
     const forKey = rcpKey;
     rcpInflight[gid] = true;
     rcpSub[gid] = { loading: true };
-    fetchCodexRecipeList(gid).then((flat) => {
-      delete rcpInflight[gid];
-      if (forKey !== rcpKey) return; // 다른 아이템 창으로 넘어감
-      rcpSub[gid] = { recipes: (flat || []).length ? [{ name: String(gname || gid), ingredients: flat }] : [] };
-      try { renderRecipe(); } catch (e) {}
+    fetchCalcSubList(gid).then((cflat) => {
+      if ((cflat || []).length) { // calculator에 있으면 id 확정 행으로 바로 펼침
+        delete rcpInflight[gid];
+        if (forKey !== rcpKey) return; // 다른 아이템 창으로 넘어감
+        rcpSub[gid] = { recipes: [{ name: String(gname || gid), ingredients: cflat }] };
+        try { renderRecipe(); } catch (e) {}
+        return;
+      }
+      fetchCodexRecipeList(gid).then((flat) => {
+        delete rcpInflight[gid];
+        if (forKey !== rcpKey) return; // 다른 아이템 창으로 넘어감
+        rcpSub[gid] = { recipes: (flat || []).length ? [{ name: String(gname || gid), ingredients: flat }] : [] };
+        try { renderRecipe(); } catch (e) {}
+      });
     });
   }
   function prefetchVisibleSubs() { // 보이는 줄의 하위 레시피를 미리 확인 (확정된 것만 + 표시)
@@ -1702,11 +1803,11 @@
     rcpExpanded = {}; rcpSub = {}; rcpInflight = {};
     const cv = recipeCache[id];
     const flat = ((typeof selId !== 'undefined' && selId === id && selData && selData.recipes) || (cv && cv.recipes) || []);
-    rcpRecipes = flat.length ? [{ name: rcpName, ingredients: flat.map((g) => ({ name: g.name, amount: g.amount })) }] : [];
+    rcpRecipes = flat.length ? [{ name: rcpName, ingredients: flat.map((g) => ({ name: g.name, amount: g.amount, id: g.id || '', icon: g.icon || '', grade: (g.grade != null ? g.grade : null), alt: g.alt || null })) }] : [];
     updateRecipe();
     const all = [];
     rcpRecipes.forEach((r) => { (r.ingredients || []).forEach((g) => all.push(g)); });
-    enrichIngs(all).then(() => { if (rcpKey === id) { try { renderRecipe(); } catch (e) {} } });
+    enrichIngs(all).then(() => { if (rcpKey === id) { try { renderRecipe(); } catch (e) {} } }); // id 없는 bdocodex 행만 검색으로 보충
   }
   function selBodyHtml(fI) { // 옆 상세 pane 본문 (선택된 아이템)
     if (selPhase === 'loading' || !selData) return '<div style="font-size:11px;color:#aaa;margin-top:6px">아이템 상세 불러오는 중...</div>';
