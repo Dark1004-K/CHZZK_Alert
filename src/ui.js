@@ -48,6 +48,7 @@ try {
     try {
       const t = e && e.target;
       if (t && t.closest && t.closest('#__kw_stack,#__kw_optwin') && /^(INPUT|TEXTAREA)$/.test(t.tagName || '')) {
+        if (t.closest('#__kw_bdo_family,#__kw_bdo_res')) return; // 검은사막 검색·결과창은 설정 투명도 유지
         const st = document.getElementById('__kw_stack');
         if (st) st.style.opacity = '1';
         const ow = document.getElementById('__kw_optwin');
