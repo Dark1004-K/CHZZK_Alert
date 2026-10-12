@@ -36,7 +36,7 @@ try { const st = localStorage.getItem(LS_TAB); if (st === 'words' || st === 'sou
 const LS_OPACITY = '__kw_transparency';
 function getTransparency() {
   try { const v = parseInt(localStorage.getItem(LS_OPACITY), 10); if (isFinite(v)) return Math.max(0, Math.min(90, v)); } catch (e) {}
-  return 0;
+  return 15; // 최초 설치 기본값 15%
 }
 function applyOpacity() {
   try { if (stackEl) stackEl.style.opacity = String((100 - getTransparency()) / 100); } catch (e) {}

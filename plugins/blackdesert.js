@@ -8,7 +8,7 @@
   if (!KW || typeof KW.option !== 'function' || typeof KW.enabled !== 'function') return;
   if (window.__kwBdoLoaded) return;
   window.__kwBdoLoaded = true;
-  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.1' }); } catch (e) {}
+  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.2' }); } catch (e) {}
   const ID = 'blackdesert';
   // 썸네일 박스: 로딩 중 스피너 → 완료 시 이미지 → 실패 시 "NO"
   // (onload/onerror="..." 인라인에서 호출. 박스(.​__kw_thumb) 구조에 의존)

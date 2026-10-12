@@ -157,6 +157,25 @@ function setPluginOn(p, on) {
   if (on && !pluginLoaded[p.id] && !limitedMode) injectPlugin(p);
   dlog('plugin-' + (on ? 'on' : 'off'), p.id);
 }
+// 켜져 있는 확장의 버전이 바뀌었으면 시작 시 토스트 (주입된=켜진 플러그인만 신고하므로 체크 조건은 자동 충족).
+// 첫 기록·동일 버전은 조용히 저장만. 버전은 플러그인의 describe 신고값을 쓴다.
+const LS_PLUGVER = '__kw_plugver'; // { [id]: version } 마지막으로 본 플러그인 버전
+function checkPluginUpdated(id) {
+  let ver = '';
+  try { const m = pluginMetaOf(id); ver = (m && m.version) ? String(m.version) : ''; } catch (e) {}
+  if (!ver) return;
+  let map = {};
+  try { map = JSON.parse(localStorage.getItem(LS_PLUGVER)) || {}; } catch (e) { map = {}; }
+  const old = map[id] ? String(map[id]) : '';
+  map[id] = ver;
+  try { localStorage.setItem(LS_PLUGVER, JSON.stringify(map)); } catch (e) {}
+  if (!old || old === ver) return;
+  try {
+    const p = (pluginList || []).find((x) => x && x.id === id);
+    const nm = (p && (p.name || p.id)) || id;
+    if (typeof showCallToast === 'function') showCallToast('확장 업데이트', nm + ' ' + old + ' → ' + ver);
+  } catch (e) {}
+}
 try {
   window.__KW = window.__KW || {
     version: SCRIPT_VERSION,
@@ -183,6 +202,7 @@ try {
             name: String(info.name || ''),
             version: String(info.version || ''),
           };
+          try { checkPluginUpdated(pluginInjecting); } catch (e) {}
           if (setTab === 'ext') renderSettings();
         }
       } catch (e) {}
