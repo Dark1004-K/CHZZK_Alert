@@ -1591,6 +1591,36 @@
     const m = /name="__RequestVerificationToken"[^>]*value="([^"]+)"/.exec(String(html || ''));
     return m ? m[1] : null;
   }
+  function marketQueryWithToken(key, token) { // 토큰으로 시세 1회 조회 → 성공 시 true
+    const body = '__RequestVerificationToken=' + encodeURIComponent(token) + '&mainKey=' + encodeURIComponent(key) + '&usingCleint=0';
+    return marketCall('postForm', { url: TRADE_BASE + '/Home/GetWorldMarketSubList', body }).then((pr) => {
+      const txt = (pr && pr.ok && pr.data) ? String(pr.data.text || '') : '';
+      if (!txt) return false;
+      let summary = '토큰 찾음. 응답 ' + txt.length + '자';
+      try {
+        const j = JSON.parse(txt);
+        summary += ' / resultCode=' + j.resultCode + ' ' + (j.resultMsg || '');
+        if (Number(j.resultCode) === 0) summary += ' 성공!';
+      } catch (e) { summary += ' (JSON 아님: ' + txt.slice(0, 80) + ')'; }
+      try { if (typeof KW.toast === 'function') KW.toast('거래소 테스트', summary); } catch (e) {}
+      try { window.__kwBdoMarketLast = { key, response: txt.slice(0, 2000) }; } catch (e) {}
+      return true;
+    }).catch(() => false);
+  }
+  function marketProbeOnce(key) { // 로그인 확인용 1회 시도: 결과가 오면 로그인됨 (창을 열지 않음)
+    const pages = [TRADE_BASE + '/', TRADE_BASE + '/Home/list'];
+    const step = (async () => {
+      try {
+        for (const u of pages) {
+          const r = await marketCall('fetch', { url: u });
+          const t = (r && r.ok && r.data && r.data.html) ? marketFindToken(r.data.html) : null;
+          if (t) return marketQueryWithToken(key, t);
+        }
+      } catch (e) {}
+      return false;
+    })();
+    return step;
+  }
   function marketTestPoll(key, left) {
     const pages = [TRADE_BASE + '/', TRADE_BASE + '/Home/list'];
     const step = (async () => {
@@ -1598,20 +1628,7 @@
         for (const u of pages) {
           const r = await marketCall('fetch', { url: u });
           const t = (r && r.ok && r.data && r.data.html) ? marketFindToken(r.data.html) : null;
-          if (t) {
-            const body = '__RequestVerificationToken=' + encodeURIComponent(t) + '&mainKey=' + encodeURIComponent(key) + '&usingCleint=0';
-            const pr = await marketCall('postForm', { url: TRADE_BASE + '/Home/GetWorldMarketSubList', body });
-            const txt = (pr && pr.ok && pr.data) ? String(pr.data.text || '') : '';
-            let summary = '토큰 찾음. 응답 ' + txt.length + '자';
-            try {
-              const j = JSON.parse(txt);
-              summary += ' / resultCode=' + j.resultCode + ' ' + (j.resultMsg || '');
-              if (Number(j.resultCode) === 0) summary += ' 성공!';
-            } catch (e) { summary += ' (JSON 아님: ' + txt.slice(0, 80) + ')'; }
-            try { if (typeof KW.toast === 'function') KW.toast('거래소 테스트', summary); } catch (e) {}
-            try { window.__kwBdoMarketLast = { key, response: txt.slice(0, 2000) }; } catch (e) {}
-            return;
-          }
+          if (t) { await marketQueryWithToken(key, t); return; }
         }
         if (left > 0) setTimeout(() => marketTestPoll(key, left - 1), 3000);
         else { try { if (typeof KW.toast === 'function') KW.toast('거래소 테스트', '토큰을 못 찾았습니다. 로그인 상태를 확인하세요.'); } catch (e) {} }
@@ -1622,9 +1639,16 @@
   if (KW.beta) { // 정식 앱에서는 테스트 후크를 만들지 않는다
     window.__kwBdoMarketTest = (mainKey) => {
       const key = String(mainKey || '4998');
-      try { window.open(TRADE_BASE + '/', '_blank'); } catch (e) {}
-      marketTestPoll(key, 30);
-      return '거래소 로그인 창을 열었습니다. 로그인 후 자동으로 조회합니다.';
+      marketProbeOnce(key).then((done) => {
+        if (done) return; // 로그인됨 → 바로 조회 끝. 창을 열지 않음
+        try { // 미로그인 → 로그인용 팝업 윈도우 (새 탭이 아님). 로그인 후 폴링이 자동 조회
+          const w = window.open(TRADE_BASE + '/', 'kwTradeLogin', 'width=560,height=720,menubar=no,toolbar=no,location=yes,resizable=yes,scrollbars=yes');
+          if (!w) { try { if (typeof KW.toast === 'function') KW.toast('거래소 테스트', '팝업이 차단됐습니다. 팝업을 허용하고 다시 누르세요.'); } catch (e) {} return; }
+          try { if (w.focus) w.focus(); } catch (e) {}
+        } catch (e) {}
+        marketTestPoll(key, 30);
+      });
+      return '로그인 상태 확인 중... (로그인이 안 되어 있으면 팝업이 열립니다)';
     };
   }
   // [BETA-TEST-ONLY:end]
