@@ -1916,6 +1916,7 @@
       '<button data-restab="' + k + '" style="flex:1;border:1px solid ' + (k === resKind ? '#ff7ab8' : 'rgba(255,255,255,.16)') + ';background:' + (k === resKind ? 'rgba(255,122,184,.14)' : 'transparent') + ';color:' + (k === resKind ? '#ff9ec4' : '#999') + ';border-radius:8px;padding:3px 0;font-size:11px;font-weight:bold;cursor:pointer">' + names[k] + '</button>'
     ).join('') + '</div>';
   }
+  let resKeepRev = ''; // 목록 스크롤 유지 키 (같은 검색 내 선택 이동시에만 복원)
   function renderRes() {
     if (!resEl || !resEl.isConnected) return;
     const kinds = resKinds();
@@ -1936,6 +1937,20 @@
       bridgeOn ? 'b' : '-'].join('|');
     if (sig === resSig) return;
     resSig = sig;
+    // 스크롤 유지: 같은 검색 안에서 아이템 선택/상세 로딩으로 다시 그려도 위치 그대로
+    const keepRev = [resKind, liveFamRev, liveGuildRev, liveItemRev, famResQ, guildResQ, itemResQ].join('|');
+    let keepListTop = null, keepItemTop = null;
+    if (resKeepRev === keepRev) {
+      try {
+        const lf = resEl.querySelector('.__kw_sb_fam');
+        if (lf) keepListTop = lf.scrollTop;
+        const ll = resEl.querySelector('.__kw_sb_list');
+        if (ll) keepListTop = ll.scrollTop;
+        const it = resEl.querySelector('.__kw_sb_item');
+        if (it) keepItemTop = it.scrollTop;
+      } catch (e) {}
+    }
+    resKeepRev = keepRev;
     const needBridge = '<div style="font-size:11px;color:#ff7b7b;margin-top:6px;line-height:1.5">동반 브릿지(chzzk_bridge)가 필요합니다.<br>설치 후 방송 페이지를 새로고침하세요.</div>';
     const loading = '<div style="font-size:11px;color:#aaa;margin-top:6px">실시간 검색 중...</div>';
     let title = '', body = '', liveTag = false;
@@ -2001,7 +2016,7 @@
       (kinds.length > 1 ? resTabHtml(kinds) : '') +
       (liveTag ? '<div style="font-size:10px;color:#7dffb3;margin-top:4px">● 실시간 검색 결과</div>' : '') +
       (twoCol
-        ? '<div style="flex:1;min-height:0;display:flex;gap:8px;margin-top:4px"><div style="flex:1;min-width:0;overflow-y:auto">' + body.list + '</div><div style="flex:none;width:1px;background:rgba(255,255,255,.14);margin:4px 0"></div><div class="__kw_sb_item" style="flex:1.25;min-width:0;overflow-y:auto">' + body.detail + '</div></div>'
+        ? '<div style="flex:1;min-height:0;display:flex;gap:8px;margin-top:4px"><div class="__kw_sb_list" style="flex:1;min-width:0;overflow-y:auto">' + body.list + '</div><div style="flex:none;width:1px;background:rgba(255,255,255,.14);margin:4px 0"></div><div class="__kw_sb_item" style="flex:1.25;min-width:0;overflow-y:auto">' + body.detail + '</div></div>'
         : '<div class="__kw_sb_fam" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">' + body + '</div>');
     resEl.innerHTML = h;
     const rx = resEl.querySelector('#__kw_bdo_res_x');
@@ -2043,6 +2058,16 @@
         if (id && typeof window.__kwBdoMarketTest === 'function') { try { window.__kwBdoMarketTest(id, nm); } catch (er2) {} }
       };
     });
+    try { // 저장해 둔 스크롤 복원 (목록/상세 각각)
+      if (keepListTop != null) {
+        const nl = resEl.querySelector('.__kw_sb_list') || resEl.querySelector('.__kw_sb_fam');
+        if (nl) nl.scrollTop = keepListTop;
+      }
+      if (keepItemTop != null) {
+        const ni = resEl.querySelector('.__kw_sb_item');
+        if (ni) ni.scrollTop = keepItemTop;
+      }
+    } catch (e) {}
   }
   function updateRes(now) {
     const stack = document.getElementById('__kw_stack');
