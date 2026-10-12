@@ -1871,9 +1871,9 @@
       }).join('');
       body =
         '<div style="margin-top:6px;flex:none">' + marketGraphSvg(marketData.hist) + '</div>' +
-        '<div style="flex:1;min-width:0;font-size:11px;line-height:2">' + marketSummaryHtml(cond) + '</div>' +
-        '<button data-trade-go="' + esc(marketKey) + '" title="거래소 구매하러 가기" style="margin-top:8px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35);color:#7dffb3;border-radius:8px;padding:6px;font-size:11px;font-weight:bold;cursor:pointer;flex:none">거래소 구매하러 가기</button>' +
-        '<div style="display:flex;justify-content:space-between;gap:6px;font-size:11px;color:#bbb;margin-top:6px;flex:none"><span>최근 거래: ' + (lastH ? esc(String(lastH.days || '')) : '-') + '</span><span>누적 거래: ' + fmtN(sellTot + buyTot) + '건</span></div>' +
+        '<div style="flex:1;min-width:0;font-size:11px;line-height:1.7">' + marketSummaryHtml(cond) + '</div>' +
+        '<button data-trade-go="' + esc(marketKey) + '" title="거래소 구매하러 가기" style="margin-top:4px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35);color:#7dffb3;border-radius:8px;padding:6px;font-size:11px;font-weight:bold;cursor:pointer;flex:none">거래소 구매하러 가기</button>' +
+        '<div style="display:flex;justify-content:space-between;gap:6px;font-size:11px;color:#bbb;margin-top:4px;flex:none"><span>최근 거래: ' + (lastH ? esc(String(lastH.days || '')) : '-') + '</span><span>누적 거래: ' + fmtN(sellTot + buyTot) + '건</span></div>' +
         '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:8px -10px 0"></div>' +
         '<div class="__kw_sb_mkt" style="flex:1;min-height:0;overflow-y:auto;margin:0 -10px -18px;border-radius:0 0 12px 12px">' + (rows || '<div style="font-size:11px;color:#888;padding:8px 10px">목록 없음</div>') + '</div>';
     }
