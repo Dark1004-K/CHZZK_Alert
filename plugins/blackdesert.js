@@ -10,6 +10,12 @@
   window.__kwBdoLoaded = true;
   try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.4' }); } catch (e) {}
   const ID = 'blackdesert';
+  // 설정 > 일반설정의 창 투명도를 결과창(fixed, 스택 밖)에도 적용. 본체 KW.opacity() 우선, 없으면 저장값 직접 읽기.
+  function bdoOpacity() {
+    try { if (KW && typeof KW.opacity === 'function') return KW.opacity(); } catch (e) {}
+    try { const v = parseInt(localStorage.getItem('__kw_transparency'), 10); if (isFinite(v)) return (100 - Math.max(0, Math.min(90, v))) / 100; } catch (e) {}
+    return 0.85;
+  }
   // 썸네일 박스: 로딩 중 스피너 → 완료 시 이미지 → 실패 시 "NO"
   // (onload/onerror="..." 인라인에서 호출. 박스(.​__kw_thumb) 구조에 의존)
   const THUMB_CSS = 'flex:none;width:24px;height:24px;position:relative;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;background:rgba(255,255,255,.06);overflow:hidden';
@@ -1606,7 +1612,7 @@
     if (!resEl || !resEl.isConnected) {
       resEl = document.createElement('div');
       resEl.id = '__kw_bdo_res';
-      resEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;height:' + Math.min(resH, resHMax()) + 'px';
+      resEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;opacity:' + bdoOpacity() + ';height:' + Math.min(resH, resHMax()) + 'px';
       document.body.appendChild(resEl);
       placeRes();
       resSig = null;

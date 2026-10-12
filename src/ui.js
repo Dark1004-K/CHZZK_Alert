@@ -39,8 +39,10 @@ function getTransparency() {
   return 15; // 최초 설치 기본값 15%
 }
 function applyOpacity() {
-  try { if (stackEl) stackEl.style.opacity = String((100 - getTransparency()) / 100); } catch (e) {}
-  try { const ow = document.getElementById('__kw_optwin'); if (ow) ow.style.opacity = String((100 - getTransparency()) / 100); } catch (e) {}
+  const op = String((100 - getTransparency()) / 100);
+  try { if (stackEl) stackEl.style.opacity = op; } catch (e) {}
+  try { const ow = document.getElementById('__kw_optwin'); if (ow) ow.style.opacity = op; } catch (e) {}
+  try { const res = document.getElementById('__kw_bdo_res'); if (res) res.style.opacity = op; } catch (e) {}
 }
 // (입력 포커스 시 일시 불투명 전환은 제거됨 — 모든 입력칸에서 설정 투명도를 그대로 유지)
 function ensureStack() {
