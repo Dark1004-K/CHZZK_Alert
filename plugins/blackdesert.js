@@ -1678,6 +1678,7 @@
   const LS_MKTH = '__kw_market_h';
   const MKT_H_DEF = 400, MKT_H_MIN = 200, MKT_W = 340;
   let marketEl = null, marketPhase = 'idle', marketName = '', marketData = null;
+  let marketPending = null; // 버튼 요청 보관 (현황창은 토큰 확보 후에만 염)
   let marketH = MKT_H_DEF;
   try { const mhv = parseInt(localStorage.getItem(LS_MKTH), 10); if (mhv >= MKT_H_MIN && mhv <= 4000) marketH = mhv; } catch (e) {}
   const fmtN = (n) => { try { return Number(n).toLocaleString('ko-KR'); } catch (e) { return String(n); } };
@@ -1802,6 +1803,10 @@
     } catch (e) {}
   }
   function marketQueryWithToken(key, token) { // GetItemSellBuyInfo 1회 조회 → 현황창에 표시
+    if (marketPending && marketPending.key === String(key) && marketPending.name) marketName = marketPending.name;
+    if (!marketName) marketName = itemResQ || '거래소 현황';
+    marketPhase = 'loading';
+    try { updateMarket(); } catch (e) {} // 현황창은 토큰 확보된 뒤에 처음 염
     const body = '__RequestVerificationToken=' + encodeURIComponent(token) + '&keyType=0&mainKey=' + encodeURIComponent(key) + '&subKey=0&isUp=false';
     try { mlog('query', 'mainKey=' + key, 'token ' + String(token || '').length + '자'); } catch (e) {}
     return marketCall('postForm', { url: TRADE_BASE + '/Home/GetItemSellBuyInfo', body }).then((pr) => {
@@ -1879,9 +1884,7 @@
   if (KW.beta) { // 정식 앱에서는 테스트 후크를 만들지 않는다
     window.__kwBdoMarketTest = (mainKey, name) => {
       const key = String(mainKey || '4998');
-      marketName = String(name || itemResQ || '거래소 현황');
-      marketPhase = 'loading';
-      try { updateMarket(); } catch (e) {}
+      marketPending = { key, name: String(name || itemResQ || '거래소 현황') };
       marketProbeOnce(key).then((done) => {
         if (done) return; // 로그인됨 → 바로 조회 끝. 창을 열지 않음
         marketLoginModal(() => { // 미로그인 → 안내 후 로그인용 팝업 윈도우 (새 탭이 아님). 로그인 후 폴링이 자동 조회
