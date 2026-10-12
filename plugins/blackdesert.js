@@ -773,6 +773,7 @@
   const LS_ITEMQ = '__kw_item_q';
   let famEl = null, famSig = null;
   let famQuery = ''; // 새로고침 시 초기화 (이전 검색어는 복원하지 않음)
+  let famSrcShow = false; // 데이터 출처 안내 펼침 여부
   let guildQuery = '';
   let itemQuery = '';
   try { localStorage.removeItem(LS_FAMQ); localStorage.removeItem(LS_GUILDQ); localStorage.removeItem(LS_ITEMQ); } catch (e) {}
@@ -801,7 +802,9 @@
       if (ae && famEl.contains(ae) && ae.id) refocus = { id: ae.id, s: ae.selectionStart, e: ae.selectionEnd };
     } catch (er) {}
     famEl.innerHTML = xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
-      '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + '검은사막 검색</b></div>' +
+      '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + '검은사막 검색</b>' +
+      '<button id="__kw_fam_src" title="데이터 출처" style="width:16px;height:16px;margin-left:6px;padding:0;border-radius:50%;border:1px solid #8a8a99;background:transparent;color:#ccc;font:bold 11px/14px sans-serif;cursor:pointer;flex:none">?</button></div>' +
+      (famSrcShow ? '<div style="margin:6px 0 0 19px;padding:8px 10px;border:1px solid rgba(255,255,255,.16);border-radius:8px;background:rgba(255,255,255,.04);font-size:11px;color:#ccc;line-height:1.7;flex:none">본 데이터는 아래의 사이트를 참고합니다.<br><button id="__kw_fam_src_go" title="www.kr.playblackdesert.com 열기" style="border:0;background:transparent;color:#7ab8ff;font-size:11px;padding:0;cursor:pointer;text-decoration:underline">www.kr.playblackdesert.com</button></div>' : '') +
       '<div style="display:flex;gap:6px;flex:none;margin-top:4px;padding-left:19px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>' +
       '<div style="display:flex;gap:6px;flex:none;margin-top:6px;padding-left:19px"><input id="__kw_guild_q" class="__kw_in" placeholder="길드명 입력" value="' + esc(guildQuery) + '" style="flex:1;min-width:0"><button id="__kw_guild_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>' +
       '<div style="display:flex;gap:6px;flex:none;margin-top:6px;padding-left:19px"><input id="__kw_item_q" class="__kw_in" placeholder="아이템명 입력" value="' + esc(itemQuery) + '" style="flex:1;min-width:0"><button id="__kw_item_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>';
@@ -854,6 +857,10 @@
     if (ig) ig.onclick = goItem;
     const fx = famEl.querySelector('#__kw_bdo_family_x');
     if (fx) fx.onclick = (e) => { e.stopPropagation(); turnOff('family'); removeFamily(); removeRes(); };
+    const sbtn = famEl.querySelector('#__kw_fam_src');
+    if (sbtn) sbtn.onclick = () => { famSrcShow = !famSrcShow; famSig = null; renderFamily(); };
+    const sgo = famEl.querySelector('#__kw_fam_src_go');
+    if (sgo) sgo.onclick = () => { try { window.open('https://www.kr.playblackdesert.com', '_blank', 'noopener'); } catch (er) {} };
     // 다시 그리기로 날아간 포커스 복구 (커서 위치 포함)
     try {
       if (refocus) {
@@ -1682,9 +1689,11 @@
   let marketH = MKT_H_DEF;
   try { const mhv = parseInt(localStorage.getItem(LS_MKTH), 10); if (mhv >= MKT_H_MIN && mhv <= 4000) marketH = mhv; } catch (e) {}
   const fmtN = (n) => { try { return Number(n).toLocaleString('ko-KR'); } catch (e) { return String(n); } };
+  let marketSig = null, marketRev = 0; // 같은 내용 반복 렌더 방지 (스크롤 유지)
   function removeMarket() {
     if (marketEl) { try { marketEl.remove(); } catch (e) {} }
     marketEl = null;
+    marketSig = null;
   }
   function placeMarket() { // 결과창 오른쪽, 없으면 검색창 오른쪽, 그것도 없으면 화면 오른쪽
     if (!marketEl) return;
@@ -1721,24 +1730,52 @@
       }
     } catch (e2) {}
   }
-  function marketGraphSvg(hist) { // 최근 시세 간략 그래프 (인라인 SVG, 외부 라이브러리 없음)
-    const W = 150, H = 64, P = 5;
+  function marketGraphSvg(hist) { // 본 사이트식: Y축 M단위·X축 주간 날짜·값별 색(저=파랑·고=빨강)·최신가 중앙
     const pts = (hist || []).slice(-30);
     if (pts.length < 2) return '<div style="font-size:11px;color:#888">시세 기록 없음</div>';
+    const vals = pts.map((p) => Number(p.value));
     let mn = Infinity, mx = -Infinity;
-    pts.forEach((p) => { const v = Number(p.value); if (isFinite(v)) { if (v < mn) mn = v; if (v > mx) mx = v; } });
+    vals.forEach((v) => { if (isFinite(v)) { if (v < mn) mn = v; if (v > mx) mx = v; } });
     if (!isFinite(mn)) return '<div style="font-size:11px;color:#888">시세 기록 없음</div>';
     if (mx === mn) mx = mn + 1;
-    const X = (i) => (P + (W - P * 2) * (i / (pts.length - 1))).toFixed(1);
-    const Y = (v) => (H - P - (H - P * 2) * ((v - mn) / (mx - mn))).toFixed(1);
-    const line = pts.map((p, i) => X(i) + ',' + Y(Number(p.value))).join(' ');
+    const W = 360, H = 130, PL = 44, PR = 10, PT = 18, PB = 20;
+    const X = (i) => (PL + (W - PL - PR) * (i / (pts.length - 1))).toFixed(1);
+    const Y = (v) => (PT + (H - PT - PB) * (1 - (v - mn) / (mx - mn))).toFixed(1);
+    const lerp = (a, b, t) => Math.round(a + (b - a) * t);
+    const heat = (t) => { // 저=파랑 → 중=회백 → 고=빨강
+      const LO = [58, 108, 220], MID = [205, 205, 210], HI = [224, 62, 62];
+      const A = t < 0.5 ? LO : MID, B = t < 0.5 ? MID : HI, k = t < 0.5 ? t * 2 : (t - 0.5) * 2;
+      return 'rgb(' + lerp(A[0], B[0], k) + ',' + lerp(A[1], B[1], k) + ',' + lerp(A[2], B[2], k) + ')';
+    };
+    let segs = '';
+    for (let i = 1; i < pts.length; i++) {
+      const t = ((vals[i - 1] + vals[i]) / 2 - mn) / (mx - mn);
+      segs += '<line x1="' + X(i - 1) + '" y1="' + Y(vals[i - 1]) + '" x2="' + X(i) + '" y2="' + Y(vals[i]) + '" stroke="' + heat(t) + '" stroke-width="1.4"/>';
+    }
+    const fmtM = (v) => v >= 1e6 ? (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? Math.round(v / 1e3) + 'K' : String(Math.round(v));
+    const yT = [mx, (mn + mx) / 2, mn].map((v) => '<text x="' + (PL - 4) + '" y="' + (+Y(v) + 3) + '" text-anchor="end" font-size="9" fill="#999">' + fmtM(v) + '</text>').join('');
+    const xi = [];
+    for (let i = 0; i < pts.length && xi.length < 5; i += 7) xi.push(i);
+    const xT = xi.map((i) => '<text x="' + X(i) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="9" fill="#999">' + esc(String((pts[i] && pts[i].days) || '').slice(5).replace('-', '/')) + '</text>').join('');
+    const rp = Math.pow(10, Math.floor(Math.log10((mx - mn) / 2)));
+    const rm = (mx - mn) / 2 / rp;
+    const step = (rm >= 5 ? 5 : rm >= 2 ? 2 : 1) * rp;
     const last = pts[pts.length - 1];
-    return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" style="display:block;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:8px">' +
-      '<polyline points="' + line + '" fill="none" stroke="#00ffa3" stroke-width="1.6"/>' +
-      '<circle cx="' + X(pts.length - 1) + '" cy="' + Y(Number(last.value)) + '" r="2.4" fill="#00ffa3"/></svg>';
+    const cx = (PL + W - PR) / 2, cy = (PT + H - PB) / 2;
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" style="display:block;width:100%;background:rgba(255,255,255,.02);border-radius:8px">' +
+      '<line x1="' + PL + '" y1="' + PT + '" x2="' + PL + '" y2="' + (H - PB) + '" stroke="#999" stroke-width="1"/>' +
+      '<line x1="' + PL + '" y1="' + (H - PB) + '" x2="' + (W - PR) + '" y2="' + (H - PB) + '" stroke="#999" stroke-width="1"/>' +
+      yT + segs + xT +
+      '<text x="' + cx.toFixed(1) + '" y="' + cy.toFixed(1) + '" text-anchor="middle" font-size="15" font-weight="bold" fill="#fff" stroke="#141418" stroke-width="3" paint-order="stroke">' + fmtN(last.value) + '</text>' +
+      '<text x="' + (W - PR) + '" y="10" text-anchor="end" font-size="9" fill="#999">(' + fmtN(step) + ')</text></svg>';
   }
   function renderMarket() {
     if (!marketEl || !marketEl.isConnected) return;
+    const mSig = marketPhase + '|' + marketKey + '|' + marketRev;
+    if (mSig === marketSig && marketEl.querySelector('#__kw_bdo_mk_x')) return; // 변화 없으면 DOM 유지 (스크롤·포커스 유지)
+    marketSig = mSig;
+    const mSc = marketEl.querySelector('.__kw_sb_mkt');
+    const mSt = mSc ? mSc.scrollTop : 0;
     let body = '';
     if (marketPhase === 'loading') body = '<div style="font-size:11px;color:#aaa;margin-top:8px">시세 불러오는 중...</div>';
     else if (marketPhase === 'miss' || !marketData) body = '<div style="font-size:11px;color:#ff9a9a;margin-top:8px;line-height:1.6">시세를 불러오지 못했습니다.<br>로그인 상태를 확인하고 다시 눌러주세요.</div>';
@@ -1762,12 +1799,11 @@
           '<b style="font-size:12px;color:#ff9a9a">' + fmtN(p) + '</b><div style="text-align:right">' + (tag || '<span style="font-size:10px;color:#555">-</span>') + '</div></div>';
       }).join('');
       body =
-        '<div style="display:flex;gap:10px;margin-top:6px;flex:none">' +
-        '<div style="flex:none">' + marketGraphSvg(marketData.hist) + '</div>' +
-        '<div style="flex:1;min-width:0;font-size:11px;line-height:2">' +
-        '<div style="display:flex;justify-content:space-between;gap:6px"><span>판매최저가 <b style="font-size:12px;color:#7dffb3">' + (sellShow ? fmtN(sellShow) : '없음') + '</b></span><span style="color:#888;white-space:nowrap">' + fmtN(sellTot) + '개</span></div>' +
-        '<div style="display:flex;justify-content:space-between;gap:6px"><span>구매최저가 <b style="font-size:12px;color:#ff9a9a">' + (buyMin ? fmtN(buyMin) : '없음') + '</b></span><span style="color:#888;white-space:nowrap">' + fmtN(buyTot) + '개</span></div>' +
-        '</div></div>' +
+        '<div style="margin-top:6px;flex:none">' + marketGraphSvg(marketData.hist) + '</div>' +
+        '<div style="font-size:11px;line-height:2;flex:none;margin-top:4px">' +
+        '<div style="display:flex;justify-content:space-between;gap:6px"><span>판매최저가: <b style="font-size:12px;color:#7dffb3">' + (sellShow ? fmtN(sellShow) : '없음') + '</b></span><span style="color:#888;white-space:nowrap">' + fmtN(sellTot) + '개</span></div>' +
+        '<div style="display:flex;justify-content:space-between;gap:6px"><span>구매최저가: <b style="font-size:12px;color:#ff9a9a">' + (buyMin ? fmtN(buyMin) : '없음') + '</b></span><span style="color:#888;white-space:nowrap">' + fmtN(buyTot) + '개</span></div>' +
+        '</div>' +
         '<div style="font-size:11px;color:#bbb;margin-top:6px;flex:none">최근 거래: ' + (lastH ? esc(String(lastH.days || '')) : '-') + '</div>' +
         '<div style="font-size:11px;color:#bbb;flex:none">누적 거래: ' + fmtN(sellTot + buyTot) + '건</div>' +
         '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:8px -10px 0"></div>' +
@@ -1778,6 +1814,7 @@
       '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:4px -10px 0"></div>' + body;
     const mx = marketEl.querySelector('#__kw_bdo_mk_x');
     if (mx) mx.onclick = () => { marketData = null; marketPhase = 'idle'; removeMarket(); };
+    try { const sc2 = marketEl.querySelector('.__kw_sb_mkt'); if (sc2) sc2.scrollTop = mSt; } catch (e) {}
   }
   function updateMarket() {
     if (!opt('family', true)) { removeMarket(); return; }
@@ -1809,17 +1846,18 @@
     if (!marketName) marketName = itemResQ || '거래소 현황';
     marketKey = String(key);
     marketPhase = 'loading';
+    marketRev++;
     try { updateMarket(); } catch (e) {} // 현황창은 토큰 확보된 뒤에 처음 염
     const body = '__RequestVerificationToken=' + encodeURIComponent(token) + '&keyType=0&mainKey=' + encodeURIComponent(key) + '&subKey=0&isUp=false';
     try { mlog('query', 'mainKey=' + key, 'token ' + String(token || '').length + '자'); } catch (e) {}
     return marketCall('postForm', { url: TRADE_BASE + '/Home/GetItemSellBuyInfo', body }).then((pr) => {
       const txt = (pr && pr.ok && pr.data) ? String(pr.data.text || '') : '';
       try { mlog('query-res', 'mainKey=' + key, 'ok=' + (pr && pr.ok), 'len=' + txt.length, txt.slice(0, 1000)); } catch (e) {}
-      if (!txt) { marketPhase = 'miss'; renderMarket(); return false; }
+      if (!txt) { marketPhase = 'miss'; marketRev++; renderMarket(); return false; }
       let j = null;
       try { j = JSON.parse(txt); } catch (e) {}
       if (!j || Number(j.resultCode) !== 0) {
-        marketPhase = 'miss'; renderMarket();
+        marketPhase = 'miss'; marketRev++; renderMarket();
         try { if (typeof KW.toast === 'function') KW.toast('거래소 현황', '조회 실패 (resultCode=' + (j && j.resultCode) + ')'); } catch (e) {}
         return false;
       }
@@ -1827,10 +1865,11 @@
       try { const h = JSON.parse(j.resultMsg); if (Array.isArray(h)) hist = h; } catch (e) {}
       marketData = { key, cond: Array.isArray(j.marketConditionList) ? j.marketConditionList : [], basePrice: Number(j.basePrice) || 0, hist };
       marketPhase = 'ok';
+      marketRev++;
       try { window.__kwBdoMarketLast = { key, reqBody: body, response: txt.slice(0, 5000) }; } catch (e) {}
       renderMarket();
       return true;
-    }).catch(() => { marketPhase = 'miss'; renderMarket(); return false; });
+    }).catch(() => { marketPhase = 'miss'; marketRev++; renderMarket(); return false; });
   }
   function marketProbeOnce(key) { // 로그인 확인용 1회 시도: 결과가 오면 로그인됨 (창을 열지 않음)
     const pages = [TRADE_BASE + '/', TRADE_BASE + '/Home/list'];
@@ -1911,6 +1950,7 @@
         const href = location.href;
         if (lastHref && href !== lastHref) {
           famQuery = guildQuery = itemQuery = '';
+          famSrcShow = false;
           famResQ = guildResQ = itemResQ = '';
           liveFam = liveGuild = liveItem = null; liveFamRev++; liveGuildRev++; liveItemRev++;
           selId = null; selPhase = ''; selData = null;

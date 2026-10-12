@@ -654,14 +654,37 @@ function checkUpdate() {
   }
 }
 // 플러그인 옵션 입력칸 (type: bool | number | multi)
-// (?) 도움말: 옵션 정의의 help { title, text } 를 팝업으로 보여준다. 기본: X·바깥 클릭 닫기, 확인 버튼 없음.
-function showOptHelp(h) {
+// (?) 도움말: 옵션 정의의 help { title, text } 를 ? 버튼 바로 위 작은 창으로 보여준다.
+// 중요 창이 아니라서 화면을 가리지 않음: 배경 dim·전체 클릭 가로채기 없음, X·바깥 클릭·Esc로 닫기.
+let optHelpAnchor = null;
+function closeOptHelp() {
+  try { document.getElementById('__kw_opthelp')?.remove(); } catch (e) {}
+  optHelpAnchor = null;
+  try { document.removeEventListener('pointerdown', optHelpOutside, true); } catch (e) {}
+  try { document.removeEventListener('keydown', optHelpEsc, true); } catch (e) {}
+}
+function optHelpOutside(e) {
+  try {
+    const w = document.getElementById('__kw_opthelp');
+    if (!w) return;
+    if (w.contains(e.target)) return;
+    if (optHelpAnchor && optHelpAnchor.contains && optHelpAnchor.contains(e.target)) return; // ? 버튼 클릭은 토글·교체에 맡김
+  } catch (er) { return; }
+  closeOptHelp(); // 바깥 클릭은 막지 않고(액션 그대로 수행) 창만 닫음
+}
+function optHelpEsc(e) {
+  try { if (e && e.key === 'Escape') closeOptHelp(); } catch (er) {}
+}
+function showOptHelp(h, anchor) {
   const old = document.getElementById('__kw_opthelp');
-  if (old) old.remove();
+  const sameAnchor = old && optHelpAnchor && anchor && optHelpAnchor === anchor;
+  closeOptHelp();
+  if (sameAnchor) return; // 같은 ? 다시 누르면 토글 닫기
   if (!h || !h.text) return;
   const w = document.createElement('div');
   w.id = '__kw_opthelp';
-  w.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);padding:16px;box-sizing:border-box';
+  const W = Math.min(320, window.innerWidth - 16);
+  w.style.cssText = 'position:fixed;z-index:2147483647;width:' + W + 'px;max-height:60vh;overflow-y:auto;visibility:hidden;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px/1.55 sans-serif;padding:12px 14px 14px;border-radius:12px;border:1px solid #777;box-shadow:0 8px 28px rgba(0,0,0,.6);scrollbar-width:thin';
   const lines = String(h.text).split('\n').map((l) => {
     const t = escapeHtml(l);
     if (!l.trim()) return '<div style="height:8px"></div>';
@@ -669,17 +692,29 @@ function showOptHelp(h) {
     if (/^[①②③④]/.test(l) || l === '이렇게 동작해요') return '<div style="margin-top:6px;font-weight:bold;color:#fff">' + t + '</div>';
     return '<div style="color:#ccc;white-space:pre-wrap">' + t + '</div>';
   }).join('');
-  w.innerHTML = '<div style="position:relative;width:min(420px,100%);max-height:100%;overflow-y:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px/1.55 sans-serif;padding:14px 16px 16px;border-radius:12px;border:1px solid #777;box-shadow:0 8px 28px rgba(0,0,0,.6);scrollbar-width:thin">' +
-    '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;margin-bottom:6px"><b style="font-size:14px">' + escapeHtml(h.title || '도움말') + '</b></div>' +
-    '<button class="__kw_ic __kw_xabs" id="__kw_opthelp_x" title="닫기" style="color:#aaaab9">' + IC.close + '</button>' + lines + '</div>';
+  w.innerHTML =
+    '<div style="display:flex;align-items:center;min-height:22px;padding-right:26px;margin-bottom:6px"><b style="font-size:13px">' + escapeHtml(h.title || '도움말') + '</b></div>' +
+    '<button class="__kw_ic __kw_xabs" id="__kw_opthelp_x" title="닫기" style="color:#aaaab9">' + IC.close + '</button>' + lines;
   document.body.appendChild(w);
-  const close = () => { try { w.remove(); } catch (e) {} };
-  w.querySelector('#__kw_opthelp_x').onclick = close;
-  w.onclick = (e) => { if (e.target === w) close(); }; // 도움말 팝업 기본: X·바깥 클릭으로 닫기 (확인 버튼 없음)
+  try { // ? 버튼 바로 위 (위 공간 부족이면 아래). 뒤 내용은 그대로 만질 수 있음
+    const r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : null;
+    const hh = w.offsetHeight || 200;
+    let top = r ? r.top - hh - 8 : 70;
+    if (top < 8) top = r ? r.bottom + 8 : 70;
+    let left = r ? r.right - W : 8;
+    left = Math.max(8, Math.min(window.innerWidth - W - 8, left));
+    w.style.left = Math.round(left) + 'px';
+    w.style.top = Math.max(8, Math.round(top)) + 'px';
+  } catch (e) {}
+  w.style.visibility = 'visible';
+  optHelpAnchor = anchor || null;
+  w.querySelector('#__kw_opthelp_x').onclick = closeOptHelp;
+  try { document.addEventListener('pointerdown', optHelpOutside, true); } catch (e) {}
+  try { document.addEventListener('keydown', optHelpEsc, true); } catch (e) {}
 }
 function bindPluginOpts(root) {
   root.querySelectorAll('[data-help]').forEach((b) => {
-    b.onclick = (e) => { e.preventDefault(); const d = pluginOptDef(b.dataset.pid, b.dataset.key) || {}; showOptHelp(d.help); };
+    b.onclick = (e) => { e.preventDefault(); const d = pluginOptDef(b.dataset.pid, b.dataset.key) || {}; showOptHelp(d.help, b); };
   });
   root.querySelectorAll('.__kw_popt').forEach((c) => {
     c.onchange = () => {
@@ -738,7 +773,7 @@ function extOptHtml(p) {
 }
 // 확장 옵션 창: 설정 > 확장의 [옵션] 버튼으로 여는 별도 창 (옵션이 있는 확장만)
 let optWinId = null;
-function closeOptWin() { optWinId = null; const w = document.getElementById('__kw_optwin'); if (w) w.remove(); }
+function closeOptWin() { optWinId = null; const w = document.getElementById('__kw_optwin'); if (w) w.remove(); try { closeOptHelp(); } catch (e) {} }
 const LS_OPTSIZE = '__kw_opt_size';
 const LS_OPTPOS = '__kw_opt_pos';
 const OPT_H_MIN = 200;
@@ -759,7 +794,7 @@ function loadOptPos() {
 function renderOptWin() {
   const old = document.getElementById('__kw_optwin');
   const p = optWinId && (pluginList || []).find((x) => x.id === optWinId);
-  if (!p || !pluginHasOpts(p) || !pluginIsOn(p)) { if (old) old.remove(); optWinId = null; return; }
+  if (!p || !pluginHasOpts(p) || !pluginIsOn(p)) { if (old) old.remove(); optWinId = null; try { closeOptHelp(); } catch (e) {} return; }
   const w = old || document.createElement('div');
   w.id = '__kw_optwin';
   // 설정 창 오른쪽에 붙여서 연다 (설정 창이 없으면 화면 가운데)
