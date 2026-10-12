@@ -2292,6 +2292,7 @@
     if (!opt('family', true)) { removeMarket(); return; }
     if (marketPhase === 'idle' && !marketData) { removeMarket(); return; }
     if (!marketEl || !marketEl.isConnected) {
+      if (marketPhase === 'loading') return; // 조회 중에는 결과 확정 후 생성 (빈 창 방지)
       marketEl = document.createElement('div');
       marketEl.id = '__kw_bdo_mk';
       marketEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;opacity:' + bdoOpacity() + ';height:' + Math.min(marketH, resHMax()) + 'px';
@@ -2387,13 +2388,12 @@
       marketTestPoll(key, 30);
     });
   }
-  function marketQueryWithToken(key, token) { // GetItemSellBuyInfo 1회 조회 → 현황창에 표시
+  function marketQueryWithToken(key, token) { // GetItemSellBuyInfo 1회 조회 → 결과 확정 후에만 현황창을 염
     if (marketPending && marketPending.key === String(key) && marketPending.name) marketName = marketPending.name;
     if (!marketName) marketName = itemResQ || '거래소 현황';
     marketKey = String(key);
     marketPhase = 'loading';
     marketRev++;
-    try { updateMarket(); } catch (e) {} // 현황창은 토큰 확보된 뒤에 처음 염
     const body = '__RequestVerificationToken=' + encodeURIComponent(token) + '&keyType=0&mainKey=' + encodeURIComponent(key) + '&subKey=0&isUp=false';
     try { mlog('query', 'mainKey=' + key, 'token ' + String(token || '').length + '자'); } catch (e) {}
     return marketCall('postForm', { url: TRADE_BASE + '/Home/GetItemSellBuyInfo', body }).then((pr) => {
@@ -2401,14 +2401,15 @@
       try { mlog('query-res', 'mainKey=' + key, 'ok=' + (pr && pr.ok), 'len=' + txt.length, txt.slice(0, 1000)); } catch (e) {}
       const sd = parseSellBuy(txt);
       if (!sd) {
-        if (sellBuyFailKind(txt) === 'auth') { // 미로그인: 빈 현황창 없이 로그인 안내만
+        // 페이지 GET은 됐는데 POST가 비었으면 서버 거부(미로그인 유력). 로그인 서명도 함께 판정.
+        if (!txt || sellBuyFailKind(txt) === 'auth') { // 미로그인: 빈 현황창 없이 로그인 안내만
           marketPhase = 'idle'; marketData = null; marketRev++;
           try { removeMarket(); } catch (e) {}
-          try { renderMarket(); } catch (e2) {}
           marketAskLogin(key);
           return false;
         }
-        marketPhase = 'miss'; marketRev++; renderMarket();
+        marketPhase = 'miss'; marketRev++;
+        try { updateMarket(); } catch (e) {}
         try { if (typeof KW.toast === 'function') KW.toast('거래소 현황', '조회 실패'); } catch (e) {}
         return false;
       }
@@ -2416,6 +2417,7 @@
       marketPhase = 'ok';
       marketRev++;
       try { window.__kwBdoMarketLast = { key, reqBody: body, response: txt.slice(0, 5000) }; } catch (e) {}
+      try { updateMarket(); } catch (e) {}
       renderMarket();
       return true;
     }).catch(() => { marketPhase = 'miss'; marketRev++; renderMarket(); return false; });
