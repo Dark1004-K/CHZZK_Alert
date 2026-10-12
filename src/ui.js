@@ -45,6 +45,7 @@ function applyOpacity() {
   try { const res = document.getElementById('__kw_bdo_res'); if (res) res.style.opacity = op; } catch (e) {}
   try { const mk = document.getElementById('__kw_bdo_mk'); if (mk) mk.style.opacity = op; } catch (e) {}
   try { const fs = document.getElementById('__kw_bdo_famsrc'); if (fs) fs.style.opacity = op; } catch (e) {}
+  try { const rc = document.getElementById('__kw_bdo_rcp'); if (rc) rc.style.opacity = op; } catch (e) {}
 }
 // (입력 포커스 시 일시 불투명 전환은 제거됨 — 모든 입력칸에서 설정 투명도를 그대로 유지)
 function ensureStack() {
