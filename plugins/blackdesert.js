@@ -1184,6 +1184,7 @@
     try { j = JSON.parse(text); } catch (e) { return null; }
     const d = (j && j.result && j.result.data) ? j.result.data : null;
     if (!d || typeof d !== 'object') return null;
+    try { recipeCache[String(d.id)] = Array.isArray(d.itemIsProductOfProcessingRecipes) && d.itemIsProductOfProcessingRecipes.length > 0; } catch (e) {}
     let icon = String(d.icon || '');
     if (icon && icon.charAt(0) === '/') icon = BDOLY_IMG + icon;
     const stats = [];
@@ -1212,7 +1213,7 @@
         }
       }
     } catch (e) {}
-    return { icon, eng: '', stats, flags: [], desc, effects };
+    return { icon, eng: '', stats, flags: [], desc, effects, hasRecipe: Array.isArray(d.itemIsProductOfProcessingRecipes) && d.itemIsProductOfProcessingRecipes.length > 0 };
   }
   function normLine(s) { return String(s || '').replace(/\s+/g, ' ').trim(); }
   function mergeDetail(first, second) { // 1차(bdolytics)+2차(bdocodex) 합치기 — 중복 줄은 하나만
@@ -1247,7 +1248,7 @@
       else if (n1 !== n2 && !n1.includes(n2) && !n2.includes(n1)) desc = desc + '\n' + sd;
       else if (n2.length > n1.length) desc = sd;
     }
-    return { icon: f.icon || s.icon || '', eng: s.eng || f.eng || '', stats, flags, desc, effects };
+    return { icon: f.icon || s.icon || '', eng: s.eng || f.eng || '', stats, flags, desc, effects, hasRecipe: !!((f && f.hasRecipe) || (s && s.hasRecipe)) };
   }
   function parseCodexDetail(html) { // bdocodex 상세: 스탯·특성·설명·효과 (ID·구입/판매/수리비·강화 시뮬레이터 제외)
     html = String(html || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, ''); // 시세 스크립트(edescription 아님) 제거
@@ -1303,6 +1304,7 @@
     return { icon, eng, stats, flags, desc, effects };
   }
   const selCache = {}; // [itemId] -> { t, data } 상세 캐시 (1+2차 병합 결과)
+  const recipeCache = {}; // [itemId] -> true/false 제작 레시피 존재 여부 (getItem 응답 기준)
   function fetchBdolyticsDetail(id) { // 1차: bdolytics getItem (빠른 구조화 정보)
     const su = BDOLY_BASE + '/api/trpc/database.getItem?input=' + encodeURIComponent(JSON.stringify({ id: String(id), language: 'ko' }));
     return bdoFetch(su, 12000, BDOLY_BASE).then((text) => {
@@ -1362,7 +1364,8 @@
     } catch (e) {}
     try {
       const c = selCache[id];
-      if (c && Date.now() - c.t < 3600000) { selPhase = 'ok'; selData = c.data; resSig = null; try { renderRes(); } catch (e) {} return; }
+      const cHas = c && c.data && typeof c.data.hasRecipe === 'boolean';
+      if (c && Date.now() - c.t < 3600000 && cHas) { selPhase = 'ok'; selData = c.data; resSig = null; try { renderRes(); } catch (e) {} return; }
     } catch (e) {}
     fetchBdolyticsDetail(id).then((d1) => {
       if (selId !== id) return; // 다른 항목으로 넘어감
@@ -1442,6 +1445,15 @@
     bump();
     upd(Date.now());
   }
+  function recipeBtnHtml() { // 제작 레시피 버튼 3상태 (거래소 버튼 아래)
+    if (!selId || selPhase === 'miss') return '';
+    const url = BDOLY_BASE + '/ko/crafting/' + encodeURIComponent(selId);
+    const base = 'margin-top:8px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:8px;padding:6px;font-size:11px;font-weight:bold;';
+    const v = (typeof selData !== 'undefined' && selData && typeof selData.hasRecipe === 'boolean') ? selData.hasRecipe : recipeCache[selId];
+    if (v === true) return '<button data-recipe-open="' + esc(url) + '" title="제작 레시피 보기" style="' + base + 'background:rgba(122,184,255,.08);border:1px solid rgba(122,184,255,.35);color:#7ab8ff;cursor:pointer">제작 레시피 보기</button>';
+    if (v === false) return '<button disabled title="레시피 존재 하지 않음" style="' + base + 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);color:#777;cursor:default">레시피 존재 하지 않음</button>';
+    return '<button disabled title="레시피 확인 중" style="' + base + 'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);color:#888;cursor:default">레시피 확인 중...</button>';
+  }
   function selBodyHtml(fI) { // 옆 상세 pane 본문 (선택된 아이템)
     if (selPhase === 'loading' || !selData) return '<div style="font-size:11px;color:#aaa;margin-top:6px">아이템 상세 불러오는 중...</div>';
     if (selPhase === 'miss') return '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">상세를 불러오지 못했습니다.<br>잠시 뒤 다시 시도하세요.</div>';
@@ -1464,6 +1476,7 @@
       try { if (typeof marketPreviewHtml === 'function') h += marketPreviewHtml(selId); } catch (e) {}
       h += '<button data-market-open="' + esc(selId) + '" data-market-name="' + esc(nm) + '" title="거래소 현황 보기" style="margin-top:8px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35);color:#7dffb3;border-radius:8px;padding:6px;font-size:11px;font-weight:bold;cursor:pointer"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>거래소 현황 보기</button>';
     }
+    h += recipeBtnHtml();
     if ((d.stats || []).length) {
       h += '<div style="margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.12)">';
       (d.stats || []).forEach((s, i) => {
@@ -1654,6 +1667,13 @@
       b.onclick = (e) => {
         try { e.stopPropagation(); } catch (er) {}
         const u = b.getAttribute('data-ext-open');
+        if (u) { try { window.open(u, '_blank', 'noopener'); } catch (er2) {} }
+      };
+    });
+    resEl.querySelectorAll('[data-recipe-open]').forEach((b) => {
+      b.onclick = (e) => {
+        try { e.stopPropagation(); } catch (er) {}
+        const u = b.getAttribute('data-recipe-open');
         if (u) { try { window.open(u, '_blank', 'noopener'); } catch (er2) {} }
       };
     });
