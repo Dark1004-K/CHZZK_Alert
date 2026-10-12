@@ -1301,6 +1301,7 @@
     id = String(id || '');
     if (!id) return;
     selId = id; selPhase = 'loading'; selData = null;
+    try { if (typeof marketPrefetch === 'function') marketPrefetch(id); } catch (e) {}
     resKind = 'item';
     resSig = null;
     try { renderRes(); } catch (e) {}
@@ -1410,7 +1411,10 @@
       '<button class="__kw_ic" data-ext-open="' + esc(href) + '" title="bdolytics" style="color:#00ffa3;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button>' +
       '<button class="__kw_ic" data-ext-open="' + esc(codexHref) + '" title="bdocodex" style="color:#7ab8ff;padding:3px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/></svg></button></div>';
     const marketHook = (typeof window !== 'undefined' && typeof window.__kwBdoMarketTest === 'function');
-    if (marketHook) h += '<button data-market-open="' + esc(selId) + '" data-market-name="' + esc(nm) + '" title="거래소 현황 보기" style="margin-top:8px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35);color:#7dffb3;border-radius:8px;padding:6px;font-size:11px;font-weight:bold;cursor:pointer"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>거래소 현황 보기</button>';
+    if (marketHook) {
+      try { if (typeof marketPreviewHtml === 'function') h += marketPreviewHtml(selId); } catch (e) {}
+      h += '<button data-market-open="' + esc(selId) + '" data-market-name="' + esc(nm) + '" title="거래소 현황 보기" style="margin-top:8px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35);color:#7dffb3;border-radius:8px;padding:6px;font-size:11px;font-weight:bold;cursor:pointer"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>거래소 현황 보기</button>';
+    }
     if ((d.stats || []).length) {
       h += '<div style="margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.12)">';
       (d.stats || []).forEach((s, i) => {
@@ -1657,6 +1661,16 @@
 
   // (구 종류별 결과창 3개는 단일 결과창 renderRes/updateRes로 통합됨)
 
+  // 거래소 현황 공유 상태 (BETA 블록 밖: tick 정리 코드가 참조하므로 선언 유지, 조회 로직은 베타 전용)
+  const LS_MKTPOS = '__kw_market_pos';
+  const LS_MKTH = '__kw_market_h';
+  const MKT_H_DEF = 400, MKT_H_MIN = 200, MKT_W = 340;
+  let marketEl = null, marketPhase = 'idle', marketName = '', marketData = null, marketKey = '';
+  let marketPending = null; // 버튼 요청 보관 (현황창은 토큰 확보 후에만 염)
+  let marketSig = null, marketRev = 0; // 같은 내용 반복 렌더 방지 (스크롤 유지)
+  let marketH = MKT_H_DEF;
+  const marketPreCache = {}; // 상세창 미리보기용 { [mainKey]: { cond, basePrice } | { miss:true } }
+  const marketInflight = {}; // 조회 중 { [mainKey]: true }
   // [BETA-TEST-ONLY:start]
   // 거래소 연동 시험 (베타 전용 — 떼려면 이 블록 삭제): 로그인 팝업 → 토큰 추출 → 시세 조회
   const TRADE_BASE = 'https://trade.kr.playblackdesert.com';
@@ -1682,15 +1696,8 @@
     return m ? m[1] : null;
   }
   // ---------- 거래소 현황창 (#__kw_bdo_mk, 결과창 오른쪽) ----------
-  const LS_MKTPOS = '__kw_market_pos';
-  const LS_MKTH = '__kw_market_h';
-  const MKT_H_DEF = 400, MKT_H_MIN = 200, MKT_W = 340;
-  let marketEl = null, marketPhase = 'idle', marketName = '', marketData = null, marketKey = '';
-  let marketPending = null; // 버튼 요청 보관 (현황창은 토큰 확보 후에만 염)
-  let marketH = MKT_H_DEF;
   try { const mhv = parseInt(localStorage.getItem(LS_MKTH), 10); if (mhv >= MKT_H_MIN && mhv <= 4000) marketH = mhv; } catch (e) {}
   const fmtN = (n) => { try { return Number(n).toLocaleString('ko-KR'); } catch (e) { return String(n); } };
-  let marketSig = null, marketRev = 0; // 같은 내용 반복 렌더 방지 (스크롤 유지)
   function removeMarket() {
     if (marketEl) { try { marketEl.remove(); } catch (e) {} }
     marketEl = null;
@@ -1782,14 +1789,8 @@
     else if (marketPhase === 'miss' || !marketData) body = '<div style="font-size:11px;color:#ff9a9a;margin-top:8px;line-height:1.6">시세를 불러오지 못했습니다.<br>로그인 상태를 확인하고 다시 눌러주세요.</div>';
     else {
       const cond = marketData.cond || [];
-      const sells = cond.filter((c) => Number(c.sellCount) > 0);
-      const buys = cond.filter((c) => Number(c.buyCount) > 0);
-      const sellMin = sells.length ? Math.min.apply(null, sells.map((c) => Number(c.pricePerOne))) : 0;
-      const buyMin = buys.length ? Math.min.apply(null, buys.map((c) => Number(c.pricePerOne))) : 0;
-      const buyMax = buys.length ? Math.max.apply(null, buys.map((c) => Number(c.pricePerOne))) : 0;
-      const sellShow = sellMin || buyMax; // 판매대기 없으면 구매최고가로 표시
-      const sellTot = sells.reduce((n, c) => n + Number(c.sellCount), 0);
-      const buyTot = buys.reduce((n, c) => n + Number(c.buyCount), 0);
+      const sellTot = cond.reduce((n, c) => n + Number(c.sellCount), 0);
+      const buyTot = cond.reduce((n, c) => n + Number(c.buyCount), 0);
       const lastH = (marketData.hist || []).slice(-1)[0] || null;
       const rows = cond.slice().sort((a, b) => Number(b.pricePerOne) - Number(a.pricePerOne)).map((c) => {
         const p = Number(c.pricePerOne), s = Number(c.sellCount), b = Number(c.buyCount);
@@ -1801,10 +1802,7 @@
       }).join('');
       body =
         '<div style="margin-top:6px;flex:none">' + marketGraphSvg(marketData.hist) + '</div>' +
-        '<div style="font-size:11px;line-height:2;flex:none;margin-top:4px">' +
-        '<div style="display:flex;justify-content:space-between;gap:6px"><span>판매최저가: <b style="font-size:12px;color:#7dffb3">' + (sellShow ? fmtN(sellShow) : '없음') + '</b></span><span style="color:#888;white-space:nowrap">' + fmtN(sellTot) + '개</span></div>' +
-        '<div style="display:flex;justify-content:space-between;gap:6px"><span>구매최저가: <b style="font-size:12px;color:#ff9a9a">' + (buyMin ? fmtN(buyMin) : '없음') + '</b></span><span style="color:#888;white-space:nowrap">' + fmtN(buyTot) + '개</span></div>' +
-        '</div>' +
+        '<div style="flex:1;min-width:0;font-size:11px;line-height:2">' + marketSummaryHtml(cond) + '</div>' +
         '<div style="font-size:11px;color:#bbb;margin-top:6px;flex:none">최근 거래: ' + (lastH ? esc(String(lastH.days || '')) : '-') + '</div>' +
         '<div style="font-size:11px;color:#bbb;flex:none">누적 거래: ' + fmtN(sellTot + buyTot) + '건</div>' +
         '<div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:8px -10px 0"></div>' +
@@ -1842,6 +1840,59 @@
       }
     } catch (e) {}
   }
+  function parseSellBuy(txt) { // GetItemSellBuyInfo 응답 파싱 → { cond, basePrice, hist } 또는 null
+    let j = null;
+    try { j = JSON.parse(txt); } catch (e) { return null; }
+    if (!j || Number(j.resultCode) !== 0) return null;
+    let hist = [];
+    try { const h = JSON.parse(j.resultMsg); if (Array.isArray(h)) hist = h; } catch (e) {}
+    return { cond: Array.isArray(j.marketConditionList) ? j.marketConditionList : [], basePrice: Number(j.basePrice) || 0, hist };
+  }
+  function marketSummaryHtml(cond) { // 판매최저가/구매최저가 2행 (상세 미리보기·현황창 공용)
+    cond = Array.isArray(cond) ? cond : [];
+    const sells = cond.filter((c) => Number(c.sellCount) > 0);
+    const buys = cond.filter((c) => Number(c.buyCount) > 0);
+    const sellMin = sells.length ? Math.min.apply(null, sells.map((c) => Number(c.pricePerOne))) : 0;
+    const buyMin = buys.length ? Math.min.apply(null, buys.map((c) => Number(c.pricePerOne))) : 0;
+    const buyMax = buys.length ? Math.max.apply(null, buys.map((c) => Number(c.pricePerOne))) : 0;
+    const sellShow = sellMin || buyMax; // 판매대기 없으면 구매최고가로 표시
+    const sellTot = sells.reduce((n, c) => n + Number(c.sellCount), 0);
+    const buyTot = buys.reduce((n, c) => n + Number(c.buyCount), 0);
+    return '<div style="display:flex;justify-content:space-between;gap:6px"><span>판매최저가: <b style="font-size:12px;color:#7dffb3">' + (sellShow ? fmtN(sellShow) : '없음') + '</b></span><span style="color:#888;white-space:nowrap">예약구매 ' + fmtN(buyTot) + '개</span></div>' +
+      '<div style="display:flex;justify-content:space-between;gap:6px"><span>구매최저가: <b style="font-size:12px;color:#ff9a9a">' + (buyMin ? fmtN(buyMin) : '없음') + '</b></span><span style="color:#888;white-space:nowrap">판매대기 ' + fmtN(sellTot) + '개</span></div>';
+  }
+  function marketPrefetch(key) { // 상세창 미리보기용 조용한 1회 조회 (팝업·현황창·토스트 없음, 실패하면 조용히 miss)
+    key = String(key || '');
+    if (!key || marketPreCache[key] || marketInflight[key]) return;
+    try { if (!KW.bridgeReady || !KW.bridgeReady()) return; } catch (e) { return; }
+    marketInflight[key] = true;
+    (async () => {
+      try {
+        const pages = [TRADE_BASE + '/', TRADE_BASE + '/Home/list'];
+        for (const u of pages) {
+          const r = await marketCall('fetch', { url: u });
+          const t = (r && r.ok && r.data && r.data.html) ? marketFindToken(r.data.html) : null;
+          if (!t) continue;
+          const body = '__RequestVerificationToken=' + encodeURIComponent(t) + '&keyType=0&mainKey=' + encodeURIComponent(key) + '&subKey=0&isUp=false';
+          const pr = await marketCall('postForm', { url: TRADE_BASE + '/Home/GetItemSellBuyInfo', body });
+          const txt = (pr && pr.ok && pr.data) ? String(pr.data.text || '') : '';
+          const sd = parseSellBuy(txt);
+          marketPreCache[key] = sd ? { cond: sd.cond, basePrice: sd.basePrice } : { miss: true };
+          break;
+        }
+        if (!marketPreCache[key]) marketPreCache[key] = { miss: true };
+      } catch (e) { marketPreCache[key] = { miss: true }; }
+      delete marketInflight[key];
+      try { resSig = null; renderRes(); } catch (e) {}
+    })();
+  }
+  function marketPreviewHtml(key) { // 상세창 "거래소 현황 보기" 버튼 위 미리보기
+    key = String(key || '');
+    const c = marketPreCache[key];
+    if (!c) return marketInflight[key] ? '<div style="margin-top:8px;font-size:11px;color:#888">시세 불러오는 중...</div>' : '';
+    if (c.miss || !Array.isArray(c.cond)) return '';
+    return '<div style="margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.12);font-size:11px;line-height:2">' + marketSummaryHtml(c.cond) + '</div>';
+  }
   function marketQueryWithToken(key, token) { // GetItemSellBuyInfo 1회 조회 → 현황창에 표시
     if (marketPending && marketPending.key === String(key) && marketPending.name) marketName = marketPending.name;
     if (!marketName) marketName = itemResQ || '거래소 현황';
@@ -1854,17 +1905,13 @@
     return marketCall('postForm', { url: TRADE_BASE + '/Home/GetItemSellBuyInfo', body }).then((pr) => {
       const txt = (pr && pr.ok && pr.data) ? String(pr.data.text || '') : '';
       try { mlog('query-res', 'mainKey=' + key, 'ok=' + (pr && pr.ok), 'len=' + txt.length, txt.slice(0, 1000)); } catch (e) {}
-      if (!txt) { marketPhase = 'miss'; marketRev++; renderMarket(); return false; }
-      let j = null;
-      try { j = JSON.parse(txt); } catch (e) {}
-      if (!j || Number(j.resultCode) !== 0) {
+      const sd = parseSellBuy(txt);
+      if (!sd) {
         marketPhase = 'miss'; marketRev++; renderMarket();
-        try { if (typeof KW.toast === 'function') KW.toast('거래소 현황', '조회 실패 (resultCode=' + (j && j.resultCode) + ')'); } catch (e) {}
+        try { if (typeof KW.toast === 'function') KW.toast('거래소 현황', '조회 실패'); } catch (e) {}
         return false;
       }
-      let hist = [];
-      try { const h = JSON.parse(j.resultMsg); if (Array.isArray(h)) hist = h; } catch (e) {}
-      marketData = { key, cond: Array.isArray(j.marketConditionList) ? j.marketConditionList : [], basePrice: Number(j.basePrice) || 0, hist };
+      marketData = { key, cond: sd.cond, basePrice: sd.basePrice, hist: sd.hist };
       marketPhase = 'ok';
       marketRev++;
       try { window.__kwBdoMarketLast = { key, reqBody: body, response: txt.slice(0, 5000) }; } catch (e) {}
@@ -1957,11 +2004,12 @@
           selId = null; selPhase = ''; selData = null;
           try { localStorage.removeItem(LS_FAMQ); localStorage.removeItem(LS_GUILDQ); localStorage.removeItem(LS_ITEMQ); } catch (e) {}
           famSig = null; resSig = null;
-          removeFamily(); removeRes(); marketData = null; marketPhase = 'idle'; removeMarket();
+          removeFamily(); removeRes(); marketData = null; marketPhase = 'idle'; try { if (typeof removeMarket === 'function') removeMarket(); } catch (e) {}
+          try { for (const k in marketPreCache) delete marketPreCache[k]; } catch (e) {}
         }
         lastHref = href;
       } catch (e) {}
-      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); removeRes(); marketData = null; marketPhase = 'idle'; removeMarket(); return; }
+      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); removeRes(); marketData = null; marketPhase = 'idle'; try { if (typeof removeMarket === 'function') removeMarket(); } catch (e) {} return; }
       const now = Date.now();
       if (now - bossFetchedAt >= BOSS_REFRESH_MS) loadSchedule(); // 처음 켜질 때 한 번, 이후 6시간마다
       if (bossSlotDue(now)) { // 매주 수요일 12:27 (액션 17분 뒤)
@@ -1973,7 +2021,7 @@
       updateParty(now);
       updateFamily(now);
       updateRes(now);
-      try { updateMarket(); } catch (e2) {}
+      try { if (typeof updateMarket === 'function') updateMarket(); } catch (e2) {}
       const lead = Math.max(1, Math.min(30, Number(opt('lead', 3)) || 3)) * 60000;
       const sel = opt('bosses', null);
       const active = new Set();
