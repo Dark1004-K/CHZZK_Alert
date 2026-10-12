@@ -1845,7 +1845,10 @@
     const marketHook = (typeof window !== 'undefined' && typeof window.__kwBdoMarketTest === 'function');
     if (marketHook) {
       try { if (typeof marketPreviewHtml === 'function') h += marketPreviewHtml(selId); } catch (e) {}
-      h += '<button data-market-open="' + esc(selId) + '" data-market-name="' + esc(nm) + '" title="거래소 현황 보기" style="margin-top:8px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35);color:#7dffb3;border-radius:8px;padding:6px;font-size:11px;font-weight:bold;cursor:pointer"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>거래소 현황 보기</button>';
+      // 로그인됨 + 조회 성공 + 매물 없음 → 버튼을 "거래소 정보 없음"으로 바꾸고 비활성 (그 외는 기존 버튼 유지)
+      let mkEmpty = false;
+      try { const mc = marketPreCache[selId]; mkEmpty = !!(mc && !mc.miss && Array.isArray(mc.cond) && !mc.cond.length); } catch (e) {}
+      h += '<button data-market-open="' + esc(selId) + '" data-market-name="' + esc(nm) + '" title="' + (mkEmpty ? '거래소 정보 없음' : '거래소 현황 보기') + '"' + (mkEmpty ? ' disabled' : '') + ' style="margin-top:8px;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.35);color:#7dffb3;border-radius:8px;padding:6px;font-size:11px;font-weight:bold;' + (mkEmpty ? 'cursor:default;opacity:.45' : 'cursor:pointer') + '"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>' + (mkEmpty ? '거래소 정보 없음' : '거래소 현황 보기') + '</button>';
     }
     h += recipeBtnHtml(nm, icon);
     if ((d.stats || []).length) {
@@ -2244,7 +2247,7 @@
     const mSt = mSc ? mSc.scrollTop : 0;
     let body = '';
     if (marketPhase === 'loading') body = '<div style="font-size:11px;color:#aaa;margin-top:8px">시세 불러오는 중...</div>';
-    else if (marketPhase === 'miss' || !marketData) body = '<div style="font-size:11px;color:#ff9a9a;margin-top:8px;line-height:1.6">시세를 불러오지 못했습니다.<br>로그인 상태를 확인하고 다시 눌러주세요.</div>';
+    else if (marketPhase === 'miss' || !marketData) body = '<div style="font-size:11px;color:#ff9a9a;margin-top:8px;line-height:1.6">시세를 불러오지 못했습니다.<br>다시 눌러주세요.</div>';
     else {
       const cond = marketData.cond || [];
       const sellTot = cond.reduce((n, c) => n + Number(c.sellCount), 0);
@@ -2318,6 +2321,17 @@
     try { const h = JSON.parse(j.resultMsg); if (Array.isArray(h)) hist = h; } catch (e) {}
     return { cond: Array.isArray(j.marketConditionList) ? j.marketConditionList : [], basePrice: Number(j.basePrice) || 0, hist };
   }
+  function sellBuyFailKind(txt) { // 조회 실패 원인: 'auth'(미로그인) | 'data'(그 외·재시도 가능)
+    const t = String(txt || '');
+    if (!t) return 'data'; // 빈 응답: 네트워크 문제로 보고 miss 유지
+    let j = null;
+    try { j = JSON.parse(t); } catch (e) { j = null; }
+    if (!j) return /로그인|아이디|비밀번호|login|signin|passport|accounts\.pearlabyss/i.test(t) ? 'auth' : 'data';
+    if (Number(j.resultCode) === 0) return 'data';
+    const msg = String((j.resultMsg || '') + ' ' + (j.message || '') + ' ' + (j.error || ''));
+    if (/로그인|login|signin|인증|권한|permission|unauthor/i.test(msg)) return 'auth';
+    return 'data';
+  }
   function marketSummaryHtml(cond) { // 판매최저가/구매최저가 2행 (상세 미리보기·현황창 공용)
     cond = Array.isArray(cond) ? cond : [];
     const sells = cond.filter((c) => Number(c.sellCount) > 0);
@@ -2363,6 +2377,16 @@
     if (c.miss || !Array.isArray(c.cond)) return '';
     return '<div style="margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.12);font-size:11px;line-height:2">' + marketSummaryHtml(c.cond) + '</div>';
   }
+  function marketAskLogin(key) { // 미로그인 확정 시: 로그인 안내만 (빈 현황창을 열지 않음). 로그인 후 폴링이 자동 조회
+    marketLoginModal(() => {
+      try {
+        const w = window.open(TRADE_BASE + '/', 'kwTradeLogin', 'width=560,height=720,menubar=no,toolbar=no,location=yes,resizable=yes,scrollbars=yes');
+        if (!w) { try { if (typeof KW.toast === 'function') KW.toast('거래소 테스트', '팝업이 차단됐습니다. 팝업을 허용하고 다시 누르세요.'); } catch (e) {} return; }
+        try { if (w.focus) w.focus(); } catch (e) {}
+      } catch (e) {}
+      marketTestPoll(key, 30);
+    });
+  }
   function marketQueryWithToken(key, token) { // GetItemSellBuyInfo 1회 조회 → 현황창에 표시
     if (marketPending && marketPending.key === String(key) && marketPending.name) marketName = marketPending.name;
     if (!marketName) marketName = itemResQ || '거래소 현황';
@@ -2377,6 +2401,13 @@
       try { mlog('query-res', 'mainKey=' + key, 'ok=' + (pr && pr.ok), 'len=' + txt.length, txt.slice(0, 1000)); } catch (e) {}
       const sd = parseSellBuy(txt);
       if (!sd) {
+        if (sellBuyFailKind(txt) === 'auth') { // 미로그인: 빈 현황창 없이 로그인 안내만
+          marketPhase = 'idle'; marketData = null; marketRev++;
+          try { removeMarket(); } catch (e) {}
+          try { renderMarket(); } catch (e2) {}
+          marketAskLogin(key);
+          return false;
+        }
         marketPhase = 'miss'; marketRev++; renderMarket();
         try { if (typeof KW.toast === 'function') KW.toast('거래소 현황', '조회 실패'); } catch (e) {}
         return false;
@@ -2448,14 +2479,7 @@
       marketPending = { key, name: String(name || itemResQ || '거래소 현황') };
       marketProbeOnce(key).then((done) => {
         if (done) return; // 로그인됨 → 바로 조회 끝. 창을 열지 않음
-        marketLoginModal(() => { // 미로그인 → 안내 후 로그인용 팝업 윈도우 (새 탭이 아님). 로그인 후 폴링이 자동 조회
-          try {
-            const w = window.open(TRADE_BASE + '/', 'kwTradeLogin', 'width=560,height=720,menubar=no,toolbar=no,location=yes,resizable=yes,scrollbars=yes');
-            if (!w) { try { if (typeof KW.toast === 'function') KW.toast('거래소 테스트', '팝업이 차단됐습니다. 팝업을 허용하고 다시 누르세요.'); } catch (e) {} return; }
-            try { if (w.focus) w.focus(); } catch (e) {}
-          } catch (e) {}
-          marketTestPoll(key, 30);
-        });
+        marketAskLogin(key); // 미로그인 → 안내만 (로그인 후 폴링이 자동 조회)
       });
       return '로그인 상태 확인 중... (로그인이 안 되어 있으면 안내 창이 열립니다)';
     };
