@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.4.0-beta167';
+const SCRIPT_VERSION = '3.4.0-beta168';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -382,7 +382,8 @@ function ensureStyle() {
 #__kw_dropsp .__kw_dr_tr{display:flex;align-items:center;gap:2px;min-width:0}
 #__kw_dropsp .__kw_dr_tr .__kw_ic{padding:3px;position:relative;top:1px}
 #__kw_dropsp{min-height:62px}
-#__kw_dr_vault{position:absolute;right:13px;bottom:5px}
+#__kw_dr_vault{position:static}
+#__kw_dropsp #__kw_dr_close{position:static} /* 보관함 2종과 한 줄에: [치지직 보관함][웹 보관함][닫기] */
 #__kw_dropsp .__kw_dr_s{font-size:11px;color:#ff9f1a;margin-top:2px}
 #__kw_histp{width:100%;box-sizing:border-box;flex-direction:column;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ffd400}
 #__kw_setp{position:absolute;left:calc(100% + 8px);bottom:0;width:440px;height:320px;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #777}
@@ -405,7 +406,7 @@ function ensureStyle() {
 #__kw_redup{-moz-appearance:textfield;appearance:textfield}
 #__kw_redup::-webkit-inner-spin-button,#__kw_redup::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 #__kw_dropsp,#__kw_histp{position:relative}
-#__kw_dropsp .__kw_dr{padding-right:26px;min-height:26px}
+#__kw_dropsp .__kw_dr{min-height:26px}
 #__kw_dropsp .__kw_dr_s{padding-left:19px;padding-right:19px} /* 가로전용: 본문은 타이틀 글자와 같이 시작 */
 #__kw_titlerow{padding-left:19px} /* 가로전용: 상태줄은 채널명 글자와 같이 시작 */
 /* 통일 핸들: 우하 리사이즈 원형(.__kw_rsz h=좌우/v=위아래/d=대각, 라운드와 겹침) + 좌상 이동 원형(.__kw_mv +) */
