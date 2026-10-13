@@ -1,9 +1,9 @@
 // 1:1 대화방 (코어) — 페어링은 공개 채팅, 내용은 E2E 암호화 후 릴레이.
-// 비밀(개인키·방키)은 어디에도 올리지 않는다. 공개 채팅에 오가는 것은 초대·수락·공개키뿐.
-//   1. A: "#채팅 X" (초대, X는 공백 없는 한 토큰, 5분 유효)
+// 비밀(개인키·방키)은 어디에도 올리지 않는다. 공개 채팅에 오가는 것은 초대·수락뿐 (둘 다 공개키 포함).
+//   1. A: "#채팅 X <A공개키44>" (초대. 패널 [초대복사] 클릭 시 자동 생성·복사. X는 공백 없는 한 토큰, 5분 유효)
 //   2. X: "#참가 <X공개키44>" (수락. 패널 [참가] 클릭 시 자동 생성·복사)
-//   3. A: "#키 <A공개키44>" (패널 [키 보내기] 클릭 시 복사. X만 아는 게 아니라 공개키라 공개돼도 무해)
-//   4. 양쪽이 ECDH(X25519)로 같은 방키 유도 → 이후 릴레이에 AES-GCM 암호문만.
+//   3. 양쪽이 ECDH(X25519)로 같은 방키 유도 → 이후 릴레이에 AES-GCM 암호문만.
+// 구형 "#채팅 X" (키 없음) 초대는 "#키 <A공개키44>" ([키 보내기])로 이어가는 폴백 유지.
 // 수락에 공개키가 없으면(수동 #참가) 평문 공개방으로 동작 (필터 뷰).
 // 보내기(초대·수락·키·복사)는 전부 사용자가 Enter/클릭으로 직접. 스크립트는 읽기·생성·표시만.
 (function () {
@@ -51,13 +51,16 @@
   }
 
   // ---------- 규격 파싱 ----------
-  function parseInvite(text) { // "#채팅 X" (내용이 뒤에 붙어도 첫 토큰만 상대)
+  const isPubkey = (s) => /^[A-Za-z0-9+/]{40,60}={0,2}$/.test(String(s || ''));
+  function parseInvite(text) { // "#채팅 X [A공개키]" (옛날 "#채팅 X"도 허용 → #키로 폴백)
     const m = /^\s*#\s*채팅([\s\S]*)$/.exec(String(text || ''));
     if (!m) return null;
     if (!m[1] || !/^\s/.test(m[1])) return { err: "'#채팅' 다음에 띄어쓰기를 하고 상대 이름을 적어 주세요. 예) #채팅 미리내" };
-    const peer = m[1].trim().split(/\s+/)[0] || '';
+    const toks = m[1].trim().split(/\s+/).filter(Boolean);
+    const peer = toks[0] || '';
     if (!peer) return { err: "상대 이름을 적어 주세요. 예) #채팅 미리내" };
-    return { peer };
+    const key = toks[1] && isPubkey(toks[1]) ? toks[1] : '';
+    return { peer, key };
   }
   function parseAccept(text) { // "#참가" 또는 "#참가 <공개키>"
     const m = /^\s*#\s*참가([\s\S]*)$/.exec(String(text || ''));
@@ -231,10 +234,17 @@
       // 1) 초대
       const inv = parseInvite(d.text);
       if (inv && !inv.err) {
-        invites.push({ from: nick, peer: inv.peer, t: now });
-        rlog('invite', nick + '->' + inv.peer, 'me=' + (me || '(미설정)'));
+        invites.push({ from: nick, peer: inv.peer, pub: inv.key || '', t: now });
+        rlog('invite', nick + '->' + inv.peer, 'key=' + (inv.key ? shortKey(inv.key) : '(옛날방식)'), 'me=' + (me || '(미설정)'));
         if (me && inv.peer === me && nick !== me) {
           try { KW.toast('💬 1:1 대화 초대', nick + '님이 초대했습니다. 패널에서 [참가]를 누르세요.'); } catch (er) {}
+          if (inv.key) {
+            // 신방식: 초대에 A공개키가 실려 오므로 X도 바로 방키 유도 가능 (#키 불필요)
+            const r = touchRoom(nick, true);
+            if (!r.peerPub) r.peerPub = inv.key;
+            try { await myKeypair(); } catch (e) {}
+            await trySecure(r);
+          }
         }
         roomSig = null;
         return;
@@ -245,6 +255,13 @@
       if (acc && !acc.err) {
         if (!me) return;
         rlog('accept', 'from=' + nick, 'key=' + (acc.key ? shortKey(acc.key) : '(없음)'), 'me=' + me);
+        if (nick === me && acc.key) {
+          // 자기 수락 에코 (X 입장): 방은 초대 수신 때 이미 만들어짐. 혹시 없으면 초대자로 보정.
+          const myInv = myInvite();
+          if (myInv) touchRoom(myInv.from, true);
+          roomSig = null;
+          return;
+        }
         // 내가 보낸 초대 중 이 사람이 수락한 것 찾기 (가장 최근)
         let m = null;
         for (let i = invites.length - 1; i >= 0; i--) {
@@ -262,9 +279,9 @@
             const r = touchRoom(nick, !!acc.key);
             rlog('accept-x', 'room=' + nick, 'key=' + (acc.key ? shortKey(acc.key) : '(없음)'));
             if (acc.key) {
-              r.peerPub = acc.key;
+              if (!r.peerPub) r.peerPub = acc.key;
               try { await myKeypair(); } catch (e) {}
-              trySecure(r);
+              await trySecure(r);
             }
           }
           return;
@@ -275,9 +292,13 @@
         if (acc.key) {
           r.peerPub = acc.key;
           try { await myKeypair(); } catch (e) {}
-          trySecure(r);
-          r.awaitingKey = !r.aesKey; // 내 공개키를 아직 안 보냈으면 패널에 [키 보내기]
-          try { KW.toast('💬 1:1 대화', nick + '님이 수락했습니다. 패널에서 [키 보내기]를 누르세요.'); } catch (er) {}
+          await trySecure(r);
+          r.awaitingKey = !r.aesKey; // 옛날방식 초대에만 해당. 신방식은 바로 유도되므로 false.
+          if (!r.aesKey) {
+            try { KW.toast('💬 1:1 대화', nick + '님이 수락했습니다. 패널에서 [키 보내기]를 누르세요.'); } catch (er) {}
+          } else {
+            try { KW.toast('💬 1:1 대화', nick + '님과 암호방이 열렸습니다.'); } catch (er) {}
+          }
         } else {
           pushMsg(nick, nick, false, '(평문 참가)');
         }
@@ -290,15 +311,13 @@
       if (kp && !kp.err) {
         if (!me || nick === me) return;
         rlog('pubkey', 'from=' + nick, 'key=' + shortKey(kp.key), 'hasRoom=' + (!!rooms[nick]));
-        // 내가 그 사람에게 보낸 초대가 있고, 아직 키 교환 전이면 상대 공개키 확정
-        const r = rooms[nick];
-        if (r) {
-          if (!r.peerPub) r.peerPub = kp.key;
-          try { await myKeypair(); } catch (e) {}
-          trySecure(r);
-          r.awaitingKey = false;
-          roomSig = null;
-        }
+        // 옛날방식 폴백 (#키): 방이 없어도 상대로 생성 후 확정
+        const r = touchRoom(nick, true);
+        if (!r.peerPub) r.peerPub = kp.key;
+        try { await myKeypair(); } catch (e) {}
+        await trySecure(r);
+        r.awaitingKey = false;
+        roomSig = null;
         return;
       }
       // 4) 평문 공개방 메시지 (#채팅 X 내용 — 초대 형식이 아니라 대화 형식)
@@ -457,13 +476,27 @@
       copyText('#참가 ' + me.pubB64, '복사됨. 채팅창에 붙여넣고 Enter를 누르세요.');
     } catch (e) { notice('키 생성 실패. 브라우저를 확인하세요.'); }
   }
-  async function sendMyKey(peer) {
+  async function sendMyKey(peer) { // 옛날방식 폴백용. 신방식(초대에 키 포함)에서는 표시되지 않음.
     try {
       const me = await myKeypair();
       rlog('key-click', 'to=' + peer, 'myPub=' + shortKey(me.pubB64));
       copyText('#키 ' + me.pubB64, '복사됨. 채팅창에 붙여넣고 Enter를 누르세요.');
       const r = rooms[peer];
       if (r) { r.awaitingKey = false; roomSig = null; }
+    } catch (e) { notice('키 생성 실패. 브라우저를 확인하세요.'); }
+  }
+  async function invitePeer() {
+    try {
+      const inp = roomEl && roomEl.querySelector('[data-cr-invite-peer]');
+      const peer = String((inp && inp.value) || '').trim().split(/\s+/)[0] || '';
+      if (!peer) { notice('상대 이름을 입력하세요.'); return; }
+      if (peer === myNick()) { notice('자기 자신은 초대할 수 없습니다.'); return; }
+      const me = await myKeypair();
+      pruneInvites(Date.now());
+      invites.push({ from: myNick(), peer, pub: me.pubB64, t: Date.now() });
+      rlog('invite-click', 'to=' + peer, 'myPub=' + shortKey(me.pubB64));
+      copyText('#채팅 ' + peer + ' ' + me.pubB64, '복사됨. 채팅창에 붙여넣고 Enter를 누르세요.');
+      roomSig = null;
     } catch (e) { notice('키 생성 실패. 브라우저를 확인하세요.'); }
   }
   async function sendSecure() {
@@ -536,6 +569,7 @@
         if (e.target && e.target.closest && e.target.closest('#__kw_chatroom_x')) { sessionHidden = true; removeRoom(); return; }
         if (e.target && e.target.closest && e.target.closest('[data-cr-accept]')) { acceptInvite(); return; }
         if (e.target && e.target.closest && e.target.closest('[data-cr-key]')) { sendMyKey(selPeer); return; }
+        if (e.target && e.target.closest && e.target.closest('[data-cr-invite]')) { invitePeer(); return; }
         if (e.target && e.target.closest && e.target.closest('[data-cr-send]')) { const r = rooms[selPeer]; if (r && r.aesKey) sendSecure(); else copyDraft(); return; }
         // [BETA-TEST-ONLY:start]
         if (e.target && e.target.closest && e.target.closest('[data-cr-selftest]')) { runSelfTest(); return; }
@@ -577,9 +611,13 @@
       }
       if (!me) {
         h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">내 닉네임을 먼저 입력하세요.<br>설정 ⚙ → 단어설정 → 내 닉네임</div>';
-      } else if (!names.length && !inv) {
-        h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">아직 대화가 없습니다.<br>채팅에 <b>#채팅 상대이름</b> 으로 초대하면 여기 모입니다.</div>';
       } else {
+        h += '<div style="display:flex;gap:4px;margin-top:6px;flex:none"><input data-cr-invite-peer placeholder="상대 이름" style="flex:1;min-width:0;background:rgba(255,255,255,.07);border:1px solid #555;border-radius:8px;color:#fff;font-size:12px;padding:5px 8px;outline:none"><button data-cr-invite title="초대 한 줄 복사 (붙여넣고 Enter)" style="border:1px solid ' + COLOR + ';background:transparent;color:' + COLOR + ';border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;flex:none">초대복사</button></div>';
+        if (!names.length && !inv) {
+          h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">위 칸에 상대 이름을 쓰고 [초대복사] → 채팅에 붙여넣고 Enter.</div>';
+        }
+      }
+      if (me && (names.length || inv)) {
         if (names.length) {
           h += '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;flex:none">' + names.map((n) => {
             const on = n === selPeer;
@@ -608,6 +646,11 @@
       const inp = roomEl.querySelector('[data-cr-inp]');
       if (inp) inp.addEventListener('keydown', (ev) => {
         if (ev.key === 'Enter') { const rr = rooms[selPeer]; if (rr && rr.aesKey) sendSecure(); else copyDraft(); }
+        if (ev.stopPropagation) ev.stopPropagation();
+      });
+      const invInp = roomEl.querySelector('[data-cr-invite-peer]');
+      if (invInp) invInp.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') invitePeer();
         if (ev.stopPropagation) ev.stopPropagation();
       });
     }
