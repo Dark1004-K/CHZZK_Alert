@@ -268,9 +268,31 @@ function refreshPluginsNow(done) {
             .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.text(); })
             .then((t) => ({ id: p.id, name: p.name || p.id, ver: codeVer(t) }))
             .catch(() => null));
-        return Promise.all(jobs);
+        // 동반 브릿지 파일도 직접 받아 공개 버전을 확인한다 (minVersion만으로는 새 릴리즈를 감지할 수 없음).
+        // 브릿지 파일 헤더: // @version 1.1.8 (+ 폴백: const VERSION = '1.1.8')
+        const cjobs = list
+          .filter((p) => { try { return p && p.companion && p.companion.url && p.companion.ready && pluginIdIsOn(p.id); } catch (e2) { return false; } })
+          .map((p) => fetch(p.companion.url + (p.companion.url.indexOf('?') >= 0 ? '&' : '?') + 't=' + bust, { cache: 'no-store' })
+            .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.text(); })
+            .then((t) => {
+              let ver = '';
+              try { const m = /@version\s+([^\s]+)/.exec(String(t || '')); if (m) ver = m[1]; } catch (e3) {}
+              if (!ver) { try { const m2 = /VERSION\s*=\s*['"]([^'"]+)['"]/.exec(String(t || '')); if (m2) ver = m2[1]; } catch (e4) {} }
+              return ver ? { ready: p.companion.ready, ver } : null;
+            })
+            .catch(() => null));
+        return Promise.all([Promise.all(jobs), Promise.all(cjobs)]);
       })
-      .then((rows) => {
+      .then((both) => {
+        const rows = (both && both[0]) || [];
+        const crows = (both && both[1]) || [];
+        try {
+          (crows || []).forEach((c) => {
+            if (!c || !c.ver) return;
+            if (typeof noteCompanionLatest === 'function') noteCompanionLatest(c.ready, c.ver);
+          });
+          if (typeof paintCompanions === 'function') paintCompanions();
+        } catch (e) {}
         let best = null;
         (rows || []).forEach((r) => {
           if (!r || !r.ver) return;

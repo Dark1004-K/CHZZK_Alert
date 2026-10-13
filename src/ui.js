@@ -1020,19 +1020,44 @@ function companionOf(id) {
 function companionKnownOf(p) {
   try { return !!(p && p.companion && p.companion.ready && __kwCompanions[p.companion.ready]); } catch (e) { return false; }
 }
-function companionNeedsUpdate(p) { // 설치됨 + 최소 버전 미달 (업그레이드 유도 대상)
+function companionNeedsUpdate(p) { // 설치됨 + 최소 버전 미달이거나 새 공개 버전 있음 (업그레이드 유도 대상)
   try {
     const c = p && p.companion;
     const v = c && c.ready && __kwCompanions[c.ready];
+    if (!v) return false;
     const need = c && c.minVersion;
-    return !!(v && need && cmpVersions(v, need) < 0);
+    if (need && cmpVersions(v, need) < 0) return true;
+    const latest = c && c.ready && __kwCompanionLatest[c.ready];
+    if (latest && cmpVersions(v, latest) < 0) return true;
   } catch (e) { return false; }
+  return false;
+}
+// 새로고침(refreshPluginsNow)이 확인한 최신 공개 브릿지 버전. minVersion은 강제 최소선,
+// latest는 권장 최신선이다. 새로 발견된 업데이트면 토스트 1회.
+const __kwCompanionLatest = {}; // [readyEvent] -> 최신 공개 버전
+function noteCompanionLatest(ready, ver) {
+  try {
+    if (!ready || !ver) return;
+    const prev = __kwCompanionLatest[ready];
+    if (prev && cmpVersions(prev, String(ver)) >= 0) return;
+    __kwCompanionLatest[ready] = String(ver);
+    const cur = __kwCompanions[ready];
+    if (cur && cmpVersions(cur, String(ver)) < 0) {
+      const un = __kwCompanionNames[ready] || 'chzzk_bridge';
+      if (typeof showCallToast === 'function') showCallToast('브릿지 업데이트', un + ' v' + cur + ' → v' + ver);
+    }
+  } catch (e) {}
 }
 function companionHtml(p, noRemove) {
   const c = p && p.companion;
   if (!c) return '';
   const v = c.ready && __kwCompanions[c.ready];
-  const need = c.minVersion || '';
+  // 목표 버전: 강제 최소선(minVersion)과 확인된 최신 공개 버전 중 높은 쪽
+  let need = c.minVersion || '';
+  try {
+    const latest = (c.ready && __kwCompanionLatest[c.ready]) || '';
+    if (latest && (!need || cmpVersions(need, latest) < 0)) need = latest;
+  } catch (e) {}
   if (v && (!need || cmpVersions(v, need) >= 0)) {
     const m = pluginMetaOf(p.id);
     const label = (m && m.name) ? m.name + (m.version ? ' v' + m.version : '') : pluginDisplayName(p);
