@@ -1,11 +1,14 @@
-// 1:1 대화방 (코어) — 페어링은 공개 채팅, 내용은 E2E 암호화 후 릴레이.
-// 비밀(개인키·방키)은 어디에도 올리지 않는다. 공개 채팅에 오가는 것은 초대·수락뿐 (둘 다 공개키 포함).
-//   1. A: "#채팅 X <A공개키44>" (초대. 패널 [초대복사] 클릭 시 자동 생성·복사. X는 공백 없는 한 토큰, 5분 유효)
-//   2. X: "#참가 <X공개키44>" (수락. 패널 [참가] 클릭 시 자동 생성·복사)
-//   3. 양쪽이 ECDH(X25519)로 같은 방키 유도 → 이후 릴레이에 AES-GCM 암호문만.
-// 구형 "#채팅 X" (키 없음) 초대는 "#키 <A공개키44>" ([키 보내기])로 이어가는 폴백 유지.
+// 1:1 대화방 (코어) — 페어링은 공개 채팅 1줄 + 릴레이 내부 교환, 내용은 E2E 암호화 후 릴레이.
+// 비밀(개인키·방키)은 어디에도 올리지 않는다. 공개키 자체는 공개돼도 무해.
+//   1. A: "#채팅 X" (초대. 패널 [초대복사] 클릭 시 복사 → 채팅에 붙여넣고 Enter. X는 공백 없는 한 토큰, 5분 유효)
+//   2. X: 패널 [참가] 클릭 → X공개키를 릴레이로 내부 전송 (채팅에 안 씀)
+//   3. A가 폴링으로 X공개키를 받으면 A공개키를 릴레이로 자동 답신 → 양쪽이 ECDH(X25519)로 같은 방키 유도
+//   4. 이후 릴레이에 AES-GCM 암호문만. X의 [참가] 한 번이면 양쪽 🔒.
+// 초대 인증은 치지직 채팅(발신 닉이 서버 보장)이 담당. 릴레이 토픽은 닉으로 계산돼 누구나 알 수 있으니,
+// 먼저 도착한 hello 1개만 키로 인정(first-wins)하고, 필요하면 콘솔 지문(shortKey 8자)으로 대조.
+// 구형 "#채팅 X <A공개키>" / "#참가 <X공개키>" / "#키 <A공개키>" 채팅 방식도 폴백으로 계속 인식.
 // 수락에 공개키가 없으면(수동 #참가) 평문 공개방으로 동작 (필터 뷰).
-// 보내기(초대·수락·키·복사)는 전부 사용자가 Enter/클릭으로 직접. 스크립트는 읽기·생성·표시만.
+// 보내기(초대)는 사용자가 Enter로 직접. 수락·키교환·암호전송은 패널 클릭 → 내부 처리.
 (function () {
   const KW = window.__KW;
   if (!KW || typeof KW.on !== 'function') return;
@@ -472,8 +475,18 @@
       const inv = myInvite();
       if (!inv) { notice('수락할 초대가 없습니다.'); rlog('accept-click', '초대없음'); return; }
       const me = await myKeypair();
+      const r = touchRoom(inv.from, false);
+      if (!selPeer) selPeer = inv.from;
       rlog('accept-click', 'invite-from=' + inv.from, 'myPub=' + shortKey(me.pubB64));
-      copyText('#참가 ' + me.pubB64, '복사됨. 채팅창에 붙여넣고 Enter를 누르세요.');
+      if (!r.helloSent) {
+        const ok = await relayPost(r, { v: 1, type: 'hello', from: myNick(), pub: me.pubB64, t: Date.now() });
+        rlog('hello-post', 'to=' + inv.from, ok ? 'ok' : 'fail');
+        if (ok) {
+          r.helloSent = true;
+          try { KW.toast('💬 1:1 대화', inv.from + '님에게 수락을 보냈습니다. 연결 중…'); } catch (er) {}
+        } else notice('전송 실패. 잠시 후 다시 [참가]를 눌러 주세요.');
+      }
+      roomSig = null;
     } catch (e) { notice('키 생성 실패. 브라우저를 확인하세요.'); }
   }
   async function sendMyKey(peer) { // 옛날방식 폴백용. 신방식(초대에 키 포함)에서는 표시되지 않음.
@@ -491,13 +504,14 @@
       const peer = String((inp && inp.value) || '').trim().split(/\s+/)[0] || '';
       if (!peer) { notice('상대 이름을 입력하세요.'); return; }
       if (peer === myNick()) { notice('자기 자신은 초대할 수 없습니다.'); return; }
-      const me = await myKeypair();
       pruneInvites(Date.now());
-      invites.push({ from: myNick(), peer, pub: me.pubB64, t: Date.now() });
-      rlog('invite-click', 'to=' + peer, 'myPub=' + shortKey(me.pubB64));
-      copyText('#채팅 ' + peer + ' ' + me.pubB64, '복사됨. 채팅창에 붙여넣고 Enter를 누르세요.');
+      invites.push({ from: myNick(), peer, pub: '', t: Date.now() });
+      touchRoom(peer, false);
+      if (!selPeer) selPeer = peer;
+      rlog('invite-click', 'to=' + peer);
+      copyText('#채팅 ' + peer, '복사됨. 채팅창에 붙여넣고 Enter를 누르세요. 상대가 [참가]를 누르면 자동으로 연결됩니다.');
       roomSig = null;
-    } catch (e) { notice('키 생성 실패. 브라우저를 확인하세요.'); }
+    } catch (e) { notice('초대에 실패했습니다.'); }
   }
   async function sendSecure() {
     try {
@@ -531,20 +545,46 @@
   async function pollRooms() {
     for (const peer of Object.keys(rooms)) {
       const r = rooms[peer];
-      if (!r.aesKey) continue;
       try {
         const msgs = await relayPoll(r);
         let changed = false;
         for (const j of msgs) {
           if (j.id && r.lastRelayId && j.id === r.lastRelayId) continue;
-          let body = null;
-          try {
-            const o = typeof j.message === 'string' ? JSON.parse(j.message) : j.message;
-            if (o && o.v === 1 && o.iv && o.ct) body = await open(r.aesKey, o.iv, o.ct);
-          } catch (e) {}
+          let o = null;
+          try { o = typeof j.message === 'string' ? JSON.parse(j.message) : j.message; } catch (e) {}
           if (j.id) r.lastRelayId = j.id;
+          if (!o || o.v !== 1) continue;
+          const from = String(o.from || '').slice(0, 30);
+          if (from === myNick()) continue; // 내 발신 에코는 무시
+          if (o.type === 'hello' && o.pub) {
+            // 릴레이 경유 키교환 (채팅에 #참가/#키를 안 씀). 먼저 온 키 1개만 인정.
+            if (!r.peerPub) {
+              r.peerPub = o.pub;
+              rlog('hello-recv', 'room=' + peer, 'from=' + from, 'key=' + shortKey(o.pub));
+              try { await myKeypair(); } catch (e) {}
+              await trySecure(r);
+              changed = true;
+            } else if (r.peerPub !== o.pub) {
+              rlog('hello-dup', 'room=' + peer, '무시(먼저 온 키 유지)');
+            }
+            if (r.aesKey && !r.helloSent) {
+              try {
+                const me2 = await myKeypair();
+                const ok = await relayPost(r, { v: 1, type: 'hello', from: myNick(), pub: me2.pubB64, t: Date.now() });
+                rlog('hello-reply', 'room=' + peer, ok ? 'ok' : 'fail');
+                if (ok) r.helloSent = true;
+              } catch (e) {}
+            }
+            if (r.aesKey && !r.openNotified) {
+              r.openNotified = true;
+              try { KW.toast('💬 1:1 대화', peer + '님과 암호방이 열렸습니다.'); } catch (er) {}
+            }
+            continue;
+          }
+          if (!r.aesKey || !o.iv || !o.ct) continue;
+          let body = null;
+          try { body = await open(r.aesKey, o.iv, o.ct); } catch (e) {}
           if (body == null) continue;
-          const from = String((typeof j.message === 'string' ? JSON.parse(j.message) : j.message).from || '').slice(0, 30) || peer;
           if (from === myNick()) continue; // 내 발신은 전송 시 이미 표시
           rlog('recv', 'room=' + peer, 'from=' + from, 'len=' + String(body || '').length);
           r.msgs.push({ t: Date.now(), from, mine: false, text: body });
@@ -614,7 +654,7 @@
       } else {
         h += '<div style="display:flex;gap:4px;margin-top:6px;flex:none"><input data-cr-invite-peer placeholder="상대 이름" style="flex:1;min-width:0;background:rgba(255,255,255,.07);border:1px solid #555;border-radius:8px;color:#fff;font-size:12px;padding:5px 8px;outline:none"><button data-cr-invite title="초대 한 줄 복사 (붙여넣고 Enter)" style="border:1px solid ' + COLOR + ';background:transparent;color:' + COLOR + ';border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;flex:none">초대복사</button></div>';
         if (!names.length && !inv) {
-          h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">위 칸에 상대 이름을 쓰고 [초대복사] → 채팅에 붙여넣고 Enter.</div>';
+          h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">위 칸에 상대 이름을 쓰고 [초대복사] → 채팅에 붙여넣고 Enter.<br>상대가 [참가]를 누르면 키는 내부 교환되고 🔒가 뜹니다.</div>';
         }
       }
       if (me && (names.length || inv)) {
