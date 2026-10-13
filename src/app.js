@@ -224,10 +224,14 @@ function kwEmit(evt, data) {
     }
   } catch (e) {}
 }
+// 개발 중 즉시 확인: 콘솔에서 localStorage.setItem('__kw_dev','1') 후 새로고침하면
+// 플러그인 목록 시간 캐시를 건너뛰고 항상 새로 받는다 (지우면 다시 시간 캐시).
+function kwDev() { try { return localStorage.getItem('__kw_dev') === '1'; } catch (e) { return false; } }
 function loadPlugins() {
   if (limitedMode) { dlog('plugin-skip-limited'); return; }
   try {
-    fetch(PLUGIN_MANIFEST_URL + '?t=' + Math.floor(Date.now() / 3600000), { cache: 'no-store' })
+    if (kwDev()) dlog('dev-mode: manifest no-cache');
+    fetch(PLUGIN_MANIFEST_URL + '?t=' + (kwDev() ? Date.now() : Math.floor(Date.now() / 3600000)), { cache: 'no-store' })
       .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
       .then((j) => {
         const list = j && Array.isArray(j.plugins) ? j.plugins.filter((p) => p && p.id && p.url) : [];

@@ -160,26 +160,6 @@
           "colw": 100
         }
       ]
-    },
-    {
-      "id": "chatroom",
-      "name": "1:1 대화",
-      "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/plugins/chatroom.js",
-      "on": false,
-      "options": [
-        {
-          "key": "show",
-          "label": "1:1 대화 창 표시",
-          "type": "bool",
-          "default": true
-        },
-        {
-          "key": "toast",
-          "label": "상대 메시지 토스트 알림",
-          "type": "bool",
-          "default": true
-        }
-      ]
     }
   ]
 }

@@ -422,7 +422,7 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
 
 ## 부록 D. 개발 (베타 작업 시)
 
-* 베타는 얇은 로더(`beta/chzzk_alert.beta.user.js`)이고, 실제 코드는 `src/` 아래 4개 파일을 `@require`로 불러옵니다.
+* 베타는 얇은 로더(`beta/chzzk_alert.beta.user.js`)이고, 실제 코드는 `src/` 아래 5개 파일을 `@require`로 불러옵니다.
 
 | 파일 | 내용 |
 | --- | --- |
@@ -430,12 +430,14 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
 | `src/chat.js` | 알림(토스트·소리·브라우저 알림), 불린 대화, 채팅 감시, 인가 채널 |
 | `src/ui.js` | 패널·설정 화면·드롭스 창·드래그 조절·업데이트 팝업 |
 | `src/app.js` | 화면 전환 감지, 플러그인 로딩, 로그인 확인, 시작 |
+| `src/room.js` | 1:1 대화방 (`#채팅` 파싱·방 패널, 코어 기능) |
 
 * 빌드: **`node src/build.js`** → 헤더(`src/header.txt`)의 `@version`을 읽어 로더를 만들고 `core.js`의 버전과 `@require` 주소의 `?v=`를 맞춥니다.
 * **코드를 바꿀 때마다 `src/header.txt`의 `@version`을 올리고 빌드한 뒤 커밋**합니다. 같은 버전을 다시 올리면 Tampermonkey가 모듈을 새로 받지 않습니다.
 * 버전은 `메이저.마이너.패치` 3자리(예: `3.1.0`)입니다. **베타는 끝자리 대신 `-betaNN`만 올립니다**(`3.1.0-beta67` → `3.1.0-beta68`).
   기준 버전(`3.1.0`)이 바뀌면 베타 번호는 `001`부터 다시 누적합니다(`3.2.0-beta001`). 정식 릴리즈 때 접미사를 떼서 `3.1.0`으로 냅니다. 정식 이후의 수정은 패치(`3.1.1`), 기능 추가는 마이너(`3.2.0`), 호환이 깨지면 메이저(`4.0.0`)를 올립니다.
 * 새 모듈 파일을 추가하면 `src/build.js`의 `MODULES`에도 넣어야 합니다.
+* **개발 중 바로 확인**: 수정 → 버전 올리고 빌드 → 커밋·push 뒤, 방송 페이지에서 설정 ⚙ → 앱 정보 → 업데이트 확인 → 업데이트 버튼 → 재설치 → F5. 버전이 바뀌면 `@require` 주소(`?v=`)가 바뀌어 Tampermonkey가 새 모듈을 바로 받습니다. 플러그인 목록 시간 캐시는 콘솔에서 `localStorage.setItem('__kw_dev','1')` 후 새로고침하면 건너뜁니다 (지우면 복귀). 새 기능의 콘솔 테스트 후크는 `[BETA-TEST-ONLY:start]`~`[BETA-TEST-ONLY:end]`로 감쌉니다.
 * **정식 릴리즈**: `node src/build.js --release 3.2.0` → 정식도 베타처럼 **얇은 로더**이고, 코드는 **난독화**해서 `release/`에 둡니다.
   * 루트 `chzzk_alert.user.js`: 헤더 + `@require`(`release/*.js?v=버전`)만 있는 로더. 직접 고치지 않습니다.
   * `release/core.js`, `chat.js`, `ui.js`, `app.js`: `src/`를 정식용으로 변환하고 난독화한 **고정 사본**입니다.

@@ -1,30 +1,25 @@
-// CHZZK Alert plugin: 1:1 대화방 — 공개 채팅의 "#채팅 상대닉 내용" 줄을 모아 보여준다.
+// 1:1 대화방 (코어) — 공개 채팅의 "#채팅 상대닉 내용" 줄을 모아 보여준다.
 // 전송로가 공개 채팅이라 별도 접속 없이 양쪽이 같은 채팅을 파싱해 같은 방을 복원한다.
-// 이 플러그인은 읽기·표시만 한다. 보내기는 패널 입력 → 복사 → 채팅창에 붙여넣고 Enter (사용자가 직접 전송).
+// 읽기·표시만 한다. 보내기는 패널 입력 → 복사 → 채팅창에 붙여넣고 Enter (사용자가 직접 전송).
 // 규격: "#채팅 상대닉 내용" (상대닉은 공백 없는 한 토큰). 나와 무관한 #채팅은 표시하지 않는다.
 (function () {
   const KW = window.__KW;
-  if (!KW || typeof KW.option !== 'function' || typeof KW.enabled !== 'function') return;
-  if (window.__kwChatroomLoaded) return;
-  window.__kwChatroomLoaded = true;
-  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'chatroom', version: '0.1.0' }); } catch (e) {}
-  const ID = 'chatroom';
+  if (!KW || typeof KW.on !== 'function') return;
+  if (window.__kwRoomLoaded) return;
+  window.__kwRoomLoaded = true;
   const COLOR = '#3fd598';
   const ROOM_MAX = 20, MSG_MAX = 50;
 
-  function opt(key, def) {
-    try { const v = KW.option(ID, key); return v === undefined || v === null ? def : v; } catch (e) { return def; }
-  }
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const xBtn = (id, color, style) => '<button id="' + id + '" title="닫기 (설정 > 확장에서 다시 켤 수 있음)" style="border:0;background:transparent;color:' + color + ';cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;' + (style || '') + '"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
-  const turnOff = (key) => { try { if (typeof KW.setOption === 'function') KW.setOption(ID, key, false); } catch (e) {} };
+  const xBtn = (id, color, style) => '<button id="' + id + '" title="닫기 (새로고침하면 다시 표시)" style="border:0;background:transparent;color:' + color + ';cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;' + (style || '') + '"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
   const TI_CHAT = '<path d="M4 5h16v11H9l-5 4Z"/><path d="M8 9.5h8M8 12.5h5"/>';
+  let sessionHidden = false; // X를 누르면 새로고침 전까지 숨김
 
   function myNick() {
     try { return (localStorage.getItem('__kw_mynick') || '').trim(); } catch (e) { return ''; }
   }
   // "#채팅 상대닉 내용" 파싱. 아니면 null, 쓰는 법이 틀리면 { err }.
-  function parseChatroom(text) {
+  function parseRoomChat(text) {
     const m = /^\s*#\s*채팅([\s\S]*)$/.exec(String(text || ''));
     if (!m) return null;
     if (!m[1] || !/^\s/.test(m[1])) return { err: "'#채팅' 다음에 띄어쓰기를 하고 상대 이름을 적어 주세요. 예) #채팅 미리내 안녕하세요" };
@@ -47,7 +42,7 @@
     } catch (e) {}
   }
 
-  // rooms: { [peer]: { peer, msgs: [{ t, from, mine, text }], last } — 새로고침하면 비워짐
+  // rooms: { [peer]: { peer, msgs: [{ t, from, mine, text }], last } } — 새로고침하면 비워짐
   let rooms = {};
   let selPeer = '';
   function touchRoom(peer) {
@@ -66,8 +61,8 @@
   }
   function onChat(d) {
     try {
-      if (!d || !KW.enabled(ID)) return;
-      const p = parseChatroom(d.text);
+      if (!d) return;
+      const p = parseRoomChat(d.text);
       if (!p) return;
       if (p.err) { notice(p.err); return; }
       const me = myNick();
@@ -82,7 +77,7 @@
       if (r.msgs.length > MSG_MAX) r.msgs.splice(0, r.msgs.length - MSG_MAX);
       if (!selPeer) selPeer = peer;
       roomSig = null;
-      if (nick !== me && opt('toast', true)) {
+      if (nick !== me) {
         try { KW.toast('💬 ' + nick, p.content); } catch (er) {}
       }
     } catch (e) {}
@@ -90,15 +85,13 @@
   try { KW.on('chat', onChat); } catch (e) {}
 
   // [BETA-TEST-ONLY:start]
-  // 테스트: 콘솔에서 __kwChatroomTest() 를 호출하면 가짜 상대 메시지를 즉시 넣어 표시 경로를 시험 (옵션 무시 아님, 플러그인 켜져 있어야 함)
-  if (KW.beta) {
-    window.__kwChatroomTest = (peer, content) => {
-      try {
-        onChat({ nick: peer || '테스트상대', text: '#채팅 ' + (myNick() || '나') + ' ' + (content || '테스트 메시지입니다') });
-        return '테스트 메시지 주입됨';
-      } catch (e) { return '실패: ' + e; }
-    };
-  }
+  // 테스트: 콘솔에서 __kwRoomTest() 를 호출하면 가짜 상대 메시지를 즉시 넣어 표시 경로를 시험
+  window.__kwRoomTest = (peer, content) => {
+    try {
+      onChat({ nick: peer || '테스트상대', text: '#채팅 ' + (myNick() || '나') + ' ' + (content || '테스트 메시지입니다') });
+      return '테스트 메시지 주입됨';
+    } catch (e) { return '실패: ' + e; }
+  };
   // [BETA-TEST-ONLY:end]
 
   // 메시지 항목을 누르면 원본 채팅으로 스크롤 (불린 대화와 같은 방식)
@@ -159,13 +152,13 @@
   function render(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
-    if (!opt('show', true) || !stack || !panel || !panel.classList.contains('show')) { removeRoom(); return; }
+    if (sessionHidden || !stack || !panel || !panel.classList.contains('show')) { removeRoom(); return; }
     const me = myNick();
     if (!roomEl || !roomEl.isConnected) {
       roomEl = document.createElement('div');
       roomEl.id = '__kw_chatroom';
       roomEl.onclick = (e) => {
-        if (e.target && e.target.closest && e.target.closest('#__kw_chatroom_x')) { turnOff('show'); removeRoom(); return; }
+        if (e.target && e.target.closest && e.target.closest('#__kw_chatroom_x')) { sessionHidden = true; removeRoom(); return; }
         const rb = e.target && e.target.closest ? e.target.closest('[data-cr-room]') : null;
         if (rb) { selPeer = rb.getAttribute('data-cr-room'); roomSig = null; render(Date.now()); return; }
         const cp = e.target && e.target.closest ? e.target.closest('[data-cr-copy]') : null;
@@ -236,7 +229,7 @@
 
   function tick() {
     try {
-      if (!KW.enabled(ID)) { removeRoom(); return; }
+      if (sessionHidden) { removeRoom(); return; }
       render(Date.now());
     } catch (e) {}
   }

@@ -1,7 +1,7 @@
 // Build
 //   node src/build.js                           → 베타: beta/chzzk_alert.beta.user.js (헤더 + @require 로더) — 로직은 src/*.js를 직접 로드
 //   node src/build.js --release 3.1.2           → 정식: chzzk_alert.user.js (헤더 + @require 로더)
-//                                                  + release/{core,chat,ui,app}.js (src를 정식용으로 변환 + 강한 난독화)
+//                                                  + release/{core,chat,ui,app,room}.js (src를 정식용으로 변환 + 강한 난독화)
 //                                                  + release/plugins/*.js, release/plugins.json (플러그인도 같은 방식)
 //   node src/build.js --release 3.1.2 --no-obfuscate   → 난독화 없이(디버깅용). 커밋/배포용으로는 쓰지 말 것.
 //
@@ -14,7 +14,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const MODULES = ['core', 'chat', 'ui', 'app']; // 순서 중요 (상위 스코프를 공유하는 조각)
+const MODULES = ['core', 'chat', 'ui', 'app', 'room']; // 순서 중요 (상위 스코프를 공유하는 조각, room은 __KW 완성 뒤)
 const RAW = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/';
 const ROOT = path.join(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8').replace(/\r\n/g, '\n');
