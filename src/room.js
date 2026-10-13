@@ -250,6 +250,18 @@
       if (inv && !inv.err) {
         invites.push({ from: nick, peer: inv.peer, pub: inv.key || '', t: now });
         rlog('invite', nick + '->' + inv.peer, 'key=' + (inv.key ? shortKey(inv.key) : '(일반)'), 'me=' + (me || '(미설정)'));
+        if (me && nick === me && inv.peer === me) {
+          // 셀프 호출 = 자가진단. 가상 상대를 상대로 초대·암호·릴레이 왕복 전체를 시험 (베타만).
+          rlog('selftest-trigger', '내가 나를 부름');
+          try {
+            if (KW && KW.beta && typeof runSelfTest === 'function') {
+              try { KW.toast('💬 1:1 대화', '셀프 호출 감지. 자가진단을 시작합니다.'); } catch (er) {}
+              runSelfTest();
+            }
+          } catch (e) {}
+          roomSig = null;
+          return;
+        }
         if (me && nick === me && inv.peer !== me) {
           // 내가 직접 친 초대: 수락 전이라도 내 방 바로 열기 (준비 중 상태, 여러 개 가능)
           touchRoom(inv.peer, !!inv.key);
@@ -662,7 +674,7 @@
     const inv = myInvite();
     renderInviteCard(stack, me, inv);
     const panelActive = names.length > 0 || !!selfTestResult || selfTestBusy;
-    if (!panelActive && !(KW && KW.beta)) { removeRoom(); return; }
+    if (!panelActive) { removeRoom(); return; }
     if (!roomEl || !roomEl.isConnected) {
       roomEl = document.createElement('div');
       roomEl.id = '__kw_chatroom';
