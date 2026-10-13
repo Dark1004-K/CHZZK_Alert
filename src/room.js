@@ -369,28 +369,35 @@
     } catch (e) { return '미지원/실패: ' + e; }
   }
   async function roomSoloTest(peer) {
+    // 신방식 솔로 시뮬레이션: 초대 기록 → 상대 hello 릴레이 전송 → 내 폴링(유도·자동답신) → 키 대조 → 암호문 왕복.
     const log = [];
     try {
       const me = myNick();
       if (!me) return '실패: 내 닉네임 먼저 입력 (설정 > 단어설정 → 내 닉네임)';
       peer = String(peer || ('솔로상대' + Math.floor(Math.random() * 10000)));
-      // 0) 상대 키쌍
+      try { await myKeypair(); } catch (e) {}
+      // 0) 상대 키쌍 (상대 브라우저 역할)
       const kp = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
       const peerPubB64 = b64e(await crypto.subtle.exportKey('raw', kp.publicKey));
       log.push('0 상대 키쌍 생성: OK');
-      // 1) 내가 초대 (실제 전송 대신 패널이 보는 저장소에 직접 기록되는 onChat 경로 사용)
-      await onChat({ nick: me, text: '#채팅 ' + peer });
+      // 1) 내가 초대 (클립보드 없이 내부 기록만)
       pruneInvites(Date.now());
-      const hasInv = invites.some((x) => x.from === me && x.peer === peer);
-      log.push('1 초대 기록: ' + (hasInv ? 'OK' : 'FAIL'));
-      if (!hasInv) return log.join('\n');
-      // 2) 상대가 수락 + 공개키
-      await onChat({ nick: peer, text: '#참가 ' + peerPubB64 });
-      const r = rooms[peer];
-      const okAccept = !!(r && r.peerPub === peerPubB64 && r.aesKey);
-      log.push('2 수락·방키 유도: ' + (okAccept ? 'OK' : 'FAIL'));
-      if (!okAccept) return log.join('\n');
-      // 3) 상대 입장에서 같은 방키 유도 후 릴레이로 암호문 발송
+      invites.push({ from: me, peer, pub: '', t: Date.now() });
+      const r = touchRoom(peer, false);
+      if (!selPeer) selPeer = peer;
+      r.helloSent = false; r.openNotified = false; r.aesKey = null; r.peerPub = ''; r.lastRelayId = '';
+      log.push('1 초대 기록: OK');
+      // 2) 상대가 [참가] → hello를 릴레이로 내부 전송
+      const url = await topicUrl(r.tag);
+      const hpr = await fetch(url, { method: 'POST', body: JSON.stringify({ v: 1, type: 'hello', from: peer, pub: peerPubB64, t: Date.now() }) });
+      log.push('2 상대 수락(hello 발송): ' + (hpr.ok ? 'OK' : 'FAIL(' + hpr.status + ')'));
+      if (!hpr.ok) return log.join('\n');
+      // 3) 내 폴링이 hello를 받아 방키 유도 + 자동 답신
+      await pollRooms();
+      const okSecure = !!(r.aesKey && r.helloSent);
+      log.push('3 방키 유도·자동 답신: ' + (okSecure ? 'OK' : 'FAIL'));
+      if (!okSecure) return log.join('\n');
+      // 4) 상대 입장에서 같은 방키인지 대조 후 암호문 발송
       const myPub = await crypto.subtle.importKey('raw', b64d(idkPubB64), { name: 'X25519' }, false, []);
       const peerShared = await crypto.subtle.deriveBits({ name: 'X25519', public: myPub }, kp.privateKey, 256);
       const seed = new Uint8Array([...new Uint8Array(peerShared), ...te('kwr1|' + r.tag)]);
@@ -398,15 +405,14 @@
       const iv = crypto.getRandomValues(new Uint8Array(12));
       const plain = '솔로테스트 ' + Date.now();
       const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, peerKey, te(plain));
-      const url = await topicUrl(r.tag);
       const pr = await fetch(url, { method: 'POST', body: JSON.stringify({ v: 1, from: peer, iv: b64e(iv), ct: b64e(ct), t: Date.now() }) });
-      log.push('3 릴레이 발송: ' + (pr.ok ? 'OK' : 'FAIL(' + pr.status + ')'));
+      log.push('4 릴레이 발송: ' + (pr.ok ? 'OK' : 'FAIL(' + pr.status + ')'));
       if (!pr.ok) return log.join('\n');
-      // 4) 내 폴링이 받아서 복호화
+      // 5) 내 폴링이 받아서 복호화
       const before = r.msgs.length;
       await pollRooms();
       const got = r.msgs.slice(before).some((m) => !m.mine && m.text === plain);
-      log.push('4 릴레이 수신·복호화: ' + (got ? 'OK' : 'FAIL'));
+      log.push('5 릴레이 수신·복호화: ' + (got ? 'OK' : 'FAIL'));
       log.push(got ? '전체 통과' : '수신 실패 (잠시 후 자가진단 재실행)');
       try { delete rooms[peer]; if (selPeer === peer) selPeer = ''; roomSig = null; } catch (e) {}
       return log.join('\n');
