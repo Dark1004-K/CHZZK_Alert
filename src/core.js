@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린 대화 목록 옵션 ('0'=끔, 그 외
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.5.0-beta015';
+const SCRIPT_VERSION = '3.5.0-beta016';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -130,6 +130,25 @@ let normMyNick = norm(myNick);
 function refreshNormCache() {
   kwCache = keywords.map((k) => ({ tight: norm(k), loose: normLoose(k) })).filter((o) => o.tight);
   normMyNick = norm(myNick);
+}
+const LS_NICKAUTO = '__kw_nickauto'; // 자동 등록해준 닉네임 기록 (중복 등록·삭제 후 재등록 방지)
+function autoKeywordNick(nick) {
+  try {
+    nick = String(nick || '').trim();
+    if (!nick) return;
+    const done = String(localStorage.getItem(LS_NICKAUTO) || '');
+    const has = (v) => keywords.some((k) => norm(k) === norm(v));
+    if (done && norm(done) !== norm(nick) && has(done) && !has(nick)) {
+      keywords = keywords.map((k) => (norm(k) === norm(done) ? nick : k)); // 닉 변경: 예전 자동등록값을 교체
+      saveKeywords(keywords); refreshNormCache();
+      dlog('nickauto-replace', done + '->' + nick);
+    } else if (!done && !has(nick)) {
+      keywords.push(nick); // 최초 1회만 자동 등록 (×로 지우면 다시 안 넣음)
+      saveKeywords(keywords); refreshNormCache();
+      dlog('nickauto-add', nick);
+    }
+    try { localStorage.setItem(LS_NICKAUTO, nick); } catch (e) {}
+  } catch (e) {}
 }
 
 

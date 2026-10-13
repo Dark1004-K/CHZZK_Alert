@@ -366,6 +366,7 @@ function initApp() {
       refreshNormCache();
       dlog('nick-auto', myNick);
     }
+    autoKeywordNick(myNick); // 내 닉네임은 호출 단어에 기본 등록 (중복 생략, ×삭제 후 재등록 안 함)
   } catch (e) {}
   if (isLivePage()) {
     buildUi();
