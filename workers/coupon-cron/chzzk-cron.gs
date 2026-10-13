@@ -100,7 +100,7 @@ function crawl() {
     same = JSON.stringify(prev.coupons) === JSON.stringify(coupons);
   } catch (e) {}
   if (same) {
-    Logger.log('변경 없음 (' + coupons.length + '개)');
+    Logger.log('[쿠폰] 변경 없음 (' + coupons.length + '개)');
     return;
   }
   // 3) 커밋
@@ -117,7 +117,7 @@ function crawl() {
   if (put.getResponseCode() !== 200 && put.getResponseCode() !== 201) {
     throw new Error('커밋 실패 HTTP ' + put.getResponseCode() + ': ' + put.getContentText().slice(0, 200));
   }
-  Logger.log('coupons.json 갱신 (' + coupons.length + '개)');
+  Logger.log('[쿠폰] coupons.json 갱신 (' + coupons.length + '개)');
 }
 
 function bossCheck() {
@@ -163,7 +163,7 @@ function bossCheck() {
         content: Utilities.base64Encode(Utilities.newBlob(JSON.stringify(state, null, 2) + '\n').getBytes()),
       }),
     });
-    Logger.log('상태 처음 기록 (' + modified + ')');
+    Logger.log('[보스] 상태 처음 기록 (' + modified + ')');
     return;
   }
   if (cur.getResponseCode() !== 200) throw new Error('GitHub API ' + cur.getResponseCode());
@@ -173,7 +173,7 @@ function bossCheck() {
     prev = JSON.parse(Utilities.newBlob(Utilities.base64Decode(curJson.content)).getDataAsString());
   } catch (e) {}
   if (prev && prev.imageUrl === imageUrl && prev.modified === modified) {
-    Logger.log('변경 없음 (' + modified + ')');
+    Logger.log('[보스] 변경 없음 (' + modified + ')');
     return;
   }
   // 3) 상태 갱신 + Issue
@@ -200,5 +200,5 @@ function bossCheck() {
     }),
   });
   if (issue.getResponseCode() !== 201) throw new Error('Issue 생성 실패 HTTP ' + issue.getResponseCode());
-  Logger.log('시간표 변경 감지. 상태 갱신 + Issue 생성 완료 (' + modified + ')');
+  Logger.log('[보스] 시간표 변경 감지. 상태 갱신 + Issue 생성 완료 (' + modified + ')');
 }
