@@ -315,15 +315,30 @@
   }
   try { KW.on('chat', onChat); } catch (e) {}
 
+  // 진단 결과 표시용 변수 (베타에서만 값이 들어감. 정식에서도 무해)
+  let selfTestResult = '', selfTestBusy = false;
   // [BETA-TEST-ONLY:start]
-  window.__kwRoomTest = (peer, content) => {
+  // 자가진단 (패널 [자가진단] 버튼용, 콘솔 불필요). 순서: 암호 자가검증 → 페어링·E2E·릴레이 왕복.
+  // 상대 키쌍을 테스트 안에서 생성해 상대 브라우저 역할을 대신한다.
+  async function roomCryptoTest() {
     try {
-      onChat({ nick: peer || '테스트상대', text: '#채팅 ' + (myNick() || '나') + ' ' + (content || '테스트 메시지입니다') });
-      return '테스트 메시지 주입됨';
-    } catch (e) { return '실패: ' + e; }
-  };
-  window.__kwRoomSoloTest = async (peer) => {
-    // 혼자서 전체 플로우 검증: 초대→수락→키유도→릴레이 왕복. 상대 키쌍을 테스트 안에서 생성 (상대 브라우저 역할).
+      const a = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
+      const b = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
+      const rawA = await crypto.subtle.exportKey('raw', a.publicKey);
+      const rawB = await crypto.subtle.exportKey('raw', b.publicKey);
+      const pubA = await crypto.subtle.importKey('raw', rawB, { name: 'X25519' }, false, []);
+      const pubB = await crypto.subtle.importKey('raw', rawA, { name: 'X25519' }, false, []);
+      const sa = await crypto.subtle.deriveBits({ name: 'X25519', public: pubA }, a.privateKey, 256);
+      const sb = await crypto.subtle.deriveBits({ name: 'X25519', public: pubB }, b.privateKey, 256);
+      const ka = await crypto.subtle.importKey('raw', await crypto.subtle.digest('SHA-256', sa), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+      const kb = await crypto.subtle.importKey('raw', await crypto.subtle.digest('SHA-256', sb), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, ka, te('hello'));
+      const pt = new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, kb, ct));
+      return pt === 'hello' ? 'E2E 자가검증 통과' : '복호화 불일치';
+    } catch (e) { return '미지원/실패: ' + e; }
+  }
+  async function roomSoloTest(peer) {
     const log = [];
     try {
       const me = myNick();
@@ -362,29 +377,24 @@
       await pollRooms();
       const got = r.msgs.slice(before).some((m) => !m.mine && m.text === plain);
       log.push('4 릴레이 수신·복호화: ' + (got ? 'OK' : 'FAIL'));
-      log.push(got ? '전체 통과' : '수신 실패 (잠시 후 __kwRoomSoloTest() 재실행)');
+      log.push(got ? '전체 통과' : '수신 실패 (잠시 후 자가진단 재실행)');
       try { delete rooms[peer]; if (selPeer === peer) selPeer = ''; roomSig = null; } catch (e) {}
       return log.join('\n');
     } catch (e) { return log.join('\n') + '\n예외: ' + e; }
-  };
-  window.__kwRoomCryptoTest = async () => {
+  }
+  async function runSelfTest() {
+    if (selfTestBusy) return;
+    selfTestBusy = true;
+    selfTestResult = '진단 중…';
+    roomSig = null;
     try {
-      const a = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
-      const b = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
-      const rawA = await crypto.subtle.exportKey('raw', a.publicKey);
-      const rawB = await crypto.subtle.exportKey('raw', b.publicKey);
-      const pubA = await crypto.subtle.importKey('raw', rawB, { name: 'X25519' }, false, []);
-      const pubB = await crypto.subtle.importKey('raw', rawA, { name: 'X25519' }, false, []);
-      const sa = await crypto.subtle.deriveBits({ name: 'X25519', public: pubA }, a.privateKey, 256);
-      const sb = await crypto.subtle.deriveBits({ name: 'X25519', public: pubB }, b.privateKey, 256);
-      const ka = await crypto.subtle.importKey('raw', await crypto.subtle.digest('SHA-256', sa), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
-      const kb = await crypto.subtle.importKey('raw', await crypto.subtle.digest('SHA-256', sb), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
-      const iv = crypto.getRandomValues(new Uint8Array(12));
-      const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, ka, te('hello'));
-      const pt = new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, kb, ct));
-      return pt === 'hello' ? 'E2E 자가검증 통과' : '복호화 불일치';
-    } catch (e) { return '미지원/실패: ' + e; }
-  };
+      const c = await roomCryptoTest();
+      const s = await roomSoloTest();
+      selfTestResult = c + '\n' + s;
+    } catch (e) { selfTestResult = '진단 실패: ' + e; }
+    selfTestBusy = false;
+    roomSig = null;
+  }
   // [BETA-TEST-ONLY:end]
 
   const collapse = (t) => String(t || '').replace(/\s+/g, '');
@@ -515,6 +525,9 @@
         if (e.target && e.target.closest && e.target.closest('[data-cr-accept]')) { acceptInvite(); return; }
         if (e.target && e.target.closest && e.target.closest('[data-cr-key]')) { sendMyKey(selPeer); return; }
         if (e.target && e.target.closest && e.target.closest('[data-cr-send]')) { const r = rooms[selPeer]; if (r && r.aesKey) sendSecure(); else copyDraft(); return; }
+        // [BETA-TEST-ONLY:start]
+        if (e.target && e.target.closest && e.target.closest('[data-cr-selftest]')) { runSelfTest(); return; }
+        // [BETA-TEST-ONLY:end]
         const rb = e.target && e.target.closest ? e.target.closest('[data-cr-room]') : null;
         if (rb) { selPeer = rb.getAttribute('data-cr-room'); roomSig = null; render(Date.now()); return; }
         const mj = e.target && e.target.closest ? e.target.closest('[data-cr-msg]') : null;
@@ -533,11 +546,20 @@
     const names = Object.keys(rooms).sort((a, b) => (rooms[b].last || 0) - (rooms[a].last || 0));
     if (selPeer && !rooms[selPeer]) selPeer = names[0] || '';
     const inv = myInvite();
-    const sig = [me, selPeer, inv ? inv.from + inv.t : '', names.map((n) => n + ':' + (rooms[n].msgs.length ? rooms[n].msgs[rooms[n].msgs.length - 1].t : 0) + (rooms[n].aesKey ? '1' : '0')).join(',')].join('|');
+    const sig = [me, selPeer, inv ? inv.from + inv.t : '', selfTestResult, selfTestBusy ? '1' : '0', names.map((n) => n + ':' + (rooms[n].msgs.length ? rooms[n].msgs[rooms[n].msgs.length - 1].t : 0) + (rooms[n].aesKey ? '1' : '0')).join(',')].join('|');
     if (sig !== roomSig) {
       roomSig = sig;
-      let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center"><span style="display:inline-flex;align-items:center;color:' + COLOR + ';margin-right:5px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + TI_CHAT + '</svg></span>1:1 대화&nbsp;<span style="color:' + COLOR + '">(' + names.length + ')</span></b></div>' +
+      let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center"><span style="display:inline-flex;align-items:center;color:' + COLOR + ';margin-right:5px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + TI_CHAT + '</svg></span>1:1 대화&nbsp;<span style="color:' + COLOR + '">(' + names.length + ')</span></b>' +
+        // [BETA-TEST-ONLY:start]
+        '<button data-cr-selftest title="혼자서 전체 플로우 진단 (초대·암호·릴레이)" style="border:1px solid #555;background:transparent;color:#aaa;border-radius:8px;padding:2px 8px;font-size:11px;cursor:pointer;margin-left:6px">자가진단</button>' +
+        // [BETA-TEST-ONLY:end]
+        '</div>' +
         xBtn('__kw_chatroom_x', COLOR, 'position:absolute;top:2px;right:3px;z-index:2');
+      // [BETA-TEST-ONLY:start]
+      if (selfTestResult) {
+        h += '<div style="margin-top:6px;flex:none;font-size:11px;line-height:1.5;color:#ccc;background:rgba(255,255,255,.05);border-radius:8px;padding:6px 8px;white-space:pre-wrap;max-height:120px;overflow-y:auto">' + esc(selfTestResult) + '</div>';
+      }
+      // [BETA-TEST-ONLY:end]
       if (inv) {
         h += '<div style="margin-top:6px;flex:none;display:flex;align-items:center;gap:6px;font-size:12px;color:#ffd400"><span><b>' + esc(inv.from) + '</b>님이 초대했습니다</span><button data-cr-accept style="border:1px solid ' + COLOR + ';background:rgba(63,213,152,.15);color:' + COLOR + ';border-radius:8px;padding:3px 10px;font-size:12px;cursor:pointer;flex:none">참가</button></div>';
       }
