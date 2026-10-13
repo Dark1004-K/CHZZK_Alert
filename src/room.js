@@ -25,7 +25,12 @@
   let sessionHidden = false;
 
   function myNick() {
-    try { return (localStorage.getItem('__kw_mynick') || '').trim(); } catch (e) { return ''; }
+    try {
+      const v = (localStorage.getItem('__kw_mynick') || '').trim();
+      if (v) return v; // 수동 입력 우선
+      if (typeof detectedNick === 'function') return String(detectedNick() || '').trim();
+      return '';
+    } catch (e) { return ''; }
   }
   const rlog = (...a) => { try { if (typeof dlog === 'function') dlog('room', ...a); } catch (e) {} };
   const shortKey = (k) => String(k || '').slice(0, 8) + (String(k || '').length > 8 ? '…' : '');

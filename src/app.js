@@ -333,6 +333,8 @@ function injectPlugin(p) {
 // 치지직 로그인이 안 되어 있으면 앱을 실행하지 않는다 (확인 실패도 미실행, 1분마다 재확인)
 let appStarted = false;
 let myUserIdHash = ''; // 로그인한 내 치지직 ID (채널 ID와 같으면 그 방송의 방장)
+let myUserNick = ''; // 로그인 계정의 치지직 닉네임 (getUserStatus 응답의 nickname)
+function detectedNick() { return myUserNick; } // 수동 입력이 비었을 때 쓰는 자동감지값 (수정이 우선)
 const isOwner = () => !!myUserIdHash && myUserIdHash === pageChannelId();
 function checkLogin() {
   return fetch('https://comm-api.game.naver.com/nng_main/v1/user/getUserStatus', { credentials: 'include' })
@@ -340,6 +342,8 @@ function checkLogin() {
     .then((j) => {
       const c = j && j.content;
       myUserIdHash = c && c.loggedIn && c.userIdHash ? String(c.userIdHash).toLowerCase() : '';
+      myUserNick = c && c.loggedIn && c.nickname ? String(c.nickname).trim() : '';
+      if (myUserNick) dlog('nick-detected', myUserNick);
       return !!(c && c.loggedIn);
     })
     .catch(() => false);
@@ -356,6 +360,13 @@ function init() {
 function initApp() {
   ensureStyle();
   startHeartbeat();
+  try { // 내 닉네임 수동 입력이 비었으면 로그인 계정에서 자동감지 (저장은 안 하고 메모리에만)
+    if (!String(myNick || '').trim() && detectedNick()) {
+      myNick = detectedNick();
+      refreshNormCache();
+      dlog('nick-auto', myNick);
+    }
+  } catch (e) {}
   if (isLivePage()) {
     buildUi();
   } else {

@@ -1335,6 +1335,7 @@ function renderSettings() {
             <button class="__kw_b" id="__kw_add" style="background:#00ffa3;color:#000">추가</button></div>
           <div class="__kw_lbl">내 닉네임 (이 닉네임의 채팅은 알림 제외)</div>
           <input class="__kw_in" id="__kw_nick" style="width:130px" value="${escapeHtml(myNick)}">
+          ${(() => { try { const manual = (localStorage.getItem(LS_NICK) || '').trim(); const det = (typeof detectedNick === 'function') ? String(detectedNick() || '').trim() : ''; if (!manual && det) return `<div class="__kw_lbl" style="color:#00ffa3">로그인 계정에서 자동감지됨 (바꾸려면 직접 입력)</div>`; } catch (e) {} return ''; })()}
         </div>
         <div id="__kw_set_ext" style="display:${setTab === 'ext' ? 'flex' : 'none'};flex-direction:column;flex:1">
           <div class="__kw_lbl">확장 모듈 설정(체크하면 켜짐)</div>
