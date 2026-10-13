@@ -430,7 +430,7 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
 | `src/chat.js` | 알림(토스트·소리·브라우저 알림), 불린 대화, 채팅 감시, 인가 채널 |
 | `src/ui.js` | 패널·설정 화면·드롭스 창·드래그 조절·업데이트 팝업 |
 | `src/app.js` | 화면 전환 감지, 플러그인 로딩, 로그인 확인, 시작 |
-| `src/room.js` | 1:1 대화방 (`#채팅` 파싱·방 패널, 코어 기능) |
+| `src/room.js` | 1:1 대화방 (초대 `#채팅`·수락 `#참가`·공개키 `#키` 파싱, X25519+AES-GCM E2E 후 ntfy 릴레이, 코어 기능) |
 
 * 빌드: **`node src/build.js`** → 헤더(`src/header.txt`)의 `@version`을 읽어 로더를 만들고 `core.js`의 버전과 `@require` 주소의 `?v=`를 맞춥니다.
 * **코드를 바꿀 때마다 `src/header.txt`의 `@version`을 올리고 빌드한 뒤 커밋**합니다. 같은 버전을 다시 올리면 Tampermonkey가 모듈을 새로 받지 않습니다.
