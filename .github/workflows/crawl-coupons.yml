@@ -1,15 +1,12 @@
 name: crawl-coupons
 
-# 검은사막 "쿠폰 모두 모아보기" 페이지를 주기적으로 읽어서 coupons.json을 갱신한다.
+# 검은사막 "쿠폰 모두 모아보기" 페이지를 읽어서 coupons.json을 갱신한다.
 # (브라우저에서는 CORS 때문에 직접 읽을 수 없어서, 앱은 이 파일을 받아간다)
 #
-# GitHub 예약 실행(schedule)은 보장되지 않고 몇 시간씩 밀리거나 건너뛰기도 한다.
-# 그래서 ① 20분 간격으로 자주 돌리고(바뀐 게 없으면 커밋 없이 종료) ② 일시 오류는
-# 스크립트 안에서 재시도하고 ③ push 경합 시 rebase 후 재시도하고 ④ 실패하면 Issue로 알린다.
-# 앱은 매시 17분 슬롯에 이 파일을 받아간다.
+# 정기 실행은 Cloudflare Workers Cron(workers/coupon-cron)이 맡는다.
+# GitHub 예약 실행(schedule)은 몇 시간씩 밀려서 시각 보장이 안 되기 때문이다.
+# 이 워크플로우는 수동 백업용으로만 남긴다.
 on:
-  schedule:
-    - cron: '7,27,47 * * * *' # 20분 간격. 스케줄이 밀려도 시간당 1회는 돌 확률이 높다.
   workflow_dispatch: {}
 
 permissions:
