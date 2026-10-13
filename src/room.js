@@ -645,12 +645,15 @@
       } catch (er) { try { stack.appendChild(roomEl); } catch (er2) { return; } }
       roomSig = null;
     }
-    const css = 'position:relative;width:100%;height:' + Math.min(roomH, roomHMax()) + 'px;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid ' + COLOR + ';display:flex;flex-direction:column;overflow:visible';
+    const css = active
+      ? 'position:relative;width:100%;height:' + Math.min(roomH, roomHMax()) + 'px;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid ' + COLOR + ';display:flex;flex-direction:column;overflow:visible'
+      : 'position:relative;width:100%;height:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid ' + COLOR + ';display:flex;flex-direction:column;overflow:visible';
     if (roomEl.style.position !== 'fixed' && roomEl.getAttribute('data-css') !== css) { roomEl.style.cssText = css; roomEl.setAttribute('data-css', css); }
 
     const names = Object.keys(rooms).sort((a, b) => (rooms[b].last || 0) - (rooms[a].last || 0));
     if (selPeer && !rooms[selPeer]) selPeer = names[0] || '';
     const inv = myInvite();
+    const active = names.length > 0 || !!inv || !!selfTestResult || selfTestBusy; // 방·초대·진단결과 없으면 한 줄 바로만
     const sig = [me, selPeer, inv ? inv.from + inv.t : '', selfTestResult, selfTestBusy ? '1' : '0', names.map((n) => n + ':' + (rooms[n].msgs.length ? rooms[n].msgs[rooms[n].msgs.length - 1].t : 0) + (rooms[n].aesKey ? '1' : '0')).join(',')].join('|');
     if (sig !== roomSig) {
       roomSig = sig;
@@ -717,7 +720,7 @@
       if (KW && typeof KW.float === 'function') KW.float(roomEl, { color: COLOR, key: LS_ROOMPOS });
     } catch (e) {}
     try {
-      if (KW && typeof KW.rsz === 'function') KW.rsz(roomEl, {
+      if (active && KW && typeof KW.rsz === 'function') KW.rsz(roomEl, {
         dir: 'v',
         color: COLOR,
         getH: () => roomH,
