@@ -2,7 +2,7 @@
 
 ## ⚡ 무지성 설치하기
 
-설명은 읽지 말고 **1 → 2 → 3 순서대로** 누르기만 하세요. (자세한 설명은 아래 [1. 설치하기](#1-설치하기-처음이신-분은-여기부터))
+설명은 읽지 말고 **1 → 2 → 3 순서대로** 누르기만 하세요. 
 
 1. **몽키 설치** 👉 [크롬](https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo) · [엣지](https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloendndfphd)
 2. **사용자 스크립트 ON** 👉 아래 주소를 복사해서 **주소 입력칸에 붙여넣고 Enter** (크롬 기준, 엣지는 [자세히](#2단계-사용자-스크립트-허용-켜기-아주-중요))
@@ -17,6 +17,7 @@
 끝나면 치지직 방송 화면을 **새로고침(F5)** 하세요. 🎉
 
 ---
+## 여기서 부터는 전문가를 위한 장표 입니다. 위험한 컴퓨터의 세계에 발을 들이지 마십시오.
 
 > **업데이트 내용 보러가기 → 정식: [UPDATE.md](./UPDATE.md) · 베타: [beta/UPDATE.md](./beta/UPDATE.md)**
 
