@@ -243,15 +243,22 @@
       const inv = parseInvite(d.text);
       if (inv && !inv.err) {
         invites.push({ from: nick, peer: inv.peer, pub: inv.key || '', t: now });
-        rlog('invite', nick + '->' + inv.peer, 'key=' + (inv.key ? shortKey(inv.key) : '(옛날방식)'), 'me=' + (me || '(미설정)'));
-        if (me && inv.peer === me && nick !== me) {
+        rlog('invite', nick + '->' + inv.peer, 'key=' + (inv.key ? shortKey(inv.key) : '(일반)'), 'me=' + (me || '(미설정)'));
+        if (me && nick === me && inv.peer !== me) {
+          // 내가 직접 친 초대: 수락 전이라도 내 방 바로 열기 (준비 중 상태, 여러 개 가능)
+          touchRoom(inv.peer, !!inv.key);
+          if (!selPeer) selPeer = inv.peer;
+          rlog('invite-mine', 'room=' + inv.peer);
+        } else if (me && inv.peer === me && nick !== me) {
           try { KW.toast('💬 1:1 대화 초대', nick + '님이 초대했습니다. 패널에서 [참가]를 누르세요.'); } catch (er) {}
+          touchRoom(nick, !!inv.key);
+          if (!selPeer) selPeer = nick;
           if (inv.key) {
             // 신방식: 초대에 A공개키가 실려 오므로 X도 바로 방키 유도 가능 (#키 불필요)
-            const r = touchRoom(nick, true);
-            if (!r.peerPub) r.peerPub = inv.key;
+            const r = rooms[nick];
+            if (r && !r.peerPub) r.peerPub = inv.key;
             try { await myKeypair(); } catch (e) {}
-            await trySecure(r);
+            if (r) await trySecure(r);
           }
         }
         roomSig = null;
@@ -666,7 +673,7 @@
       } else {
         h += '<div style="display:flex;gap:4px;margin-top:6px;flex:none"><input data-cr-invite-peer placeholder="상대 이름" style="flex:1;min-width:0;background:rgba(255,255,255,.07);border:1px solid #555;border-radius:8px;color:#fff;font-size:12px;padding:5px 8px;outline:none"><button data-cr-invite title="초대 한 줄 복사 (붙여넣고 Enter)" style="border:1px solid ' + COLOR + ';background:transparent;color:' + COLOR + ';border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;flex:none">초대복사</button></div>';
         if (!names.length && !inv) {
-          h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">위 칸에 상대 이름을 쓰고 [초대복사] → 채팅에 붙여넣고 Enter.<br>상대가 [참가]를 누르면 키는 내부 교환되고 🔒가 뜹니다.</div>';
+          h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">위 칸에 상대 이름을 쓰고 [초대복사] → 채팅에 붙여넣고 Enter.<br>채팅에 직접 <b>#채팅 상대이름</b> 을 쳐도 방이 바로 열립니다.</div>';
         }
       }
       if (me && (names.length || inv)) {
