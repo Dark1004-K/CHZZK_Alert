@@ -220,6 +220,12 @@
   }
   function pruneInvites(now) {
     invites = invites.filter((x) => now - x.t < INVITE_MS);
+    try {
+      for (const k of dismissed) {
+        const t = Number(String(k).slice(String(k).lastIndexOf('|') + 1));
+        if (!isFinite(t) || now - t >= INVITE_MS) dismissed.delete(k);
+      }
+    } catch (e) {}
   }
   async function trySecure(room) {
     // 양쪽 공개키가 모이면 방키 유도 (어느 쪽에서든 호출 가능, 같은 값)
@@ -250,15 +256,14 @@
           if (!selPeer) selPeer = inv.peer;
           rlog('invite-mine', 'room=' + inv.peer);
         } else if (me && inv.peer === me && nick !== me) {
-          try { KW.toast('💬 1:1 대화 초대', nick + '님이 초대했습니다. 패널에서 [참가]를 누르세요.'); } catch (er) {}
-          touchRoom(nick, !!inv.key);
-          if (!selPeer) selPeer = nick;
+          try { KW.toast('💬 1:1 대화 초대', nick + '님이 초대했습니다. 알림 카드에서 [참가]를 누르세요.'); } catch (er) {}
+          // 수신측은 방을 미리 만들지 않음. 알림 카드의 [참가]를 눌러야 방이 열림.
           if (inv.key) {
-            // 신방식: 초대에 A공개키가 실려 오므로 X도 바로 방키 유도 가능 (#키 불필요)
-            const r = rooms[nick];
-            if (r && !r.peerPub) r.peerPub = inv.key;
+            // 구방식 호환: 초대에 공개키가 실려 오면 바로 방키 유도
+            const r = touchRoom(nick, true);
+            if (!r.peerPub) r.peerPub = inv.key;
             try { await myKeypair(); } catch (e) {}
-            if (r) await trySecure(r);
+            await trySecure(r);
           }
         }
         roomSig = null;
@@ -464,6 +469,8 @@
   }
 
   let roomEl = null, roomSig = null;
+  let invCard = null, invSig = null;
+  const dismissed = new Set(); // 이번 세션에 닫은 초대 (from|t). 만료되면 함께 비움.
   const LS_ROOMH = '__kw_chatroom_h';
   const ROOM_H_DEF = 220, ROOM_H_MIN = 120;
   const roomHMax = () => Math.max(ROOM_H_MIN, window.innerHeight);
@@ -484,9 +491,38 @@
     pruneInvites(now);
     for (let i = invites.length - 1; i >= 0; i--) {
       const x = invites[i];
-      if (x.peer === me && x.from !== me) return x;
+      if (x.peer === me && x.from !== me && !dismissed.has(x.from + '|' + x.t)) return x;
     }
     return null;
+  }
+  function removeInviteCard() {
+    if (invCard) { try { invCard.remove(); } catch (e) {} }
+    invCard = null;
+    invSig = null;
+  }
+  // 유효 초대를 끈적이는 알림 카드로 (토스트처럼 사라지지 않음). [참가]를 눌러야 방이 열림.
+  function renderInviteCard(stack, me, inv) {
+    const show = !!(inv && me && !(rooms[inv.from] && (rooms[inv.from].aesKey || rooms[inv.from].helloSent)));
+    const sig = show ? inv.from + '|' + inv.t : '';
+    if (sig === invSig) return;
+    invSig = sig;
+    removeInviteCard();
+    if (!show) return;
+    invCard = document.createElement('div');
+    invCard.id = '__kw_invite';
+    invCard.onclick = (e) => {
+      if (e.target && e.target.closest && e.target.closest('[data-qi-accept]')) { acceptInvite(); return; }
+      if (e.target && e.target.closest && e.target.closest('[data-qi-dismiss]')) {
+        try { dismissed.add(inv.from + '|' + inv.t); } catch (er) {}
+        rlog('invite-dismiss', inv.from);
+        removeInviteCard();
+        return;
+      }
+    };
+    invCard.style.cssText = 'position:relative;width:100%;box-sizing:border-box;background:rgb(26,23,14);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px dashed #ffd400';
+    invCard.innerHTML = '<div style="display:flex;align-items:center;gap:6px;font-size:12px"><span>💬 <b>' + esc(inv.from) + '</b>님의 1:1 대화 초대</span><span style="flex:1"></span><button data-qi-accept style="border:1px solid #ffd400;background:rgba(255,212,0,.15);color:#ffd400;border-radius:8px;padding:3px 10px;font-size:12px;cursor:pointer;flex:none">참가</button><button data-qi-dismiss title="이번 초대는 그만 보기 (5분 뒤 만료)" style="border:1px solid #555;background:transparent;color:#aaa;border-radius:8px;padding:3px 10px;font-size:12px;cursor:pointer;flex:none">닫기</button></div>' +
+      '<div style="font-size:11px;color:#aaa;margin-top:3px">[참가]를 누르면 암호방이 열립니다</div>';
+    try { stack.insertBefore(invCard, stack.firstChild); } catch (er) { try { stack.appendChild(invCard); } catch (er2) { return; } }
   }
   async function acceptInvite() {
     try {
@@ -619,8 +655,14 @@
   function render(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
-    if (sessionHidden || !stack || !panel || !panel.classList.contains('show')) { removeRoom(); return; }
+    if (sessionHidden || !stack || !panel || !panel.classList.contains('show')) { removeRoom(); removeInviteCard(); return; }
     const me = myNick();
+    const names = Object.keys(rooms).sort((a, b) => (rooms[b].last || 0) - (rooms[a].last || 0));
+    if (selPeer && !rooms[selPeer]) selPeer = names[0] || '';
+    const inv = myInvite();
+    renderInviteCard(stack, me, inv);
+    const panelActive = names.length > 0 || !!selfTestResult || selfTestBusy;
+    if (!panelActive && !(KW && KW.beta)) { removeRoom(); return; }
     if (!roomEl || !roomEl.isConnected) {
       roomEl = document.createElement('div');
       roomEl.id = '__kw_chatroom';
@@ -645,15 +687,11 @@
       } catch (er) { try { stack.appendChild(roomEl); } catch (er2) { return; } }
       roomSig = null;
     }
-    const css = active
+    const css = panelActive
       ? 'position:relative;width:100%;height:' + Math.min(roomH, roomHMax()) + 'px;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid ' + COLOR + ';display:flex;flex-direction:column;overflow:visible'
       : 'position:relative;width:100%;height:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid ' + COLOR + ';display:flex;flex-direction:column;overflow:visible';
     if (roomEl.style.position !== 'fixed' && roomEl.getAttribute('data-css') !== css) { roomEl.style.cssText = css; roomEl.setAttribute('data-css', css); }
 
-    const names = Object.keys(rooms).sort((a, b) => (rooms[b].last || 0) - (rooms[a].last || 0));
-    if (selPeer && !rooms[selPeer]) selPeer = names[0] || '';
-    const inv = myInvite();
-    const active = names.length > 0 || !!inv || !!selfTestResult || selfTestBusy; // 방·초대·진단결과 없으면 한 줄 바로만
     const sig = [me, selPeer, inv ? inv.from + inv.t : '', selfTestResult, selfTestBusy ? '1' : '0', names.map((n) => n + ':' + (rooms[n].msgs.length ? rooms[n].msgs[rooms[n].msgs.length - 1].t : 0) + (rooms[n].aesKey ? '1' : '0')).join(',')].join('|');
     if (sig !== roomSig) {
       roomSig = sig;
@@ -720,7 +758,7 @@
       if (KW && typeof KW.float === 'function') KW.float(roomEl, { color: COLOR, key: LS_ROOMPOS });
     } catch (e) {}
     try {
-      if (active && KW && typeof KW.rsz === 'function') KW.rsz(roomEl, {
+      if (panelActive && KW && typeof KW.rsz === 'function') KW.rsz(roomEl, {
         dir: 'v',
         color: COLOR,
         getH: () => roomH,
