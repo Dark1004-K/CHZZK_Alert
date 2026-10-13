@@ -24,6 +24,8 @@
   function myNick() {
     try { return (localStorage.getItem('__kw_mynick') || '').trim(); } catch (e) { return ''; }
   }
+  const rlog = (...a) => { try { if (typeof dlog === 'function') dlog('room', ...a); } catch (e) {} };
+  const shortKey = (k) => String(k || '').slice(0, 8) + (String(k || '').length > 8 ? '…' : '');
   const noteGuard = new Map();
   function notice(reason) {
     try {
@@ -215,7 +217,8 @@
       room.aesKey = await roomKeyFor(room.peerPub, room.tag);
       room.secure = true;
       roomSig = null;
-    } catch (e) {}
+      rlog('secure-ok', room.peer, 'peerPub=' + shortKey(room.peerPub), 'tag=' + room.tag);
+    } catch (e) { rlog('secure-fail', room.peer, String((e && e.message) || e)); }
   }
 
   async function onChat(d) {
@@ -229,6 +232,7 @@
       const inv = parseInvite(d.text);
       if (inv && !inv.err) {
         invites.push({ from: nick, peer: inv.peer, t: now });
+        rlog('invite', nick + '->' + inv.peer, 'me=' + (me || '(미설정)'));
         if (me && inv.peer === me && nick !== me) {
           try { KW.toast('💬 1:1 대화 초대', nick + '님이 초대했습니다. 패널에서 [참가]를 누르세요.'); } catch (er) {}
         }
@@ -240,6 +244,7 @@
       const acc = parseAccept(d.text);
       if (acc && !acc.err) {
         if (!me) return;
+        rlog('accept', 'from=' + nick, 'key=' + (acc.key ? shortKey(acc.key) : '(없음)'), 'me=' + me);
         // 내가 보낸 초대 중 이 사람이 수락한 것 찾기 (가장 최근)
         let m = null;
         for (let i = invites.length - 1; i >= 0; i--) {
@@ -255,6 +260,7 @@
           }
           if (inv2 && nick !== me) {
             const r = touchRoom(nick, !!acc.key);
+            rlog('accept-x', 'room=' + nick, 'key=' + (acc.key ? shortKey(acc.key) : '(없음)'));
             if (acc.key) {
               r.peerPub = acc.key;
               try { await myKeypair(); } catch (e) {}
@@ -265,6 +271,7 @@
         }
         // A 입장: 초대 상대가 수락
         const r = touchRoom(nick, !!acc.key);
+        rlog('accept-a', 'room=' + nick, 'key=' + (acc.key ? shortKey(acc.key) : '(없음)'));
         if (acc.key) {
           r.peerPub = acc.key;
           try { await myKeypair(); } catch (e) {}
@@ -282,6 +289,7 @@
       const kp = parsePubkeyPost(d.text);
       if (kp && !kp.err) {
         if (!me || nick === me) return;
+        rlog('pubkey', 'from=' + nick, 'key=' + shortKey(kp.key), 'hasRoom=' + (!!rooms[nick]));
         // 내가 그 사람에게 보낸 초대가 있고, 아직 키 교환 전이면 상대 공개키 확정
         const r = rooms[nick];
         if (r) {
@@ -443,14 +451,16 @@
   async function acceptInvite() {
     try {
       const inv = myInvite();
-      if (!inv) { notice('수락할 초대가 없습니다.'); return; }
+      if (!inv) { notice('수락할 초대가 없습니다.'); rlog('accept-click', '초대없음'); return; }
       const me = await myKeypair();
+      rlog('accept-click', 'invite-from=' + inv.from, 'myPub=' + shortKey(me.pubB64));
       copyText('#참가 ' + me.pubB64, '복사됨. 채팅창에 붙여넣고 Enter를 누르세요.');
     } catch (e) { notice('키 생성 실패. 브라우저를 확인하세요.'); }
   }
   async function sendMyKey(peer) {
     try {
       const me = await myKeypair();
+      rlog('key-click', 'to=' + peer, 'myPub=' + shortKey(me.pubB64));
       copyText('#키 ' + me.pubB64, '복사됨. 채팅창에 붙여넣고 Enter를 누르세요.');
       const r = rooms[peer];
       if (r) { r.awaitingKey = false; roomSig = null; }
@@ -465,6 +475,7 @@
       if (!text) return;
       const s = await seal(r.aesKey, text);
       const ok = await relayPost(r, { v: 1, from: myNick(), iv: s.iv, ct: s.ct, t: Date.now() });
+      rlog('send', 'to=' + selPeer, ok ? 'ok' : 'fail', 'len=' + text.length);
       if (ok) {
         r.msgs.push({ t: Date.now(), from: myNick(), mine: true, text });
         if (r.msgs.length > MSG_MAX) r.msgs.splice(0, r.msgs.length - MSG_MAX);
@@ -502,6 +513,7 @@
           if (body == null) continue;
           const from = String((typeof j.message === 'string' ? JSON.parse(j.message) : j.message).from || '').slice(0, 30) || peer;
           if (from === myNick()) continue; // 내 발신은 전송 시 이미 표시
+          rlog('recv', 'room=' + peer, 'from=' + from, 'len=' + String(body || '').length);
           r.msgs.push({ t: Date.now(), from, mine: false, text: body });
           if (r.msgs.length > MSG_MAX) r.msgs.splice(0, r.msgs.length - MSG_MAX);
           changed = true;
