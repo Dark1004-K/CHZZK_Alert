@@ -58,9 +58,22 @@ function parse(html) {
 }
 
 async function main() {
-  const res = await fetch(SOURCE, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ChzzkAlertCouponBot)', 'Accept-Language': 'ko-KR' } });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const html = await res.text();
+  // GitHub Actions 스케줄이 밀리면 다음 실행까지 오래 걸리므로, 일시적 네트워크 오류는 여기서 재시도한다.
+  let html = '';
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(SOURCE, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ChzzkAlertCouponBot)', 'Accept-Language': 'ko-KR' } });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      html = await res.text();
+      lastErr = null;
+      break;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < 3) await new Promise((r) => setTimeout(r, 5000 * attempt));
+    }
+  }
+  if (lastErr) throw lastErr;
   const coupons = parse(html);
   if (!coupons.length) throw new Error('쿠폰을 하나도 읽지 못함 (페이지 구조가 바뀌었을 수 있음)');
   const out = { source: SOURCE, updatedAt: Date.now(), coupons };

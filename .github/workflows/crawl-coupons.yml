@@ -2,17 +2,28 @@ name: crawl-coupons
 
 # 검은사막 "쿠폰 모두 모아보기" 페이지를 주기적으로 읽어서 coupons.json을 갱신한다.
 # (브라우저에서는 CORS 때문에 직접 읽을 수 없어서, 앱은 이 파일을 받아간다)
+#
+# GitHub 예약 실행(schedule)은 보장되지 않고 몇 시간씩 밀리거나 건너뛰기도 한다.
+# 그래서 ① 20분 간격으로 자주 돌리고(바뀐 게 없으면 커밋 없이 종료) ② 일시 오류는
+# 스크립트 안에서 재시도하고 ③ push 경합 시 rebase 후 재시도하고 ④ 실패하면 Issue로 알린다.
+# 앱은 매시 17분 슬롯에 이 파일을 받아간다.
 on:
   schedule:
-    - cron: '0 * * * *' # 매시간 00분 (앱은 매시간 17분에 받아감)
+    - cron: '7,27,47 * * * *' # 20분 간격. 스케줄이 밀려도 시간당 1회는 돌 확률이 높다.
   workflow_dispatch: {}
 
 permissions:
   contents: write
+  issues: write
+
+concurrency:
+  group: crawl-coupons
+  cancel-in-progress: false
 
 jobs:
   crawl:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,12 +33,42 @@ jobs:
         run: node scripts/crawl-coupons.js
       - name: Commit if changed
         run: |
-          if git diff --quiet -- coupons.json; then
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add coupons.json
+          if git diff --cached --quiet; then
             echo "no changes"
+            exit 0
+          fi
+          git commit -m "chore: update coupons.json"
+          # 저장소 커밋이 잦아서 push가 non-fast-forward로 실패할 수 있으니 rebase 후 재시도
+          for i in 1 2 3; do
+            git pull --rebase --autostash && git push && break
+            echo "push failed (try $i/3), retrying..."
+            sleep 10
+          done
+          git status -sb
+      - name: Close stale failure issues
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for n in $(gh issue list --state open --search "[쿠폰 크롤 실패] in:title" --limit 5 --json number --jq '.[].number'); do
+            gh issue close "$n" --comment "쿠폰 크롤이 다시 성공했습니다. 자동 종료합니다." || true
+          done
+      - name: Notify on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh issue list --state open --search "[쿠폰 크롤 실패] in:title" --limit 1 --json number --jq -e '.[0].number' >/dev/null; then
+            echo "already reported"
           else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add coupons.json
-            git commit -m "chore: update coupons.json"
-            git push
+            gh issue create \
+              --title "[쿠폰 크롤 실패] coupons.json 갱신 실패" \
+              --body "쿠폰 크롤 워크플로우가 실패했습니다. Actions 로그를 확인해 주세요.
+
+          - 워크플로우: crawl-coupons
+          - 실행: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - coupons.json이 갱신되지 않으면 앱의 쿠폰 모아보기가 오래된 정보를 보여줍니다."
           fi
