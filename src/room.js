@@ -577,6 +577,7 @@
             }
             if (r.aesKey && !r.openNotified) {
               r.openNotified = true;
+              rlog('open', 'room=' + peer, '🔒 암호방 열림');
               try { KW.toast('💬 1:1 대화', peer + '님과 암호방이 열렸습니다.'); } catch (er) {}
             }
             continue;
