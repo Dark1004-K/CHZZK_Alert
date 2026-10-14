@@ -316,7 +316,7 @@ function refreshPluginsNow(done) {
 }
 function injectPlugin(p) {
   try {
-    fetch(p.url, { cache: 'no-store' })
+    fetch(p.url + (p.url.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' })
       .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.text(); })
       .then((code) => {
         if (!code || code.length < 10) return;

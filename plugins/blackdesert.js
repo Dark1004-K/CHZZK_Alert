@@ -227,12 +227,23 @@
   let mainEl = null, mainSig = null;
   let cpnAlarmBlink = false, evtAlarmBlink = false; // 새 쿠폰·이벤트 알람 후 상세창이 숨어있으면 메인 버튼 반짝임 (창이 보이면 해제)
   // [BETA-TEST-ONLY:start]
-  // 진단용 (메인창 미표시 원인 파악 후 삭제): 상태가 바뀔 때만 찍는다.
-  let mainDbgLast = '';
+  // 진단용 (메인창 미표시 원인 파악 후 삭제): 접두어별로 바뀔 때만 찍는다.
+  let mainDbgLast = {};
   function mainDbg(msg) {
-    if (msg === mainDbgLast) return;
-    mainDbgLast = msg;
+    const k = String(msg).split(' ')[0];
+    if (mainDbgLast[k] === msg) return;
+    mainDbgLast[k] = msg;
     try { console.log('[KW-BETA]', 'bdo-main', msg); } catch (e) {}
+  }
+  function sigDiff(a, b) { // sig가 안 맞는 원인을 지목한다
+    const names = ['evt', 'cpn', 'fam', 'evtBlink', 'cpnBlink', 'histOn', 'pty', 'histBlink', 'ptyBlink', 'next'];
+    const pa = String(a || '').split('|'), pb = String(b || '').split('|');
+    const out = [];
+    for (let i = 0; i < names.length; i++) {
+      const x = pa[i] === undefined ? '-' : pa[i], y = pb[i] === undefined ? '-' : pb[i];
+      if (x !== y) out.push(names[i] + ':[' + String(x).slice(0, 40) + '>' + String(y).slice(0, 40) + ']');
+    }
+    return out.length ? out.join(' ') : 'first';
   }
   // [BETA-TEST-ONLY:end]
   function removeMain() {
@@ -255,7 +266,7 @@
         const when = new Date(o.t + KST);
         const days = Math.floor((o.t + KST) / DAY) - Math.floor((now + KST) / DAY);
         const dayTxt = days <= 1 ? '' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + ' ';
-        return { t: o.t, label: dayTxt + o.hhmm, bosses };
+        return { t: o.t, label: dayTxt + o.hhmm, bosses, selN: Array.isArray(sel) ? sel.length : -1 };
       }
     }
     return null;
@@ -290,6 +301,7 @@
     try { mainDbg('gate stack=' + !!stack + ' panel=' + !!panel + ' show=' + (!!panel && panel.classList.contains('show'))); } catch (e) {} // [BETA-ONLY-LINE] 진단용
     if (!stack || !panel || !panel.classList.contains('show')) { removeMain(); return; }
     if (!mainEl || !mainEl.isConnected) {
+      try { mainDbg('el-recreated'); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
       mainEl = document.createElement('div');
       mainEl.id = '__kw_bdo_main';
       mainEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid ' + BDO_BLUE + ';position:relative';
@@ -320,9 +332,12 @@
     }
     bdoOrder();
     const nc = nextCounter(now);
-    try { mainDbg('render next=' + (nc ? nc.bosses.join('/') + '@' + nc.label : 'none')); } catch (e) {} // [BETA-ONLY-LINE] 진단용
+    try { const kd = new Date(now + KST); mainDbg('render next=' + (nc ? nc.bosses.join('/') + '@' + nc.label : 'none') + ' now=' + kd.getUTCHours() + ':' + String(kd.getUTCMinutes()).padStart(2, '0') + ' sel=' + (nc ? nc.selN : '-')); } catch (e) {} // [BETA-ONLY-LINE] 진단용
     const sig = [showEvt() ? 1 : 0, showCpn() ? 1 : 0, showFam() ? 1 : 0, evtAlarmBlink ? 1 : 0, cpnAlarmBlink ? 1 : 0, histOnNow() ? 1 : 0, partyShown ? 1 : 0, histAlarmBlink ? 1 : 0, partyAlarmBlink ? 1 : 0, nc ? nc.t + '|' + nc.bosses.join(',') : '-'].join('|');
-    if (sig !== mainSig) { mainSig = sig; renderMain(nc); }
+    if (sig !== mainSig) {
+      try { mainDbg('sig-diff: ' + sigDiff(mainSig, sig)); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
+      mainSig = sig; renderMain(nc);
+    }
     else if (nc) { // 카운터 숫자만 갱신 (버튼 깜빡임 방지)
       try { const l = mainEl.querySelector('#__kw_bdo_main_left'); if (l) l.textContent = fmtLong(nc.t - now); } catch (e) {}
     }
