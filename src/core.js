@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린대화 알림 옵션 ('0'=끔, 그 외=
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.6.0-beta019';
+const SCRIPT_VERSION = '3.6.0-beta020';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -427,7 +427,8 @@ function ensureStyle() {
 #__kw_redup{-moz-appearance:textfield;appearance:textfield}
 #__kw_redup::-webkit-inner-spin-button,#__kw_redup::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 #__kw_dropsp,#__kw_histp{position:relative}
-#__kw_dropsp .__kw_dr{padding-right:26px;min-height:26px}
+#__kw_dropsp .__kw_dr{min-height:26px}
+#__kw_dropsp .__kw_dr_tr{padding-right:26px} /* X버튼 자리: 윗줄만 비우고 아랫줄 버튼은 패널 끝까지 */
 #__kw_dropsp .__kw_dr_s{padding-left:19px} /* 가로전용: 본문은 타이틀 글자와 같이 시작 */
 #__kw_titlerow{padding-left:19px} /* 가로전용: 상태줄은 채널명 글자와 같이 시작 */
 /* 통일 핸들: 우하 리사이즈 원형(.__kw_rsz h=좌우/v=위아래/d=대각, 라운드와 겹침) + 좌상 이동 원형(.__kw_mv +) */
