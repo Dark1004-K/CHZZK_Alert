@@ -990,7 +990,7 @@
         items.forEach(({ c, i }) => {
           const u = urg(c);
           h += '<div' + (u ? ' class="__kw_urg"' : '') + ' style="margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)">' +
-            '<div style="display:flex;align-items:flex-start;gap:4px"><button data-evt-go="' + i + '" title="' + esc(c.summary || c.title || '이벤트') + '" style="border:0;background:transparent;padding:0;cursor:pointer;display:block;flex:1;min-width:0;text-align:left">' +
+            '<div style="display:flex;align-items:flex-start;gap:4px"><button data-evt-go="' + i + '" title="' + esc(String(c.summary || c.title || '이벤트').split(' / ').join('\n')) + '" style="border:0;background:transparent;padding:0;cursor:pointer;display:block;flex:1;min-width:0;text-align:left">' +
             '<span style="font-size:12px;font-weight:bold;color:#fff">' + esc(c.title || '이벤트') + '</span></button>' +
             (u ? urgOffBtn('e:' + c.link, false) : '') + '</div>' +
             (c.period ? '<div style="font-size:11px;color:' + EVT_COLOR + '">⏱ ' + esc(c.period) + (u ? ' <b style="color:#ff9a9a">D-1</b>' : '') + '</div>' : '') + '</div>';
