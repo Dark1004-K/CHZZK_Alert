@@ -87,6 +87,7 @@ const __kwListeners = {};
 // 설정 > 확장에서 켜고 끈다. 끄면 해당 플러그인이 등록한 리스너로 이벤트 전달을 멈춘다 (주입된 코드는 새로고침 시 완전히 해제).
 const LS_PLUG = '__kw_plugins'; // { [id]: true|false } 사용자가 고른 상태. 없으면 매니페스트의 on 값
 let pluginList = null; // 매니페스트에서 받은 목록 (null이면 아직 못 받음)
+let pluginManifestState = 'pending'; // pending | ok | error (확장 목록 수신 상태, 건강 경고용)
 const pluginLoaded = {};
 const pluginMeta = {}; // 플러그인 자기 신고 { [id]: { name, version } }
 let pluginInjecting = '';
@@ -206,6 +207,7 @@ try {
             version: String(info.version || ''),
           };
           try { checkPluginUpdated(pluginInjecting); } catch (e) {}
+          try { if (typeof renderPanel === 'function') renderPanel(); } catch (e) {} // 늦게 도착해도 건강 경고를 지움
           if (setTab === 'ext') renderSettings();
         }
       } catch (e) {}
@@ -238,12 +240,13 @@ function loadPlugins() {
       .then((j) => {
         const list = j && Array.isArray(j.plugins) ? j.plugins.filter((p) => p && p.id && p.url) : [];
         pluginList = list;
+        pluginManifestState = 'ok';
         for (const p of list) {
           if (pluginIsOn(p)) injectPlugin(p);
         }
         if (setTab === 'ext') renderSettings();
       })
-      .catch(() => {});
+      .catch(() => { try { pluginManifestState = 'error'; } catch (e) {} });
   } catch (e) {}
 }
 // 옵션 창 새로고침용: 매니페스트·플러그인 코드를 즉시 다시 받아 버전 비교. 새 버전이면
@@ -369,6 +372,35 @@ function injectPlugin(p) {
 function pluginDescribed(id) {
   try { return !!(pluginMeta[id] && pluginMeta[id].version); } catch (e) { return false; }
 }
+// 확장 건강 감시: 콘솔을 못 보는 사용자를 위해 실패를 초록창·토스트로 알린다
+function pluginHealthText() {
+  try {
+    if (typeof pluginManifestState !== 'undefined' && pluginManifestState === 'error') return '확장 목록을 불러오지 못했습니다 (네트워크 확인 후 새로고침)';
+    if (!pluginList || !pluginList.length) return '';
+    const bad = pluginList.filter((p) => { try { return pluginIsOn(p) && !pluginDescribed(p.id); } catch (e) { return false; } });
+    if (!bad.length) return '';
+    return bad.map((p) => { try { return pluginDisplayName(p); } catch (e) { return (p && p.id) || '확장'; } }).join(', ') + ' 확장을 실행하지 못했습니다 (새로고침 후에도 같으면 알려주세요)';
+  } catch (e) { return ''; }
+}
+let healthToasted = false;
+let healthWatched = false;
+function watchPluginHealth() {
+  if (healthWatched) return;
+  healthWatched = true;
+  const check = () => {
+    let txt = '';
+    try { txt = pluginHealthText(); } catch (e) {}
+    if (!txt) return;
+    try { if (typeof renderPanel === 'function') renderPanel(); } catch (e) {}
+    try { if (typeof refreshSettingsIfOpen === 'function') refreshSettingsIfOpen(); } catch (e) {}
+    if (!healthToasted) {
+      healthToasted = true;
+      try { if (typeof showCallToast === 'function') showCallToast('확장', txt); } catch (e) {}
+    }
+  };
+  try { setTimeout(check, 8000); } catch (e) {}
+  try { setTimeout(check, 25000); } catch (e) {}
+}
 
 // 치지직 로그인이 안 되어 있으면 앱을 실행하지 않는다 (확인 실패도 미실행, 1분마다 재확인)
 let appStarted = false;
@@ -415,6 +447,7 @@ function initApp() {
   }
   runWorldProbe();
   loadPlugins();
+  try { if (typeof watchPluginHealth === 'function') watchPluginHealth(); } catch (e) {}
   try { if (typeof companionListen === 'function') companionListen(); } catch (e) {} // 설정을 열기 전에도 동반 감지되게 시작 시 수신 대기
   try { // 시작 후 동반 ping (로드 시점 ready를 놓친 경우 대비)
     setTimeout(() => {
