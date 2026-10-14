@@ -248,6 +248,87 @@ function kwBringToFront(el) {
     el.style.zIndex = String(++__kwTopZ);
   } catch (e) {}
 }
+// ---------- 커스텀 툴팁 (창 색 테두리, 0ms 즉시 표시) ----------
+// 네이티브 title은 디자인·지연을 바꿀 수 없어서 앱 UI 안에서는 직접 띄운다.
+// 치지직 사이트 본문 툴팁은 건드리지 않음. 텍스트는 호버 시점에 읽어 항상 최신.
+const KW_TIP_SCOPE = '#__kw_stack,#__kw_setp,#__kw_optwin,#__kw_opthelp,#__kw_upd,#__kw_box,#__kw_ask,#__kw_sel,#__kw_bdo_rcp,#__kw_bdo_res,#__kw_bdo_mk,#__kw_bdo_famsrc,#__kw_trade_login';
+function kwTipColor(el) {
+  try {
+    if (el.closest('#__kw_dropsp')) return '#ff9f1a';
+    if (el.closest('#__kw_bdo_main')) return '#3b9eff';
+    if (el.closest('#__kw_cpn')) return '#b784ff';
+    if (el.closest('#__kw_evt')) return '#2dd4bf';
+    if (el.closest('#__kw_bdo_party')) return '#ff7a59';
+    if (el.closest('#__kw_bdo_family,#__kw_bdo_famsrc,#__kw_bdo_res,#__kw_bdo_rcp,#__kw_bdo_mk')) return '#ff7ab8';
+    if (el.closest('#__kw_histp')) return '#ffd400';
+    if (el.closest('#__kw_panel')) return '#00ffa3';
+    if (el.closest('#__kw_chatroom,#__kw_invite')) return '#3fd598';
+    if (el.closest('#__kw_setp,#__kw_optwin,#__kw_opthelp')) return '#aaaab9';
+    if (el.closest('#__kw_upd')) return '#1f6feb';
+    if (el.closest('#__kw_ask')) return '#ffd400';
+    if (el.closest('#__kw_trade_login')) return '#00ffa3';
+  } catch (e) {}
+  return '#777';
+}
+let __kwTipFor = null;
+function kwTipBox() {
+  try {
+    let b = document.getElementById('__kw_tip');
+    if (!b) { b = document.createElement('div'); b.id = '__kw_tip'; (document.body || document.documentElement).appendChild(b); }
+    return b;
+  } catch (e) { return null; }
+}
+function kwTipHide() {
+  try {
+    if (__kwTipFor) {
+      const sv = __kwTipFor.getAttribute('data-kw-tip');
+      if (sv !== null && !__kwTipFor.getAttribute('title')) { try { __kwTipFor.setAttribute('title', sv); } catch (e2) {} }
+      try { __kwTipFor.removeAttribute('data-kw-tip'); } catch (e3) {}
+    }
+  } catch (e) {}
+  __kwTipFor = null;
+  try { const b = document.getElementById('__kw_tip'); if (b) b.style.display = 'none'; } catch (e4) {}
+}
+function kwTipShow(el, txt, x, y) {
+  const b = kwTipBox(); if (!b) return;
+  b.textContent = txt;
+  try { b.style.borderColor = kwTipColor(el); } catch (e) {}
+  b.style.display = 'block';
+  let lx = (x || 0) + 14, ly = (y || 0) + 18;
+  try {
+    const r = b.getBoundingClientRect();
+    if (lx + r.width > window.innerWidth - 8) lx = (x || 0) - r.width - 12;
+    if (ly + r.height > window.innerHeight - 8) ly = (y || 0) - r.height - 14;
+  } catch (e2) {}
+  b.style.left = Math.max(4, Math.round(lx)) + 'px';
+  b.style.top = Math.max(4, Math.round(ly)) + 'px';
+}
+try {
+  document.addEventListener('mouseover', (e) => {
+    let t = null;
+    try {
+      const tg = e.target;
+      t = tg && tg.closest ? tg.closest('[title]') : null;
+      if (t && !t.closest(KW_TIP_SCOPE)) t = null;
+    } catch (err) { t = null; }
+    if (__kwTipFor && __kwTipFor !== t) kwTipHide();
+    if (!t || __kwTipFor === t) return;
+    let txt = '';
+    try { txt = t.getAttribute('title') || ''; } catch (err2) {}
+    if (!txt) return;
+    try { t.setAttribute('data-kw-tip', txt); t.removeAttribute('title'); } catch (err3) { return; }
+    __kwTipFor = t;
+    kwTipShow(t, txt, e.clientX, e.clientY);
+  }, true);
+  document.addEventListener('mouseout', (e) => {
+    if (!__kwTipFor) return;
+    try { if (e.relatedTarget && __kwTipFor.contains(e.relatedTarget)) return; } catch (err) {}
+    kwTipHide();
+  }, true);
+  document.addEventListener('pointerdown', () => kwTipHide(), true); // 클릭(복사 등 리렌더 유발) 시 잔상 방지
+  document.addEventListener('scroll', () => kwTipHide(), true);
+  document.addEventListener('keydown', (e) => { try { if (e.key === 'Escape') kwTipHide(); } catch (err) {} }, true);
+} catch (e) {}
 function kwFloat(el, o) {
   if (!el || !o) return;
   const firstWire = !el.__kwFloatWired;
@@ -1924,13 +2005,6 @@ function saveJoinAt() {
 function refreshSettingsIfOpen() {
   try { if (setPanel && setPanel.isConnected) renderSettings(); } catch (e) {}
 }
-// 새로고침 버튼 상태(눌렀는지 알 수 있게): 도는 중 / 완료 체크 / 마지막 갱신 시각 툴팁
-let dropsSpinning = false, dropsFlashUntil = 0, dropsRefreshedAt = 0;
-function refreshTitle(at) {
-  if (!at) return '새로고침';
-  const d = new Date(at), p = (n) => String(n).padStart(2, '0');
-  return '새로고침 (마지막 갱신 ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) + ')';
-}
 function fmtElapsed(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
@@ -1983,26 +2057,12 @@ function renderDrops() {
   const r = cur || rewards[rewards.length - 1] || (dropsInfo.rewardList && dropsInfo.rewardList[0]) || null;
   dropsCurNo = cur ? cur.rewardNo : 'done';
   const title = r ? r.title : dropsInfo.title;
-  dropsPanel.innerHTML = `<div class="__kw_dr"><div class="__kw_dr_b"><div class="__kw_dr_tr"><div class="__kw_dr_t" title="${escapeHtml(dropsInfo.title || '')}" style="display:flex;align-items:center;min-width:0">${TI(TI_GIFT, '#ff9f1a')}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">${escapeHtml(title || '드롭스')}</span></div><button class="__kw_ic${dropsSpinning ? ' __kw_spin' : ''}" id="__kw_dr_refresh" title="${escapeHtml(refreshTitle(dropsRefreshedAt))}" style="color:${Date.now() < dropsFlashUntil ? '#7dffb3' : '#ff9f1a'}">${Date.now() < dropsFlashUntil ? IC.check : IC.refresh}</button></div><div class="__kw_dr_sub"><div class="__kw_dr_s">${dropsSubHtml(elapsed, cur)}</div><span style="display:inline-flex;gap:0;flex:none"><button class="__kw_ic" id="__kw_dr_vault" title="치지직 보관함" style="color:#ff9f1a;padding:4px">${IC.box}</button><button class="__kw_ic" id="__kw_dr_webstore" title="펄어비스 웹 아이템 보관함" style="color:#ff9f1a;padding:4px">${IC.bspirit}</button></span></div></div><button class="__kw_ic __kw_xabs" id="__kw_dr_close" title="닫기 (설정 > 일반설정 > 드롭스 보기에서 다시 켤 수 있음)" style="color:#ff9f1a">${IC.close}</button></div>`;
+  dropsPanel.innerHTML = `<div class="__kw_dr"><div class="__kw_dr_b"><div class="__kw_dr_tr"><div class="__kw_dr_t" title="${escapeHtml(dropsInfo.title || '')}" style="display:flex;align-items:center;min-width:0">${TI(TI_GIFT, '#ff9f1a')}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">${escapeHtml(title || '드롭스')}</span></div></div><div class="__kw_dr_sub"><div class="__kw_dr_s">${dropsSubHtml(elapsed, cur)}</div><span style="display:inline-flex;gap:0;flex:none"><button class="__kw_ic" id="__kw_dr_vault" title="치지직 보관함" style="color:#ff9f1a;padding:4px">${IC.box}</button><button class="__kw_ic" id="__kw_dr_webstore" title="펄어비스 웹 아이템 보관함" style="color:#ff9f1a;padding:4px">${IC.bspirit}</button></span></div></div><button class="__kw_ic __kw_xabs" id="__kw_dr_close" title="닫기 (설정 > 일반설정 > 드롭스 보기에서 다시 켤 수 있음)" style="color:#ff9f1a">${IC.close}</button></div>`;
   dropsPanel.querySelector('#__kw_dr_close').onclick = () => { // X = 설정의 "드롭스 보기" 체크를 끈 것과 같음
     try { localStorage.setItem(LS_DROPS, '0'); } catch (e) {}
     stopDrops();
     refreshSettingsIfOpen();
     dlog('drops-closed');
-  };
-  const rf = dropsPanel.querySelector('#__kw_dr_refresh');
-  rf.onclick = () => { // 드롭스 정보와 서버 시청 시간을 바로 다시 가져옴
-    if (dropsSpinning) return; // 이미 가져오는 중이면 연타 무시
-    dropsSpinning = true;
-    renderDrops(); // 아이콘이 돌기 시작 → 눌린 것이 보임
-    // 너무 빨리 끝나도 돌아가는 모습이 보이도록 최소 0.7초는 유지
-    Promise.all([pollDrops(), new Promise((r) => setTimeout(r, 700))]).catch(() => {}).then(() => {
-      dropsSpinning = false;
-      dropsRefreshedAt = Date.now();
-      dropsFlashUntil = Date.now() + 1400; // 체크 표시로 완료를 알림
-      renderDrops();
-      setTimeout(renderDrops, 1500);
-    });
   };
   dropsPanel.querySelector('#__kw_dr_vault').onclick = () => { try { window.open(DROPS_VAULT_URL, '_blank', 'noopener'); } catch (e) {} };
   dropsPanel.querySelector('#__kw_dr_webstore').onclick = () => { try { window.open(DROPS_WEBSTORE_URL, '_blank', 'noopener'); } catch (e) {} };
@@ -2139,7 +2199,6 @@ function pollDrops() { // 끝나면 resolve되는 Promise를 돌려준다 (새�
         });
     })
     .catch((e) => { try { console.log('[KW-BETA]', 'drops-poll-err', (e && e.stack) || e); } catch (e2) {} }) // [BETA-ONLY-LINE] 드롭스 조회 실패 진단 (원인 파악 후 삭제)
-    .then(() => { dropsRefreshedAt = Date.now(); });
 }
 function startDrops() {
   if (!dropsPoll) dropsPoll = setInterval(pollDrops, 60000);
