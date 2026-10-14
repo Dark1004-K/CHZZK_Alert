@@ -5,17 +5,43 @@
   if (window.__kwTtsLoaded) return;
   window.__kwTtsLoaded = true;
   try { if (typeof window.__KW.describe === 'function') window.__KW.describe({ name: 'tts', version: '1.0.0' }); } catch (e) {}
-  function speak(text, queue) { // queue=true면 앞에 읽던 것을 끊지 않고 이어서 읽는다
+  let ttsQ = []; // 대기 중인 음성 (알람 큐가 순서를 정하므로 항상 순서대로 읽는다)
+  let ttsSpeaking = false;
+  function ttsSetBusy(v) { ttsSpeaking = !!v; try { window.__kwTtsBusy = ttsSpeaking; } catch (e) {} }
+  function speak(text, queue) { // queue 인자는 호환용 (항상 큐잉)
     try {
       if (!('speechSynthesis' in window)) return;
-      if (!queue) { try { window.speechSynthesis.cancel(); } catch (e) {} }
-      const u = new SpeechSynthesisUtterance(text);
+      ttsQ.push(String(text || ''));
+      if (ttsQ.length > 6) ttsQ.splice(0, ttsQ.length - 6); // 밀리면 오래된 것부터 버림
+      ttsNext();
+    } catch (e) {}
+  }
+  function ttsNext() {
+    try {
+      if (ttsSpeaking) return;
+      const text = ttsQ.shift();
+      if (!text) { ttsSetBusy(false); return; }
+      let u;
+      try { u = new SpeechSynthesisUtterance(text); } catch (e) { setTimeout(ttsNext, 200); return; }
       u.lang = 'ko-KR';
       u.rate = 1.1;
       try { if (typeof window.__KW.volume === 'function') u.volume = window.__KW.volume(); } catch (e) {}
-      window.speechSynthesis.speak(u);
-    } catch (e) {}
+      let done = false;
+      const fin = () => { if (done) return; done = true; ttsSetBusy(false); setTimeout(ttsNext, 150); };
+      try { u.onend = fin; u.onerror = fin; } catch (e) {}
+      ttsSetBusy(true);
+      try { window.speechSynthesis.speak(u); } catch (e) { fin(); return; }
+      setTimeout(fin, 15000); // failsafe: 끝 이벤트를 못 잡아도 다음으로
+    } catch (e) { try { ttsSetBusy(false); } catch (e2) {} }
   }
+  try { window.__kwTtsBusy = false; } catch (e) {}
+  try {
+    window.__kwTtsCancel = () => { // 보스 선점용: 재생 중 음성 끊기 (코어 큐가 호출)
+      try { ttsQ = []; } catch (e) {}
+      try { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); } catch (e2) {}
+      try { ttsSetBusy(false); } catch (e3) {}
+    };
+  } catch (e) {}
   // 우두머리 알림은 보스가 몇 명이든 한 문장으로 딱 한 번만 읽는다. 같은 우두머리 조합이 짧은 시간에 또 들어와도(중복 이벤트 등) 다시 읽지 않는다.
   const bossSpoken = new Map(); // 우두머리 조합 -> 마지막으로 읽은 시각
   function speakBoss(d) {

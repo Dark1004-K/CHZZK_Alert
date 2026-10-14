@@ -101,6 +101,10 @@
   function opt(key, def) {
     try { const v = KW.option(ID, key); return v === undefined || v === null ? def : v; } catch (e) { return def; }
   }
+  function palarm(prio, run, gap) { // 알람 큐 (코어). 없으면(구버전 코어) 즉시 실행 폴백
+    try { if (KW && typeof KW.alarm === 'function') return KW.alarm(prio, run, gap); } catch (e) {}
+    try { run(); } catch (e2) {}
+  }
   try { KW.refreshBdo = () => { try { updateParty(Date.now()); } catch (e) {} try { updateMain(Date.now()); } catch (e) {} }; } catch (e) {} // 녹색 메인 버튼용: 파티·검은사막메인 즉시 갱신
   // 지금 기준 오늘/내일의 출현 목록 (절대 시각 ms)
   function occurrences(now, days) {
@@ -464,21 +468,25 @@
     return fresh;
   }
   function cpnAlarmNew(fresh) {
-    (fresh || []).forEach((c) => {
-      try {
-        if (typeof KW.toast === 'function') KW.toast('🎟 새 쿠폰', (c.name || '쿠폰') + '\n' + c.code, () => {
-          setShow(LS_SHOW_CPN, true); mainSig = null; // 토스트 클릭=쿠폰창 열기
-          try { updateCoupons(Date.now()); } catch (e) {}
-          try { updateMain(Date.now()); } catch (e) {}
+    const items = (fresh || []).slice();
+    if (!items.length) return 0;
+    try {
+      palarm(0, () => {
+        items.forEach((c) => {
+          try {
+            if (typeof KW.toast === 'function') KW.toast('🎟 새 쿠폰', (c.name || '쿠폰') + '\n' + c.code, () => {
+              setShow(LS_SHOW_CPN, true); mainSig = null; // 토스트 클릭=쿠폰창 열기
+              try { updateCoupons(Date.now()); } catch (e) {}
+              try { updateMain(Date.now()); } catch (e) {}
+            });
+          } catch (e) {}
         });
-      } catch (e) {}
-    });
-    if (fresh && fresh.length) {
-      try { if (opt('sound', true) && typeof KW.sound === 'function') KW.sound(); } catch (e) {}
-      try { if (typeof KW.emit === 'function') KW.emit('coupon', { coupons: fresh.map((c) => ({ name: c.name, code: c.code })) }); } catch (e) {}
-      if (!showCpn()) { cpnAlarmBlink = true; try { updateMain(Date.now()); } catch (e) {} } // 숨어있으면 메인 버튼 반짝임
-    }
-    return (fresh || []).length;
+        try { if (opt('sound', true) && typeof KW.sound === 'function') KW.sound(); } catch (e) {}
+        try { if (typeof KW.emit === 'function') KW.emit('coupon', { coupons: items.map((c) => ({ name: c.name, code: c.code })) }); } catch (e) {}
+      }, 1400);
+    } catch (e) {}
+    if (!showCpn()) { cpnAlarmBlink = true; try { updateMain(Date.now()); } catch (e) {} } // 숨어있으면 메인 버튼 반짝임
+    return items.length;
   }
   // 마감 임박 진입 감지·알림: 24시간 안으로 들어온 항목이 새로 생기면 토스트+알림음 (+확장 TTS). 첫 기록 때는 조용히 기억만.
   const LS_CPNURG = '__kw_cpn_urg';
@@ -501,21 +509,25 @@
     } catch (e) { return 0; }
   }
   function cpnAlarmUrg(fresh) {
-    (fresh || []).forEach((c) => {
-      try {
-        if (typeof KW.toast === 'function') KW.toast('⏱ 쿠폰 마감 임박', (c.name || '쿠폰') + '\n' + c.code, () => {
-          setShow(LS_SHOW_CPN, true); mainSig = null; // 토스트 클릭=쿠폰창 열기
-          try { updateCoupons(Date.now()); } catch (e) {}
-          try { updateMain(Date.now()); } catch (e2) {}
+    const items = (fresh || []).slice();
+    if (!items.length) return 0;
+    try {
+      palarm(0, () => {
+        items.forEach((c) => {
+          try {
+            if (typeof KW.toast === 'function') KW.toast('⏱ 쿠폰 마감 임박', (c.name || '쿠폰') + '\n' + c.code, () => {
+              setShow(LS_SHOW_CPN, true); mainSig = null; // 토스트 클릭=쿠폰창 열기
+              try { updateCoupons(Date.now()); } catch (e) {}
+              try { updateMain(Date.now()); } catch (e2) {}
+            });
+          } catch (e) {}
         });
-      } catch (e) {}
-    });
-    if (fresh && fresh.length) {
-      try { if (opt('sound', true) && typeof KW.sound === 'function') KW.sound(); } catch (e) {}
-      try { if (typeof KW.emit === 'function') KW.emit('coupon', { coupons: fresh.map((c) => ({ name: c.name, code: c.code })), urgent: true }); } catch (e) {}
-      if (!showCpn()) { cpnAlarmBlink = true; try { updateMain(Date.now()); } catch (e) {} } // 숨어있으면 메인 버튼 반짝임
-    }
-    return (fresh || []).length;
+        try { if (opt('sound', true) && typeof KW.sound === 'function') KW.sound(); } catch (e) {}
+        try { if (typeof KW.emit === 'function') KW.emit('coupon', { coupons: items.map((c) => ({ name: c.name, code: c.code })), urgent: true }); } catch (e) {}
+      }, 1400);
+    } catch (e) {}
+    if (!showCpn()) { cpnAlarmBlink = true; try { updateMain(Date.now()); } catch (e) {} } // 숨어있으면 메인 버튼 반짝임
+    return items.length;
   }
   // [BETA-TEST-ONLY:start]
   // 테스트: 콘솔에서 __kwBdoCouponTest() 를 호출하면 가짜 새 쿠폰으로 알람 경로를 즉시 시험 (옵션 무시)
@@ -823,21 +835,25 @@
     return fresh;
   }
   function evtAlarmNew(fresh) {
-    (fresh || []).forEach((c) => {
-      try {
-        if (typeof KW.toast === 'function') KW.toast('📅 새 이벤트', (c.title || '이벤트'), () => {
-          setShow(LS_SHOW_EVT, true); mainSig = null; // 토스트 클릭=이벤트창 열기
-          try { updateEvents(Date.now()); } catch (e) {}
-          try { updateMain(Date.now()); } catch (e) {}
+    const items = (fresh || []).slice();
+    if (!items.length) return 0;
+    try {
+      palarm(0, () => {
+        items.forEach((c) => {
+          try {
+            if (typeof KW.toast === 'function') KW.toast('📅 새 이벤트', (c.title || '이벤트'), () => {
+              setShow(LS_SHOW_EVT, true); mainSig = null; // 토스트 클릭=이벤트창 열기
+              try { updateEvents(Date.now()); } catch (e) {}
+              try { updateMain(Date.now()); } catch (e) {}
+            });
+          } catch (e) {}
         });
-      } catch (e) {}
-    });
-    if (fresh && fresh.length) {
-      try { if (opt('sound', true) && typeof KW.sound === 'function') KW.sound(); } catch (e) {}
-      try { if (typeof KW.emit === 'function') KW.emit('event', { events: fresh.map((c) => ({ title: c.title, link: c.link })) }); } catch (e) {}
-      if (!showEvt()) { evtAlarmBlink = true; try { updateMain(Date.now()); } catch (e) {} } // 숨어있으면 메인 버튼 반짝임
-    }
-    return (fresh || []).length;
+        try { if (opt('sound', true) && typeof KW.sound === 'function') KW.sound(); } catch (e) {}
+        try { if (typeof KW.emit === 'function') KW.emit('event', { events: items.map((c) => ({ title: c.title, link: c.link })) }); } catch (e) {}
+      }, 1400);
+    } catch (e) {}
+    if (!showEvt()) { evtAlarmBlink = true; try { updateMain(Date.now()); } catch (e) {} } // 숨어있으면 메인 버튼 반짝임
+    return items.length;
   }
   // 마감 임박 진입 감지·알림: 24시간 안으로 들어온 이벤트가 새로 생기면 토스트+알림음 (+확장 TTS). 첫 기록 때는 조용히 기억만.
   const LS_EVTURG = '__kw_evt_urg';
@@ -860,21 +876,25 @@
     } catch (e) { return 0; }
   }
   function evtAlarmUrg(fresh) {
-    (fresh || []).forEach((c) => {
-      try {
-        if (typeof KW.toast === 'function') KW.toast('📅 이벤트 마감 임박', (c.title || '이벤트'), () => {
-          setShow(LS_SHOW_EVT, true); mainSig = null; // 토스트 클릭=이벤트창 열기
-          try { updateEvents(Date.now()); } catch (e) {}
-          try { updateMain(Date.now()); } catch (e2) {}
+    const items = (fresh || []).slice();
+    if (!items.length) return 0;
+    try {
+      palarm(0, () => {
+        items.forEach((c) => {
+          try {
+            if (typeof KW.toast === 'function') KW.toast('📅 이벤트 마감 임박', (c.title || '이벤트'), () => {
+              setShow(LS_SHOW_EVT, true); mainSig = null; // 토스트 클릭=이벤트창 열기
+              try { updateEvents(Date.now()); } catch (e) {}
+              try { updateMain(Date.now()); } catch (e2) {}
+            });
+          } catch (e) {}
         });
-      } catch (e) {}
-    });
-    if (fresh && fresh.length) {
-      try { if (opt('sound', true) && typeof KW.sound === 'function') KW.sound(); } catch (e) {}
-      try { if (typeof KW.emit === 'function') KW.emit('event', { events: fresh.map((c) => ({ title: c.title, link: c.link })), urgent: true }); } catch (e) {}
-      if (!showEvt()) { evtAlarmBlink = true; try { updateMain(Date.now()); } catch (e) {} } // 숨어있으면 메인 버튼 반짝임
-    }
-    return (fresh || []).length;
+        try { if (opt('sound', true) && typeof KW.sound === 'function') KW.sound(); } catch (e) {}
+        try { if (typeof KW.emit === 'function') KW.emit('event', { events: items.map((c) => ({ title: c.title, link: c.link })), urgent: true }); } catch (e) {}
+      }, 1400);
+    } catch (e) {}
+    if (!showEvt()) { evtAlarmBlink = true; try { updateMain(Date.now()); } catch (e) {} } // 숨어있으면 메인 버튼 반짝임
+    return items.length;
   }
   function evtFolded() { try { return localStorage.getItem(LS_EVT_FOLD) === '1'; } catch (e) { return false; } }
   function evtList() {
@@ -1166,9 +1186,14 @@
       partySig = null;
       if (p.clamped) partyNotice(nick, '모집 시간은 최대 ' + PARTY_MAX_MIN + '분이라 ' + PARTY_MAX_MIN + '분으로 등록했어요.');
       if (partyKindsSel().includes(e.kind)) { // 선택한 종류만 알림 + 창 자동 표시
-        try { KW.toast('👥 ' + e.kind + ' 파티 모집', nick + (e.content ? ': ' + e.content : '')); } catch (er) {}
-        if (opt('sound', true)) { if (typeof KW.sound === 'function') KW.sound(); else beep(); }
-        try { if (typeof KW.emit === 'function') KW.emit('party', { nick, kind: e.kind, content: e.content }); } catch (er) {}
+        const pNick = nick, pKind = e.kind, pContent = e.content;
+        try {
+          palarm(0, () => {
+            try { KW.toast('👥 ' + pKind + ' 파티 모집', pNick + (pContent ? ': ' + pContent : '')); } catch (er) {}
+            if (opt('sound', true)) { if (typeof KW.sound === 'function') KW.sound(); else beep(); }
+            try { if (typeof KW.emit === 'function') KW.emit('party', { nick: pNick, kind: pKind, content: pContent }); } catch (er) {}
+          }, 1400);
+        } catch (er) {}
         setPartyShown(true);
         window.__KW_UI.partyAlarmBlink = true; // 보이면 아래 updateParty가 바로 해제, 숨어있으면 메인 버튼 반짝임 유지
         try { updateParty(Date.now()); } catch (er) {}
@@ -3071,19 +3096,22 @@
         // 출현 30초 전: 알림을 닫았어도, 몇 분 전 알림 설정과 상관없이 무조건 한 번 더 TTS로 알린다 (구독: on('ext:boss30'))
         if (o.t - now <= 30000 && !warned30.has(o.t)) {
           warned30.add(o.t);
-          try { if (typeof KW.emit === 'function') KW.emit('boss30', { bosses }); } catch (e) {}
+          const b30 = bosses.slice();
+          try { palarm(1, () => { try { if (typeof KW.emit === 'function') KW.emit('boss30', { bosses: b30 }); } catch (e) {} }, 400); } catch (e) {}
         }
         if (dismissed.has(o.t)) continue;
         active.add(o.t);
         if (!items.has(o.t)) {
           addItem(o);
-          if (opt('sound', true)) { if (typeof KW.sound === 'function') KW.sound(); else beep(); } // 설정의 알림 소리 사용
-          // TTS 확장이 켜져 있으면 우두머리 이름을 읽는다 (구독: on('ext:boss'))
+          const bBs = bosses.slice();
+          const bMs = o.t - now;
+          const bWhen = bMs >= 60000 ? Math.round(bMs / 60000) + '분' : Math.max(1, Math.ceil(bMs / 1000)) + '초';
           try {
-            if (typeof KW.emit === 'function') {
-              const ms = o.t - now;
-              KW.emit('boss', { bosses, when: ms >= 60000 ? Math.round(ms / 60000) + '분' : Math.max(1, Math.ceil(ms / 1000)) + '초' });
-            }
+            palarm(1, () => {
+              if (opt('sound', true)) { if (typeof KW.sound === 'function') KW.sound(); else beep(); } // 설정의 알림 소리 사용
+              // TTS 확장이 켜져 있으면 우두머리 이름을 읽는다 (구독: on('ext:boss'))
+              try { if (typeof KW.emit === 'function') KW.emit('boss', { bosses: bBs, when: bWhen }); } catch (e) {}
+            }, 1400);
           } catch (e) {}
         }
         items.get(o.t).txt.textContent = '⚔ 검은사막 ' + o.hhmm + ' 우두머리: ' + bosses.join(' / ') + ' · ' + fmt(o.t - now) + ' 남음';

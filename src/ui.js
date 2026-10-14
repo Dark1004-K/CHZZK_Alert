@@ -2065,17 +2065,23 @@ function renderDrops() {
 // 시간이 찬 보상을 알림 (토스트 + 브라우저 알림 + 소리, TTS는 확장이 'drops' 이벤트로 읽음)
 function dropsReached(r, last) {
   const text = '드롭스 시간 충족: ' + r.title;
-  kwEmit('drops', { title: r.title, minutes: r.conditionForMinutes, last: !!last });
-  dlog('drops-reached', r.rewardNo, r.conditionForMinutes);
-  if (muted()) return;
-  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-    try {
-      const n = new Notification('🎁 드롭스 시간 충족', { body: r.title.slice(0, 120), tag: 'kw-drops-' + r.rewardNo, requireInteraction: true, silent: true });
-      n.onclick = () => { try { window.focus(); } catch (e) {} try { n.close(); } catch (e2) {} };
-    } catch (e) {}
-  }
-  showToast(text);
-  playAlertSound();
+  const rTitle = r.title, rNo = r.rewardNo, rMin = r.conditionForMinutes, isLast = !!last;
+  const alarming = !muted();
+  dlog('drops-reached', rNo, rMin);
+  try {
+    kwAlarmPush(0, () => { // 알람(토스트+소리+TTS)은 큐로 순서대로
+      kwEmit('drops', { title: rTitle, minutes: rMin, last: isLast });
+      if (!alarming) return;
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try {
+          const n = new Notification('🎁 드롭스 시간 충족', { body: rTitle.slice(0, 120), tag: 'kw-drops-' + rNo, requireInteraction: true, silent: true });
+          n.onclick = () => { try { window.focus(); } catch (e) {} try { n.close(); } catch (e2) {} };
+        } catch (e) {}
+      }
+      showToast(text);
+      playAlertSound();
+    }, 1400);
+  } catch (e) {}
 }
 function dropsCheck() {
   if (!dropsInfo) return;

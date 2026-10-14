@@ -61,6 +61,47 @@ function playAlertSound() {
   } catch (e) {}
 }
 
+// ---------- 알람 큐 (토스트+소리+TTS 묶음을 순서대로, 보스 1순위) ----------
+// 겹치는 알람이 오면 큐에 쌓고 하나씩 알린다. prio 1(보스)은 맨 앞, 나머지는 FIFO.
+// 음성 길이는 TTS 플러그인이 window.__kwTtsBusy로 알리고, 끝을 못 잡으면 15초 failsafe.
+let kwAlarmQ = []; // {prio, run, gap}
+let kwAlarmCur = null; // {run, gap, t0}
+const KW_ALARM_MAX = 8; // 일반 대기 상한 (넘치면 가장 오래된 일반부터 버림, 보스는 유지)
+function kwAlarmPush(prio, run, gap) {
+  const job = { prio: prio === 1 ? 1 : 0, run, gap: gap || 1200, t0: 0 };
+  if (job.prio === 1) {
+    kwAlarmQ.unshift(job);
+    if (kwAlarmCur) kwAlarmSkip(); // 재생 중이면 음성만 끊고 보스로 (토스트·소리는 이미 나감)
+  } else {
+    kwAlarmQ.push(job);
+    let over = kwAlarmQ.filter((j) => j.prio === 0).length - KW_ALARM_MAX;
+    while (over-- > 0) { const i = kwAlarmQ.findIndex((j) => j.prio === 0); if (i < 0) break; kwAlarmQ.splice(i, 1); }
+  }
+  kwAlarmPump();
+}
+function kwAlarmSkip() {
+  try { if (typeof window.__kwTtsCancel === 'function') window.__kwTtsCancel(); } catch (e) {}
+  try { window.__kwTtsBusy = false; } catch (e2) {}
+  kwAlarmCur = null;
+  setTimeout(kwAlarmPump, 150);
+}
+function kwAlarmPump() {
+  if (kwAlarmCur || !kwAlarmQ.length) return;
+  kwAlarmCur = kwAlarmQ.shift();
+  kwAlarmCur.t0 = Date.now();
+  try { kwAlarmCur.run(); } catch (e) { kwAlarmCur = null; setTimeout(kwAlarmPump, 150); return; }
+  setTimeout(kwAlarmTick, 250);
+}
+function kwAlarmTick() {
+  const cur = kwAlarmCur;
+  if (!cur) { kwAlarmPump(); return; }
+  const age = Date.now() - cur.t0;
+  let speech = false;
+  try { speech = !!window.__kwTtsBusy; } catch (e) {}
+  if (((age >= cur.gap) && !speech) || age > 15000) { kwAlarmCur = null; setTimeout(kwAlarmPump, 150); }
+  else setTimeout(kwAlarmTick, 250);
+}
+
 function highlightMessage(el) {
   if (!el) return;
   el.classList.remove('__kw_hl_fade');
@@ -83,17 +124,24 @@ function splitBody(nick, text) {
 function fireAlert(nick, text, el, kw) {
   const body = splitBody(nick, text);
   const title = nick ? '🔔 ' + nick : '🔔 CHZZK 채팅 호출';
-  kwEmit('hit', { nick: nick || '', text: body, kw: kw || '', el: el || null });
-  if (histOn() && !muted()) {
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      try {
-        // 다른 탭을 보고 있어도 놓치지 않도록: 겹치지 않는 태그 + 직접 닫을 때까지 유지 + 클릭 시 창 포커스
-        const n = new Notification(title, { body: body.slice(0, 120), tag: 'kw-' + Date.now() + '-' + Math.floor(Math.random() * 1e6), requireInteraction: true, silent: true });
-        n.onclick = () => { try { window.focus(); } catch (e) {} try { n.close(); } catch (e2) {} };
-      } catch (e) {}
-    }
-    showCallToast(nick, body);
-    playAlertSound();
+  const alarming = histOn() && !muted();
+  const n2 = nick || '', b2 = body, k2 = kw || '', el2 = el || null;
+  try {
+    kwAlarmPush(0, () => { // 알람(토스트+소리+TTS)은 큐로 순서대로
+      kwEmit('hit', { nick: n2, text: b2, kw: k2, el: el2 });
+      if (!alarming) return;
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try {
+          // 다른 탭을 보고 있어도 놓치지 않도록: 겹치지 않는 태그 + 직접 닫을 때까지 유지 + 클릭 시 창 포커스
+          const n = new Notification(title, { body: b2.slice(0, 120), tag: 'kw-' + Date.now() + '-' + Math.floor(Math.random() * 1e6), requireInteraction: true, silent: true });
+          n.onclick = () => { try { window.focus(); } catch (e) {} try { n.close(); } catch (e2) {} };
+        } catch (e) {}
+      }
+      showCallToast(n2, b2);
+      playAlertSound();
+    }, 1400);
+  } catch (e) {}
+  if (alarming) {
     // 알람 조건 충족 → 불린대화 창 자동 표시 (X로 닫았어도 다음 알람에 다시 표시)
     try { window.__KW_UI.histShown = true; } catch (e) {}
     try { if (typeof ensureHistPanel === 'function') ensureHistPanel(); } catch (e) {}
