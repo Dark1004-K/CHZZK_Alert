@@ -20,6 +20,7 @@
   const POLL_MS = 5000;
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmtT = (t) => { try { const d = new Date(Number(t) || Date.now()); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); } catch (e) { return ''; } };
   const xBtn = (id, color, style) => '<button id="' + id + '" title="닫기 (새로고침하면 다시 표시)" style="border:0;background:transparent;color:' + color + ';cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;' + (style || '') + '"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
   const TI_CHAT = '<path d="M4 5h16v11H9l-5 4Z"/><path d="M8 9.5h8M8 12.5h5"/>';
   let sessionHidden = false;
@@ -742,9 +743,22 @@
           if (r.awaitingKey) {
             h += '<div style="margin-top:6px;flex:none;font-size:12px;color:#ffd400">상대가 수락했습니다. <button data-cr-key style="border:1px solid ' + COLOR + ';background:rgba(63,213,152,.15);color:' + COLOR + ';border-radius:8px;padding:3px 10px;font-size:12px;cursor:pointer">키 보내기</button></div>';
           }
-          h += '<div class="__kw_sb_cr" style="flex:1;min-height:0;overflow-y:auto;margin-top:6px;display:flex;flex-direction:column;gap:3px">' + r.msgs.map((m, i) => {
-            const who = m.mine ? '나' : m.from;
-            return '<div data-cr-msg="' + i + '" data-cr-peer="' + esc(selPeer) + '" title="누르면 원본 채팅으로 이동" style="font-size:12px;line-height:1.45;cursor:pointer;text-align:' + (m.mine ? 'right' : 'left') + '"><span style="color:' + (m.mine ? COLOR : '#ff9a7a') + '">' + esc(who) + '</span> <span style="color:#eee">' + esc(m.text) + '</span></div>';
+          h += '<div class="__kw_sb_cr" style="flex:1;min-height:0;overflow-y:auto;margin-top:6px;display:flex;flex-direction:column;gap:8px;padding:2px">' + r.msgs.map((m, i, arr) => {
+            const key = m.mine ? 'me' : ('t:' + m.from);
+            const prevSame = i > 0 && (arr[i - 1].mine ? 'me' : ('t:' + arr[i - 1].from)) === key;
+            const nextSame = i + 1 < arr.length && (arr[i + 1].mine ? 'me' : ('t:' + arr[i + 1].from)) === key;
+            const time = '<span style="font-size:10px;color:#888;flex:none">' + fmtT(m.t) + '</span>';
+            if (m.mine) {
+              // 내 말풍선 (카톡 노랑)
+              return '<div data-cr-msg="' + i + '" data-cr-peer="' + esc(selPeer) + '" title="누르면 원본 채팅으로 이동" style="display:flex;flex-direction:column;align-items:flex-end;cursor:pointer">' +
+                '<div style="display:flex;align-items:flex-end;gap:4px;max-width:100%;justify-content:flex-end">' + (nextSame ? '' : time) +
+                '<div style="max-width:78%;background:#FEE500;color:#191919;font-size:12px;line-height:1.5;padding:6px 10px;border-radius:14px 14px 4px 14px;word-break:break-word;white-space:pre-wrap">' + esc(m.text) + '</div></div></div>';
+            }
+            // 상대 말풍선 (짙은 회색) + 연속이 아닐 때만 닉네임·시간
+            return '<div data-cr-msg="' + i + '" data-cr-peer="' + esc(selPeer) + '" title="누르면 원본 채팅으로 이동" style="display:flex;flex-direction:column;align-items:flex-start;cursor:pointer">' +
+              (prevSame ? '' : '<div style="font-size:11px;color:#aaa;margin:0 0 2px 4px">' + esc(m.from) + '</div>') +
+              '<div style="display:flex;align-items:flex-end;gap:4px;max-width:100%">' +
+              '<div style="max-width:78%;background:#2F2F35;color:#fff;font-size:12px;line-height:1.5;padding:6px 10px;border-radius:4px 14px 14px 14px;word-break:break-word;white-space:pre-wrap">' + esc(m.text) + '</div>' + (nextSame ? '' : time) + '</div></div>';
           }).join('') + '</div>';
           const ready = !!r.aesKey;
           h += '<div style="display:flex;gap:4px;margin-top:6px;flex:none"><input data-cr-inp placeholder="' + (ready ? esc(selPeer) + '에게 보낼 내용 (암호화 전송)' : '방 준비 중…') + '" style="flex:1;min-width:0;background:rgba(255,255,255,.07);border:1px solid #555;border-radius:8px;color:#fff;font-size:12px;padding:5px 8px;outline:none"><button data-cr-send title="' + (ready ? '암호화해서 전송' : '채팅용 한 줄로 복사 (붙여넣고 Enter)') + '" style="border:1px solid ' + COLOR + ';background:transparent;color:' + COLOR + ';border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;flex:none">' + (ready ? '전송' : '복사') + '</button></div>';
