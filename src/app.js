@@ -321,16 +321,53 @@ function injectPlugin(p) {
       .then((code) => {
         if (!code || code.length < 10) return;
         try { console.log('[KW-BETA]', 'plugin-code', p.id || p.url, 'len=' + code.length); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
-        const s = document.createElement('script');
-        s.textContent = '\n;try{\n' + code + '\n}catch(e){}';
-        pluginInjecting = p.id || '';
-        pluginLoaded[p.id] = true;
-        try { (document.head || document.documentElement).appendChild(s); } finally { pluginInjecting = ''; }
-        try { s.remove(); } catch (e) {}
+        const target = document.head || document.documentElement;
+        if (!target) return;
+        const mark = () => { pluginInjecting = p.id || ''; pluginLoaded[p.id] = true; };
+        const unmark = () => { pluginInjecting = ''; };
+        // 방식1: 인라인 (기존. CSP가 허용하는 환경은 그대로 동작)
+        try {
+          const s = document.createElement('script');
+          s.textContent = '\n;try{\n' + code + '\n}catch(e){}';
+          mark();
+          try { target.appendChild(s); } finally { unmark(); }
+          try { s.remove(); } catch (e) {}
+        } catch (e) { try { unmark(); } catch (e2) {} }
         dlog('plugin-loaded', p.id || p.url);
+        // 방식1이 막히면(CSP 등) describe가 올 때까지 외부src → blob 순으로 재시도 (중복 실행은 플러그인 가드가 막음)
+        let step = 0;
+        const timer = setInterval(() => {
+          try {
+            if (pluginDescribed(p.id)) { clearInterval(timer); return; }
+            step++;
+            if (step === 1) {
+              try { console.log('[KW-BETA]', 'plugin-fallback', p.id, 'src'); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
+              const s2 = document.createElement('script');
+              s2.src = p.url + (p.url.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
+              mark();
+              try { target.appendChild(s2); } finally { unmark(); }
+            } else if (step === 2) {
+              try { console.log('[KW-BETA]', 'plugin-fallback', p.id, 'blob'); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
+              const u = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+              const s3 = document.createElement('script');
+              const done = () => { try { URL.revokeObjectURL(u); } catch (e) {} try { s3.remove(); } catch (e) {} };
+              s3.onload = done; s3.onerror = done;
+              s3.src = u;
+              mark();
+              try { target.appendChild(s3); } finally { unmark(); }
+            } else {
+              clearInterval(timer);
+              try { console.log('[KW-BETA]', 'plugin-blocked', p.id); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
+            }
+          } catch (e) {}
+        }, 3000);
       })
       .catch(() => {});
   } catch (e) {}
+}
+// 실행 확인: 플러그인은 시작할 때 KW.describe()를 호출한다 (없으면 주입 실패로 보고 폴백한다)
+function pluginDescribed(id) {
+  try { return !!(pluginMeta[id] && pluginMeta[id].version); } catch (e) { return false; }
 }
 
 // 치지직 로그인이 안 되어 있으면 앱을 실행하지 않는다 (확인 실패도 미실행, 1분마다 재확인)

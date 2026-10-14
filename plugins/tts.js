@@ -4,6 +4,7 @@
   if (!window.__KW || typeof window.__KW.on !== 'function') return;
   if (window.__kwTtsLoaded) return;
   window.__kwTtsLoaded = true;
+  try { if (typeof window.__KW.describe === 'function') window.__KW.describe({ name: 'tts', version: '1.0.0' }); } catch (e) {}
   function speak(text, queue) { // queue=true면 앞에 읽던 것을 끊지 않고 이어서 읽는다
     try {
       if (!('speechSynthesis' in window)) return;
