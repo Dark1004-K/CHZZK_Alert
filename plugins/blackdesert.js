@@ -8,7 +8,7 @@
   if (!KW || typeof KW.option !== 'function' || typeof KW.enabled !== 'function') return;
   if (window.__kwBdoLoaded) return;
   window.__kwBdoLoaded = true;
-  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.6' }); } catch (e) {}
+  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.7' }); } catch (e) {}
   const ID = 'blackdesert';
   // 설정 > 일반설정의 창 투명도를 결과창(fixed, 스택 밖)에도 적용. 본체 KW.opacity() 우선, 없으면 저장값 직접 읽기.
   function bdoOpacity() {
@@ -304,6 +304,44 @@
   function clearAll() {
     for (const t of [...items.keys()]) removeItem(t);
   }
+  // ---------- 마감 임박 깜빡임 (쿠폰·이벤트 공통) ----------
+  // 만료/종료까지 24시간 이하로 남으면 해당 항목이 깜빡인다. 창이 접혀 있으면 창 전체가 깜빡인다.
+  // 깜빡이는 항목의 🔕 버튼을 누르면 그 항목은 멈춘다 (항목이 사라지면 기록도 정리).
+  const URG_MS = 24 * 3600 * 1000; // 하루
+  const LS_URG_OFF = '__kw_urg_off';
+  function urgOffSet() { try { return new Set(JSON.parse(localStorage.getItem(LS_URG_OFF)) || []); } catch (e) { return new Set(); } }
+  function urgOffSave(s) { try { localStorage.setItem(LS_URG_OFF, JSON.stringify([...s].slice(-200))); } catch (e) {} }
+  function urgDismiss(key) { const s = urgOffSet(); s.add(key); urgOffSave(s); }
+  function urgPrune(aliveKeys) { // 목록에 없는 항목의 끄기 기록 정리
+    const alive = new Set(aliveKeys);
+    const s = urgOffSet();
+    let changed = false;
+    for (const k of [...s]) if (!alive.has(k)) { s.delete(k); changed = true; }
+    if (changed) urgOffSave(s);
+    return s;
+  }
+  function urgEndMs(text) { // "… 2026년 11월 4일(수) 05:00" / "… ~ … 23:59" → 마지막 시각(KST ms), 못 읽으면 0
+    if (!text) return 0;
+    const t = String(text).replace(/정기점검\s*전/g, '05:00'); // 구 캐시 데이터 대응
+    const re = /(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일(?:\([^)]*\))?\s*(\d{1,2}):(\d{2})/g;
+    let last = 0, m;
+    while ((m = re.exec(t))) last = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) - 9 * 3600 * 1000;
+    return last;
+  }
+  function urgIs(end, now) { return end > now && end - now <= URG_MS; } // 0 < 남은시간 <= 하루
+  function urgCss() { // 깜빡임 스타일 1회 주입
+    try {
+      if (document.getElementById('__kw_urg_css')) return;
+      const st = document.createElement('style');
+      st.id = '__kw_urg_css';
+      st.textContent = '@keyframes __kwblink{0%,100%{background-color:rgba(255,90,90,.22)}50%{background-color:rgba(255,90,90,.03)}}.__kw_urg{animation:__kwblink 1.1s ease-in-out infinite;border-radius:8px}';
+      (document.head || document.documentElement).appendChild(st);
+    } catch (e) {}
+  }
+  const URG_OFF_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2 2 0 0 0 4 0"/><path d="M4 4l16 16"/></svg>';
+  function urgOffBtn(key, all) {
+    return '<button data-urg-off="' + esc(key) + '" title="' + (all ? '깜빡임 모두 끄기' : '깜빡임 끄기') + '" style="border:0;background:transparent;color:#ff9a9a;cursor:pointer;padding:2px;display:inline-flex;align-items:center;flex:none">' + URG_OFF_SVG + '</button>';
+  }
   // ---------- 쿠폰 모아보기 (#__kw_cpn) ----------
   // 검은사막 사이트는 다른 사이트(치지직 페이지)에서 직접 읽을 수 없어서(CORS), 저장소의 coupons.json을 받아온다.
   // coupons.json은 scripts/crawl-coupons.js가 "쿠폰 모두 모아보기" 페이지를 읽어 갱신한다.
@@ -425,11 +463,16 @@
     const fold = cpnFolded();
     const busy = cpnState === 'loading' || now < cpnBusyUntil;
     const flash = now < cpnFlashUntil;
-    const sig = [cpnState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, cpnData ? cpnData.updatedAt : 0, cpnFetchedAt, list.map((c) => c.code).join(',')].join('|');
+    urgCss();
+    const off = urgPrune(list.map((c) => 'c:' + c.code)); // 끄기 기록 정리 + 현재 끈 집합
+    const urg = (c) => { const end = c.expiresAt || urgEndMs(c.expires); return urgIs(end, now) && !off.has('c:' + c.code); };
+    const urgKeys = list.filter(urg).map((c) => 'c:' + c.code);
+    const sig = [cpnState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, cpnData ? cpnData.updatedAt : 0, cpnFetchedAt, list.map((c) => c.code).join(','), urgKeys.join(',')].join('|');
     if (sig === cpnSig && cpnEl && cpnEl.isConnected) return;
     cpnSig = sig;
     let h = '<div id="__kw_cpn_hd" style="display:flex;align-items:center;justify-content:flex-start;gap:4px;cursor:pointer;min-height:26px;padding-right:58px">' +
       '<b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_TICKET, '#b784ff') + '쿠폰 모아보기&nbsp;<span style="color:#b784ff">(' + list.length + ')</span></b>' +
+      (fold && urgKeys.length ? urgOffBtn('cpn-all', true) : '') +
       '<span style="display:inline-flex;align-items:center"><button id="__kw_cpn_rf" class="' + (busy ? '__kw_ic __kw_spin' : '') + '" title="' + (cpnFetchedAt ? '새로고침 (마지막 갱신 ' + pad2(new Date(cpnFetchedAt).getHours()) + ':' + pad2(new Date(cpnFetchedAt).getMinutes()) + ':' + pad2(new Date(cpnFetchedAt).getSeconds()) + ')' : '새로고침') + '" style="border:0;background:transparent;color:#b784ff;cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;position:relative;top:1.5px">' + (busy ? ICON_REFRESH : flash ? (cpnFlashErr ? ICON_FAIL : ICON_DONE) : ICON_REFRESH) + '</button>' +
       '<span title="' + (fold ? '펼치기' : '접기') + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:#b784ff;position:absolute;top:2px;right:29px;z-index:2"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (fold ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></span></div>' + xBtn('__kw_cpn_x', '#b784ff', 'position:absolute;top:2px;right:3px;z-index:2');
     if (!fold) {
@@ -439,11 +482,13 @@
       else if (cpnState === 'idle' || (cpnState === 'loading' && !cpnData)) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
       else if (!list.length) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">사용할 수 있는 쿠폰이 없습니다.</div>';
       list.forEach((c, ci) => {
-        h += '<div style="' + (ci ? 'margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)' : 'margin-top:2px') + '">' +
+        const u = urg(c);
+        h += '<div' + (u ? ' class="__kw_urg"' : '') + ' style="' + (ci ? 'margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)' : 'margin-top:2px') + '">' +
           '<div style="font-size:12px;font-weight:bold">' + esc(c.name || '쿠폰') + '</div>' +
           '<div style="margin:2px 0;display:flex;align-items:center;gap:6px"><code style="background:#2a2433;color:#e6d8ff;padding:1px 6px;border-radius:5px;font-size:12px;user-select:text;word-break:break-all">' + esc(c.code) + '</code>' +
-          '<button class="__kw_cpn_cp" data-code="' + esc(c.code) + '" title="복사" style="border:0;background:transparent;color:#b784ff;cursor:pointer;padding:2px;display:inline-flex;align-items:center">' + ICON_COPY + '</button></div>' +
-          (c.expires ? '<div style="font-size:11px;color:#b784ff">⏱ 만료 ' + esc(c.expires) + '</div>' : '') + '</div>';
+          '<button class="__kw_cpn_cp" data-code="' + esc(c.code) + '" title="복사" style="border:0;background:transparent;color:#b784ff;cursor:pointer;padding:2px;display:inline-flex;align-items:center">' + ICON_COPY + '</button>' +
+          (u ? urgOffBtn('c:' + c.code, false) : '') + '</div>' +
+          (c.expires ? '<div style="font-size:11px;color:#b784ff">⏱ 만료 ' + esc(c.expires) + (u ? ' <b style="color:#ff9a9a">D-1</b>' : '') + '</div>' : '') + '</div>';
       });
       if (cpnData && cpnData.updatedAt) {
         const d = new Date(cpnData.updatedAt + KST);
@@ -453,6 +498,7 @@
       h += '</div>';
     }
     cpnEl.innerHTML = h;
+    try { cpnEl.classList.toggle('__kw_urg', fold && urgKeys.length > 0); } catch (e5b) {} // 접힘 + 임박 항목 → 창 전체 깜빡임
     if (cpnFitNext && !cpnFolded()) { // 펼치기 직후: 아래 기준으로 내용만큼, 화면을 넘으면 거기까지만
       cpnFitNext = false;
       try {
@@ -498,6 +544,7 @@
     const hd = cpnEl.querySelector('#__kw_cpn_hd');
     if (hd) hd.onclick = (e) => {
       if (e.target && e.target.id === '__kw_cpn_rf') return;
+      if (e.target && e.target.closest && e.target.closest('[data-urg-off]')) return;
       const was = cpnFolded();
       try { localStorage.setItem(LS_CPN_FOLD, was ? '0' : '1'); } catch (er) {}
       if (was) {
@@ -521,6 +568,15 @@
         copyText(el.getAttribute('data-code'), (ok) => {
           if (ok) { el.innerHTML = ICON_OK; el.title = '복사됨'; setTimeout(() => { cpnSig = ''; }, 1000); } // 잠깐 체크 표시 후 원래 아이콘으로
         });
+      };
+    });
+    cpnEl.querySelectorAll('[data-urg-off]').forEach((el) => {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const k = el.getAttribute('data-urg-off');
+        if (k === 'cpn-all') urgKeys.forEach((kk) => urgDismiss(kk)); // 접힘: 임박 항목 전체 끄기
+        else urgDismiss(k);
+        cpnSig = '';
       };
     });
     try { // 창 기본형 상속: 쿠폰=가로+세로
@@ -645,11 +701,16 @@
     const fold = evtFolded();
     const busy = evtState === 'loading' || now < evtBusyUntil;
     const flash = now < evtFlashUntil;
-    const sig = [evtState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, evtData ? evtData.updatedAt : 0, evtFetchedAt, list.map((c) => c.link).join(',')].join('|');
+    urgCss();
+    const off = urgPrune(list.map((c) => 'e:' + c.link)); // 끄기 기록 정리 + 현재 끈 집합
+    const urg = (c) => urgIs(urgEndMs(c.period), now) && !off.has('e:' + c.link);
+    const urgKeys = list.filter(urg).map((c) => 'e:' + c.link);
+    const sig = [evtState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, evtData ? evtData.updatedAt : 0, evtFetchedAt, list.map((c) => c.link).join(','), urgKeys.join(',')].join('|');
     if (sig === evtSig && evtEl && evtEl.isConnected) return;
     evtSig = sig;
     let h = '<div id="__kw_evt_hd" style="display:flex;align-items:center;justify-content:flex-start;gap:4px;cursor:pointer;min-height:26px;padding-right:58px">' +
       '<b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_CAL, EVT_COLOR) + '이벤트 모아보기&nbsp;<span style="color:' + EVT_COLOR + '">(' + list.length + ')</span></b>' +
+      (fold && urgKeys.length ? urgOffBtn('evt-all', true) : '') +
       '<span style="display:inline-flex;align-items:center"><button id="__kw_evt_rf" class="' + (busy ? '__kw_ic __kw_spin' : '') + '" title="' + (evtFetchedAt ? '새로고침 (마지막 갱신 ' + pad2(new Date(evtFetchedAt).getHours()) + ':' + pad2(new Date(evtFetchedAt).getMinutes()) + ':' + pad2(new Date(evtFetchedAt).getSeconds()) + ')' : '새로고침') + '" style="border:0;background:transparent;color:' + EVT_COLOR + ';cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;position:relative;top:1.5px">' + (busy ? ICON_REFRESH : flash ? (evtFlashErr ? ICON_FAIL : ICON_DONE) : ICON_REFRESH) + '</button>' +
       '<span title="' + (fold ? '펼치기' : '접기') + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:' + EVT_COLOR + ';position:absolute;top:2px;right:29px;z-index:2"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (fold ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></span></div>' + xBtn('__kw_evt_x', EVT_COLOR, 'position:absolute;top:2px;right:3px;z-index:2');
     if (!fold) {
@@ -659,11 +720,13 @@
       else if (evtState === 'idle' || (evtState === 'loading' && !evtData)) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
       else if (!list.length) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">진행 중인 이벤트가 없습니다.</div>';
       list.forEach((c, ci) => {
-        h += '<div style="' + (ci ? 'margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)' : 'margin-top:2px') + '">' +
-          '<button data-evt-go="' + ci + '" title="상세 페이지 열기" style="border:0;background:transparent;padding:0;cursor:pointer;display:block;width:100%;text-align:left">' +
+        const u = urg(c);
+        h += '<div' + (u ? ' class="__kw_urg"' : '') + ' style="' + (ci ? 'margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)' : 'margin-top:2px') + '">' +
+          '<div style="display:flex;align-items:flex-start;gap:4px"><button data-evt-go="' + ci + '" title="상세 페이지 열기" style="border:0;background:transparent;padding:0;cursor:pointer;display:block;flex:1;min-width:0;text-align:left">' +
           (c.category ? '<span style="display:inline-block;background:rgba(45,212,191,.14);color:' + EVT_COLOR + ';border-radius:6px;padding:1px 6px;font-size:10px;font-weight:bold;margin-bottom:2px">' + esc(c.category) + '</span><br>' : '') +
           '<span style="font-size:12px;font-weight:bold;color:#fff">' + esc(c.title || '이벤트') + '</span></button>' +
-          (c.period ? '<div style="font-size:11px;color:' + EVT_COLOR + '">⏱ ' + esc(c.period) + '</div>' : '') +
+          (u ? urgOffBtn('e:' + c.link, false) : '') + '</div>' +
+          (c.period ? '<div style="font-size:11px;color:' + EVT_COLOR + '">⏱ ' + esc(c.period) + (u ? ' <b style="color:#ff9a9a">D-1</b>' : '') + '</div>' : '') +
           (c.summary ? '<div style="font-size:11px;color:#a9a9b8;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical">' + esc(c.summary) + '</div>' : '') + '</div>';
       });
       if (evtData && evtData.updatedAt) {
@@ -674,6 +737,7 @@
       h += '</div>';
     }
     evtEl.innerHTML = h;
+    try { evtEl.classList.toggle('__kw_urg', fold && urgKeys.length > 0); } catch (e5b) {} // 접힘 + 임박 항목 → 창 전체 깜빡임
     // 높이는 패널 통째로 명시 (내용 길이에 관계없이 조절이 바로 보이게). 접힘 상태는 자동 높이.
     try {
       evtEl.style.display = 'flex';
@@ -683,6 +747,7 @@
     const hd = evtEl.querySelector('#__kw_evt_hd');
     if (hd) hd.onclick = (e) => {
       if (e.target && e.target.id === '__kw_evt_rf') return;
+      if (e.target && e.target.closest && e.target.closest('[data-urg-off]')) return;
       const was = evtFolded();
       try { localStorage.setItem(LS_EVT_FOLD, was ? '0' : '1'); } catch (er) {}
       evtSig = '';
@@ -696,6 +761,15 @@
         e.stopPropagation();
         const item = list[Number(el.getAttribute('data-evt-go'))];
         if (item) evtOpen(item.link);
+      };
+    });
+    evtEl.querySelectorAll('[data-urg-off]').forEach((el) => {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const k = el.getAttribute('data-urg-off');
+        if (k === 'evt-all') urgKeys.forEach((kk) => urgDismiss(kk)); // 접힘: 임박 항목 전체 끄기
+        else urgDismiss(k);
+        evtSig = '';
       };
     });
     try { // 창 기본형 상속: 이벤트=가로+세로
