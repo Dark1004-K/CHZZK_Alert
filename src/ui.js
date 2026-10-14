@@ -1000,7 +1000,7 @@ function renderOptWin() {
       if (rr.right > window.innerWidth - 4 && pos.indexOf('translate') < 0) w.style.cssText = w.style.cssText.replace(/(bottom|top):[^;]+;left:[^;]+;/, 'top:50%;left:50%;transform:translate(-50%,-50%);');
     }
   } catch (e) {}
-  try { const __ox = w.querySelector('#__kw_optwin_x'); if (__ox) __ox.onclick = (e) => { try { if (e && e.stopPropagation) e.stopPropagation(); } catch (err) {} closeOptWin(); }; } catch (e) {}
+  try { const __ox = w.querySelector('#__kw_optwin_x'); if (__ox) __ox.onclick = (e) => { try { if (e && e.stopPropagation) e.stopPropagation(); } catch (err) {} try { dlog('optwin-x-click'); } catch (err2) {} closeOptWin(); }; } catch (e) {}
   bindPluginOpts(w);
   bindCompanionInstall(w);
   try { const cb0 = w.querySelector('#__kw_optwin_compcheck'); if (cb0) cb0.style.display = companionNeedsUpdate(p) ? 'none' : ''; } catch (e) {} // 업그레이드 대상이면 새로고침 숨김
@@ -1049,11 +1049,11 @@ function renderOptWin() {
     if (!w.__kwFrontWired) {
       w.__kwFrontWired = true;
       w.addEventListener('pointerdown', () => {
-        try { document.body.appendChild(w); } catch (e) {} // 클릭 시 맨 끝으로 = 최상단
+        try { if (document.body && document.body.lastChild !== w) document.body.appendChild(w); } catch (e) {} // 이미 맨 끝이면 이동 생략 (클릭 씹힘 방지)
         try { w.style.zIndex = '2147483647'; } catch (e2) {}
       });
     } else {
-      try { document.body.appendChild(w); } catch (e3) {} // 새로 그릴 때도 맨 끝으로
+      try { if (document.body && document.body.lastChild !== w) document.body.appendChild(w); } catch (e3) {} // 새로 그릴 때도 맨 끝으로
     }
   } catch (e) {}
   try { const _ob2 = w.querySelector('#__kw_optwin_body'); if (_ob2) _ob2.scrollTop = optKeepTop; } catch (e) {} // 스크롤 유지

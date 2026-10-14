@@ -449,6 +449,20 @@
   const pad2 = (n) => String(n).padStart(2, '0');
   // 창 오른쪽 위 X 버튼 (창 색에 맞춤). 누르면 설정 > 확장의 해당 옵션을 끈다.
   const xBtn = (id, color, style, title) => '<button id="' + id + '" title="' + (title || '닫기 (설정 > 확장에서 다시 켤 수 있음)') + '" style="border:0;background:transparent;color:' + color + ';cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;' + (style || '') + '"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+  function bdoTop(el, move) { // 화면 최상위 유지 (옵션창과 동일 규격: 고정 최대 z + DOM 맨 끝)
+    try {
+      if (!el) return;
+      el.style.zIndex = '2147483647';
+      if (move && document.body && document.body.lastChild !== el) { try { document.body.appendChild(el); } catch (e) {} }
+    } catch (e2) {}
+  }
+  function bdoTopWire(el) { // 클릭 시 최상단으로 (1회 배선)
+    try {
+      if (!el || el.__kwFrontWired) return;
+      el.__kwFrontWired = true;
+      el.addEventListener('pointerdown', () => bdoTop(el, true));
+    } catch (e) {}
+  }
   const ICON_COPY = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
   const ICON_OK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#7dffb3" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2402,10 +2416,13 @@
       rcpEl.id = '__kw_bdo_rcp';
       rcpEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;opacity:' + bdoOpacity() + ';height:' + Math.min(rcpH, resHMax()) + 'px';
       document.body.appendChild(rcpEl);
+      bdoTop(rcpEl, true); // 열린 창을 최상단으로
       placeRecipe();
     }
     renderRecipe();
+    bdoTop(rcpEl, false); // z만 유지 (순서는 클릭 때만 변경)
     wireRecipeWindow();
+    bdoTopWire(rcpEl); // 클릭 리스너는 KW.window 뒤에 배선 (z 덮기 순서 보장)
   }
   function openRecipeWindow(id, name, icon) {
     id = String(id || '');
@@ -2684,10 +2701,12 @@
       resEl.id = '__kw_bdo_res';
       resEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;opacity:' + bdoOpacity() + ';height:' + Math.min(resH, resHMax()) + 'px';
       document.body.appendChild(resEl);
+      bdoTop(resEl, true); // 열린 창을 최상단으로
       placeRes();
       resSig = null;
     }
     renderRes();
+    bdoTop(resEl, false); // z만 유지 (순서는 클릭 때만 변경)
     try { // 창 기본형 상속: 결과창=가로+세로
       if (KW && typeof KW.window === 'function') {
         KW.window(resEl, {
@@ -2714,6 +2733,7 @@
         if (KW && typeof KW.float === 'function') KW.float(resEl, { color: '#ff7ab8', key: LS_FAMPOS, dock: () => placeRes() });
       }
     } catch (e) {}
+    bdoTopWire(resEl); bdoTop(resEl, false); // 클릭 리스너는 KW.window 뒤에 배선 (z 덮기 순서 보장)
   }
 
   // (구 종류별 결과창 3개는 단일 결과창 renderRes/updateRes로 통합됨)
@@ -2892,9 +2912,11 @@
       marketEl.id = '__kw_bdo_mk';
       marketEl.style.cssText = 'position:fixed;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px 18px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #ff7ab8;display:flex;flex-direction:column;overflow:visible;opacity:' + bdoOpacity() + ';height:' + Math.min(marketH, resHMax()) + 'px';
       document.body.appendChild(marketEl);
+      bdoTop(marketEl, true); // 열린 창을 최상단으로
       placeMarket();
     }
     renderMarket();
+    bdoTop(marketEl, false); // z만 유지 (순서는 클릭 때만 변경)
     try { // 창 기본형 상속: 현황창=가로+세로
       if (KW && typeof KW.window === 'function') {
         KW.window(marketEl, {
@@ -2908,6 +2930,7 @@
         });
       }
     } catch (e) {}
+    bdoTopWire(marketEl); // 클릭 리스너는 KW.window 뒤에 배선 (z 덮기 순서 보장)
   }
   function parseSellBuy(txt) { // GetItemSellBuyInfo 응답 파싱 → { cond, basePrice, hist } 또는 null
     let j = null;
