@@ -533,15 +533,16 @@
       try { updateCoupons(Date.now()); } catch (e) {}
       return '쿠폰 테스트 알람: ' + code;
     };
-    // 테스트: __kwBdoCouponUrgTest() → 12시간 뒤 만료 가짜 쿠폰으로 마감 임박 깜빡임 즉시 시험
+    // 테스트: __kwBdoCouponUrgTest() → 12시간 뒤 만료 가짜 쿠폰으로 마감 임박 깜빡임 즉시 시험 (새 쿠폰 등록과 동일하게 토스트+메인 깜빡임)
     window.__kwBdoCouponUrgTest = () => {
       const code = 'URGTEST-' + Date.now().toString(36).toUpperCase();
       if (!cpnData || !Array.isArray(cpnData.coupons)) cpnData = { updatedAt: Date.now(), coupons: [] };
-      cpnData.coupons.push({ name: '테스트 임박 쿠폰', code, expires: '테스트 마감 (약 12시간 남음)', expiresAt: Date.now() + 12 * 3600 * 1000 });
+      const item = { name: '테스트 임박 쿠폰', code, expires: '테스트 마감 (약 12시간 남음)', expiresAt: Date.now() + 12 * 3600 * 1000 };
+      cpnData.coupons.push(item);
       cpnState = 'ok'; cpnSig = '';
-      setShow(LS_SHOW_CPN, true); mainSig = null; // 테스트 항목이 보이도록 쿠폰창을 연다
+      cpnAlarmNew([item]); // 새 쿠폰 등록과 동일: 토스트+알림음+TTS+숨김 시 메인 버튼 깜빡임 (토스트 클릭=쿠폰창 열기)
+      try { const s = cpnSeenSet(); s.add(code); localStorage.setItem(LS_CPNSEEN, JSON.stringify([...s].slice(-200))); } catch (e) {}
       try { updateCoupons(Date.now()); } catch (e) {}
-      try { updateMain(Date.now()); } catch (e) {}
       return '쿠폰 임박 깜빡임 테스트: ' + code;
     };
     // 테스트: __kwBdoEventTest() → 가짜 새 이벤트로 알람 경로 즉시 시험 (옵션 무시)
