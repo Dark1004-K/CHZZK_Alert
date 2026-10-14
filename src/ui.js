@@ -1043,6 +1043,18 @@ function renderOptWin() {
       } catch (err) {}
     },
   });
+  try { // 옵션창은 고정 최대 z + DOM 맨 끝 유지 (kwFloat 관리값에 밀리지 않게)
+    w.style.zIndex = '2147483647';
+    if (!w.__kwFrontWired) {
+      w.__kwFrontWired = true;
+      w.addEventListener('pointerdown', () => {
+        try { document.body.appendChild(w); } catch (e) {} // 클릭 시 맨 끝으로 = 최상단
+        try { w.style.zIndex = '2147483647'; } catch (e2) {}
+      });
+    } else {
+      try { document.body.appendChild(w); } catch (e3) {} // 새로 그릴 때도 맨 끝으로
+    }
+  } catch (e) {}
   try { const _ob2 = w.querySelector('#__kw_optwin_body'); if (_ob2) _ob2.scrollTop = optKeepTop; } catch (e) {} // 스크롤 유지
 }
 function extListHtml() {
