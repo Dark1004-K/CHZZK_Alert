@@ -814,6 +814,9 @@
   let evtData = null; // 마지막으로 받은 events.json
   let evtState = 'idle'; // idle | loading | ok | err
   let evtSig = ''; // 마지막으로 그린 내용의 서명 (바뀔 때만 다시 그림)
+  let evtFitNext = false; // 펼치기 직후 한 번: 아래 기준으로 내용만큼 펼치고 화면에 맞춤 (쿠폰과 동일)
+  let evtAnchorB = 0; // 펼치기 클릭 시점(접힌 상태)의 아래 모서리
+  let evtFoldB = 0; // 접기 클릭 시점(펼친 상태)의 아래 모서리. 접을 때도 아래 고정
   let evtFetchedAt = 0; // 마지막으로 받아온 시각
   function evtSlotDue(now) { // 가장 최근 수요일 12:27 슬롯 이후에 받은 적이 없으면 true (보스와 같은 슬롯)
     let last = 0;
@@ -1005,12 +1008,45 @@
     }
     evtEl.innerHTML = h;
     try { evtEl.classList.toggle('__kw_urg', fold && urgKeys.length > 0); } catch (e5b) {} // 접힘 + 임박 항목 → 창 전체 깜빡임
+    if (evtFitNext && !evtFolded()) { // 펼치기 직후: 아래 기준으로 내용만큼, 화면을 넘으면 거기까지만 (쿠폰과 동일)
+      evtFitNext = false;
+      try {
+        const anchorB = evtAnchorB > 0 ? evtAnchorB : evtEl.getBoundingClientRect().bottom; // 클릭 시점 아래 모서리
+        evtAnchorB = 0;
+        evtEl.style.height = 'auto';
+        const need = evtEl.scrollHeight;
+        if (evtEl.style.position === 'fixed') {
+          // 띄움: 펼치기 전 아래 모서리 고정 → 위로 늘어남
+          const room = Math.max(EVT_H_MIN, anchorB);
+          evtH = Math.max(EVT_H_MIN, Math.min(need, room, evtHMax()));
+          evtEl.style.height = Math.min(evtH, evtHMax()) + 'px';
+          evtEl.style.top = Math.max(0, Math.round(anchorB - evtH)) + 'px';
+          try { bdoPosSaveEl(LS_EVTPOS, evtEl); } catch (er2) {}
+        } else {
+          // 도크: 레이아웃이 아래 고정 → 위로 늘어남
+          const r = evtEl.getBoundingClientRect();
+          const room = Math.max(EVT_H_MIN, r.top + r.height);
+          evtH = Math.max(EVT_H_MIN, Math.min(need, room, evtHMax()));
+          evtEl.style.height = Math.min(evtH, evtHMax()) + 'px';
+        }
+        try { localStorage.setItem(LS_EVTH, String(evtH)); } catch (er) {}
+      } catch (e5) {}
+    }
     // 높이는 패널 통째로 명시 (내용 길이에 관계없이 조절이 바로 보이게). 접힘 상태는 자동 높이.
     try {
       evtEl.style.display = 'flex';
       evtEl.style.flexDirection = 'column';
       evtEl.style.height = fold ? '' : Math.min(evtH, evtHMax()) + 'px';
     } catch (e5) {}
+    if (evtFoldB > 0) { // 접기: 아래 모서리 고정 → 아래로 접힘 (띄움만, 도크는 레이아웃)
+      const fb = evtFoldB; evtFoldB = 0;
+      if (fold && evtEl.style.position === 'fixed') {
+        try {
+          evtEl.style.top = Math.max(0, Math.round(fb - evtEl.getBoundingClientRect().height)) + 'px';
+          try { bdoPosSaveEl(LS_EVTPOS, evtEl); } catch (er2) {}
+        } catch (e6) {}
+      }
+    }
     try { const _s2 = evtEl.querySelector('.__kw_sb_evt'); if (_s2) _s2.scrollTop = evtKeepTop; } catch (e) {} // 스크롤 유지: 높이 확정 후 복원
     const hd = evtEl.querySelector('#__kw_evt_hd');
     if (hd) hd.onclick = (e) => {
@@ -1018,6 +1054,12 @@
       if (e.target && e.target.closest && e.target.closest('[data-urg-off]')) return;
       const was = evtFolded();
       try { localStorage.setItem(LS_EVT_FOLD, was ? '0' : '1'); } catch (er) {}
+      if (was) {
+        evtFitNext = true; // 펼칠 때 아래 기준으로 내용만큼 (화면을 넘으면 거기까지만)
+        try { evtAnchorB = Math.round(evtEl.getBoundingClientRect().bottom); } catch (ex2) { evtAnchorB = 0; }
+      } else {
+        try { evtFoldB = Math.round(evtEl.getBoundingClientRect().bottom); } catch (ex3) { evtFoldB = 0; }
+      }
       evtSig = '';
     };
     const cx = evtEl.querySelector('#__kw_evt_x');
