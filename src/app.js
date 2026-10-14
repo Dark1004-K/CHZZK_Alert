@@ -320,6 +320,7 @@ function injectPlugin(p) {
       .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.text(); })
       .then((code) => {
         if (!code || code.length < 10) return;
+        try { console.log('[KW-BETA]', 'plugin-code', p.id || p.url, 'len=' + code.length); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
         const s = document.createElement('script');
         s.textContent = '\n;try{\n' + code + '\n}catch(e){}';
         pluginInjecting = p.id || '';

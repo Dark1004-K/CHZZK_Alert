@@ -8,6 +8,7 @@
   if (!KW || typeof KW.option !== 'function' || typeof KW.enabled !== 'function') return;
   if (window.__kwBdoLoaded) return;
   window.__kwBdoLoaded = true;
+  try { console.log('[KW-BETA]', 'bdo-eval', 'plugin-1.1.1'); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (메인창 미표시 원인 파악 후 삭제)
   try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.1.1' }); } catch (e) {}
   const ID = 'blackdesert';
   // 설정 > 일반설정의 창 투명도를 결과창(fixed, 스택 밖)에도 적용. 본체 KW.opacity() 우선, 없으면 저장값 직접 읽기.
@@ -225,6 +226,15 @@
   const SHOW_X_TITLE = '닫기 (검은사막 창의 버튼으로 다시 표시)';
   let mainEl = null, mainSig = null;
   let cpnAlarmBlink = false, evtAlarmBlink = false; // 새 쿠폰·이벤트 알람 후 상세창이 숨어있으면 메인 버튼 반짝임 (창이 보이면 해제)
+  // [BETA-TEST-ONLY:start]
+  // 진단용 (메인창 미표시 원인 파악 후 삭제): 상태가 바뀔 때만 찍는다.
+  let mainDbgLast = '';
+  function mainDbg(msg) {
+    if (msg === mainDbgLast) return;
+    mainDbgLast = msg;
+    try { console.log('[KW-BETA]', 'bdo-main', msg); } catch (e) {}
+  }
+  // [BETA-TEST-ONLY:end]
   function removeMain() {
     if (mainEl) { try { mainEl.remove(); } catch (e) {} }
     mainEl = null;
@@ -277,6 +287,7 @@
   function updateMain(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
+    try { mainDbg('gate stack=' + !!stack + ' panel=' + !!panel + ' show=' + (!!panel && panel.classList.contains('show'))); } catch (e) {} // [BETA-ONLY-LINE] 진단용
     if (!stack || !panel || !panel.classList.contains('show')) { removeMain(); return; }
     if (!mainEl || !mainEl.isConnected) {
       mainEl = document.createElement('div');
@@ -309,6 +320,7 @@
     }
     bdoOrder();
     const nc = nextCounter(now);
+    try { mainDbg('render next=' + (nc ? nc.bosses.join('/') + '@' + nc.label : 'none')); } catch (e) {} // [BETA-ONLY-LINE] 진단용
     const sig = [showEvt() ? 1 : 0, showCpn() ? 1 : 0, showFam() ? 1 : 0, evtAlarmBlink ? 1 : 0, cpnAlarmBlink ? 1 : 0, histOnNow() ? 1 : 0, partyShown ? 1 : 0, histAlarmBlink ? 1 : 0, partyAlarmBlink ? 1 : 0, nc ? nc.t + '|' + nc.bosses.join(',') : '-'].join('|');
     if (sig !== mainSig) { mainSig = sig; renderMain(nc); }
     else if (nc) { // 카운터 숫자만 갱신 (버튼 깜빡임 방지)
@@ -2968,7 +2980,9 @@
         }
         lastHref = href;
       } catch (e) {}
-      if (!KW.enabled(ID)) { clearAll(); removeMain(); removeCoupons(); removeEvents(); removeParty(); removeFamily(); removeRes(); marketData = null; marketPhase = 'idle'; try { if (typeof removeMarket === 'function') removeMarket(); } catch (e) {} return; }
+      if (!KW.enabled(ID)) {
+        try { mainDbg('disabled'); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
+        clearAll(); removeMain(); removeCoupons(); removeEvents(); removeParty(); removeFamily(); removeRes(); marketData = null; marketPhase = 'idle'; try { if (typeof removeMarket === 'function') removeMarket(); } catch (e) {} return; }
       const now = Date.now();
       if (now - bossFetchedAt >= BOSS_REFRESH_MS) loadSchedule(); // 처음 켜질 때 한 번, 이후 6시간마다
       if (bossSlotDue(now)) { // 매주 수요일 12:27 (액션 17분 뒤)
