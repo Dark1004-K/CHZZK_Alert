@@ -207,15 +207,20 @@
   const TI_BELL_P = '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 21h4"/>';
   const TI_SLIDERS = '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/>';
   const BDO_BTN = (path) => '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + path + '</svg>';
-  // 서브창 표시 상태 (확장 옵션에서 분리, 기본 표시. 메인 버튼·X로 전환, 새로고침 후에도 유지)
+  // 서브창 표시 상태 (세션만, 시작 시 숨김. 메인 버튼·토스트·X로 전환)
   const LS_SHOW_CPN = '__kw_bdo_show_cpn';
   const LS_SHOW_EVT = '__kw_bdo_show_evt';
   const LS_SHOW_FAM = '__kw_bdo_show_fam';
-  const showFlag = (k) => { try { return localStorage.getItem(k) !== '0'; } catch (e) { return true; } };
-  const setShow = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0'); } catch (e) {} };
-  const showCpn = () => showFlag(LS_SHOW_CPN);
-  const showEvt = () => showFlag(LS_SHOW_EVT);
-  const showFam = () => showFlag(LS_SHOW_FAM);
+  let showCpnFlag = false, showEvtFlag = false, showFamFlag = false; // 시작 시 숨김 (세션만)
+  function setShow(key, v) {
+    v = !!v;
+    if (key === LS_SHOW_CPN) showCpnFlag = v;
+    else if (key === LS_SHOW_EVT) showEvtFlag = v;
+    else if (key === LS_SHOW_FAM) showFamFlag = v;
+  }
+  const showCpn = () => showCpnFlag;
+  const showEvt = () => showEvtFlag;
+  const showFam = () => showFamFlag;
   function histOnNow() { try { return (typeof histOn === 'function' ? histOn() : true) && histShown; } catch (e) { return false; } }
   const SHOW_X_TITLE = '닫기 (검은사막 창의 버튼으로 다시 표시)';
   let mainEl = null, mainSig = null;
