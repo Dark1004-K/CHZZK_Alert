@@ -239,7 +239,7 @@
     const sel = opt('bosses', null);
     for (const o of occurrences(now, 8).sort((a, b) => a.t - b.t)) {
       if (o.t <= now) continue;
-      const bosses = o.bosses.filter((b) => b !== '가모스' && (!Array.isArray(sel) || sel.includes(b))); // 메인 카운터에서는 가모스 제외 (알람은 그대로)
+      const bosses = Array.isArray(sel) ? o.bosses.filter((b) => sel.includes(b)) : o.bosses; // 가모스 숨기기는 확장 옵션 체크 해제로 (하드코딩 제외 없음)
       if (bosses.length) {
         const when = new Date(o.t + KST);
         const days = Math.floor((o.t + KST) / DAY) - Math.floor((now + KST) / DAY);
