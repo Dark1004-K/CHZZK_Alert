@@ -20,7 +20,6 @@ let histH = HH_DEF;
 try { const hv = parseInt(localStorage.getItem(LS_HH), 10); if (hv >= HH_MIN && hv <= 4000) histH = hv; } catch (e) {}
 let histCustom = false; // 사용자가 한 번이라도 끌어서 정한 높이면 항목 수와 상관없이 그 높이를 유지한다
 try { histCustom = !!localStorage.getItem(LS_HH); } catch (e) {}
-const HH_GAIN = 1; // 끄는 거리 대비 높이 변화 배율. 1이면 창 위쪽 막대가 마우스를 그대로 따라온다
 function applyHistHeight() {
   if (!histBox) return;
   const h = Math.min(histH, hhMax());
@@ -607,17 +606,13 @@ const IC = {
   sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg>',
   play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
   bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 21h4"/></svg>',
-  bellOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 21h4M4 4l16 16"/></svg>',
   pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l.9 12.1a1 1 0 0 0 1 .9h7.2a1 1 0 0 0 1-.9L17.5 7M10 11v6M14 11v6"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 3v5h-5"/></svg>',
-  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
-  move: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>',
   house: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7M6 9.5V20h12V9.5"/></svg>',
   box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5V8zM3 8l9 5 9-5M12 13v8"/></svg>',
-  users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.2a4.2 4.2 0 0 1 4.5 4.3V20"/></svg>',
   bspirit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 9-9 9-9-9z"/><path d="M12 8l4 4-4 4-4-4z"/></svg>',
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4V5z"/></svg>',
 };
@@ -1396,7 +1391,6 @@ function showReloadPopup(openInstall, texts, skipConfirm) {
   };
   const close = () => { if (timer) { clearInterval(timer); timer = null; } try { box.remove(); } catch (e) {} };
   box.querySelector('#__kw_upd_go').onclick = reload;
-  box.querySelector('#__kw_upd_x').onclick = close;
   // 돌아오면(설치 창이 닫히거나, 이 탭이 다시 보이면) 카운트다운 후 강제 새로고침. 이때부터는 "나중에"를 없앤다.
   let counting = false;
   const startCount = () => {
@@ -1428,8 +1422,7 @@ function showReloadPopup(openInstall, texts, skipConfirm) {
   document.addEventListener('visibilitychange', onVis);
   window.addEventListener('blur', () => { left = true; });
   window.addEventListener('focus', onFocus);
-  const close0 = close;
-  box.querySelector('#__kw_upd_x').onclick = () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onFocus); close0(); };
+  box.querySelector('#__kw_upd_x').onclick = () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onFocus); close(); };
   if (!installWin) return; // 팝업이 막혀 창 상태를 볼 수 없으면 탭 복귀 감지와 버튼으로만
   timer = setInterval(() => {
     let closed = false;

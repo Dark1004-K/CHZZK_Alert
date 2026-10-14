@@ -197,14 +197,12 @@
   const TI_USERS = '<circle cx="9" cy="8" r="3.2"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.2a4.2 4.2 0 0 1 4.5 4.3V20"/>';
   const TI_SEARCH = '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>';
   const TI_CAL = '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>';
-  function placeGroup() { bdoOrder(); }
   // ---------- 검은사막 메인창 (#__kw_bdo_main) ----------
   // 감시중(녹색창)과 같은 성격의 도크 창 (이동 불가, 가로=스택 너비 공유). 색은 우두머리 파랑.
   // 타이틀(로고형 아이콘 + "검은사막") 아래에 다음 우두머리 카운터를 항상 표시 (구 "다음 우두머리" 창 대체).
   // 타이틀 옆 버튼: 이벤트·쿠폰·검색 창 띄우기/숨기기, 설정(검은사막 확장 옵션 열기).
   const BDO_BLUE = '#3b9eff';
   const TI_BDO = '<path d="M9.4 5.6L2.8 12l9.2 9.2L21.2 12 12 2.8"/><path d="M11.3 8.3l4.1 4.1-3.3 3.3-3.3-3.3 2.5-2.5"/>';
-  const TI_BELL_P = '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 21h4"/>';
   const TI_SLIDERS = '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/>';
   const BDO_BTN = (path) => '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + path + '</svg>';
   // 서브창 표시 상태 (세션만, 시작 시 숨김. 메인 버튼·토스트·X로 전환)
@@ -271,44 +269,6 @@
           '<span id="__kw_bdo_main_left" style="flex:none;font-size:12px;font-weight:bold;color:' + BDO_BLUE + ';white-space:nowrap;padding-right:4px">' + fmtLong(nc.t - Date.now()) + '</span>'
         : '<div style="flex:1;font-size:12px;color:#888">다음 우두머리 없음 (확장 옵션에서 선택)</div>') +
       '</div>';
-  }
-  // 메인 버튼용 요약 알람: 창을 직접 열지 않고 토스트로 알리고, 토스트를 누르면 창을 연다.
-  // 새 알림이 있을 때의 버튼 반짝임(cpnAlarmBlink·evtAlarmBlink)은 그대로 두고, 창을 열면 해제된다.
-  function cpnSummaryToast() {
-    const now = Date.now();
-    if (!cpnData || !Array.isArray(cpnData.coupons)) {
-      try { if (cpnState === 'idle') loadCoupons(); } catch (e) {}
-      try { if (typeof KW.toast === 'function') KW.toast('쿠폰 모아보기', '쿠폰 목록을 가져오는 중입니다. 잠시 후 다시 눌러주세요.'); } catch (e2) {}
-      return;
-    }
-    const list = cpnVisible(now);
-    const urgN = list.filter((c) => { const end = c.expiresAt || urgEndMs(c.expires); return urgIs(end, now); }).length;
-    const body = '사용 가능 ' + list.length + '개' + (urgN ? '\n마감 임박 ' + urgN + '개' : '');
-    try {
-      if (typeof KW.toast === 'function') KW.toast('쿠폰 모아보기', body, () => {
-        setShow(LS_SHOW_CPN, true); mainSig = null;
-        try { updateCoupons(Date.now()); } catch (e) {}
-        try { updateMain(Date.now()); } catch (e2) {}
-      });
-    } catch (e) {}
-  }
-  function evtSummaryToast() {
-    const now = Date.now();
-    if (!evtData || !Array.isArray(evtData.events)) {
-      try { if (evtState === 'idle') loadEvents(); } catch (e) {}
-      try { if (typeof KW.toast === 'function') KW.toast('이벤트 모아보기', '이벤트 목록을 가져오는 중입니다. 잠시 후 다시 눌러주세요.'); } catch (e2) {}
-      return;
-    }
-    const list = evtList();
-    const urgN = list.filter((c) => urgIs(urgEndMs(c.period), now)).length;
-    const body = '진행 중 ' + list.length + '개' + (urgN ? '\n마감 임박 ' + urgN + '개' : '');
-    try {
-      if (typeof KW.toast === 'function') KW.toast('이벤트 모아보기', body, () => {
-        setShow(LS_SHOW_EVT, true); mainSig = null;
-        try { updateEvents(Date.now()); } catch (e) {}
-        try { updateMain(Date.now()); } catch (e2) {}
-      });
-    } catch (e) {}
   }
   function updateMain(now) {
     const stack = document.getElementById('__kw_stack');
@@ -1521,7 +1481,7 @@
       try { document.dispatchEvent(new CustomEvent('bdo-search-ping', {})); } catch (e) {}
     });
   }
-  let bdoMaint = false, bdoMaintTold = false;
+  let bdoMaintTold = false;
   const decHtml = (s) => String(s)
     .replace(/<br\s*\/?>/gi, ' ')
     .replace(/<[^>]+>/g, '')
@@ -1538,12 +1498,10 @@
     const call = () => KW.bridge('fetch', { url, base: base || BDO_BASE }, timeoutMs || 12000).then((r) => {
       if (!r || !r.ok || !r.data || typeof r.data.html !== 'string') {
         if (r && r.maintenance) {
-          bdoMaint = true;
           if (!bdoMaintTold) { bdoMaintTold = true; try { KW.toast('검은사막 검색', '점검중입니다'); } catch (e) {} }
         }
         return null;
       }
-      bdoMaint = false;
       return r.data.html;
     }).catch(() => null);
     if (KW.bridgeReady && KW.bridgeReady()) return call();
@@ -1962,13 +1920,11 @@
       return p.then((r) => {
       if (!r || !r.ok || !r.data || typeof r.data.html !== 'string') {
         if (r && r.maintenance) {
-          bdoMaint = true;
           if (!bdoMaintTold) { bdoMaintTold = true; try { KW.toast('검은사막 검색', '점검중입니다'); } catch (e) {} }
           return { miss: true, error: '점검중' };
         }
         return { miss: true, error: '브릿지 응답 오류' + (r && r.error ? ' (' + r.error + ')' : '') };
       }
-      bdoMaint = false;
       let items = null;
       try { items = parseBdolyticsItems(r.data.html); } catch (e) { items = null; }
       if (!items || !items.length) return { miss: true, error: '일치 항목 없음' };

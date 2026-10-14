@@ -1,7 +1,7 @@
 // 검은사막 "쿠폰 모두 모아보기" 페이지를 읽어서 coupons.json을 만든다.
 //   node scripts/crawl-coupons.js
 // 브라우저(치지직 페이지)에서는 검은사막 사이트가 CORS를 허용하지 않아 직접 읽을 수 없으므로,
-// 이 스크립트를 (GitHub Actions 또는 직접) 돌려서 coupons.json을 저장소에 올리고, 앱은 그 파일을 받아온다.
+// 이 스크립트를 (Cloudflare Worker·Google Apps Script 또는 직접) 돌려서 coupons.json을 저장소에 올리고, 앱은 그 파일을 받아온다.
 // 가져오지 못하거나 쿠폰이 하나도 안 나오면 기존 coupons.json을 그대로 두고 오류로 종료한다.
 const fs = require('fs');
 const path = require('path');

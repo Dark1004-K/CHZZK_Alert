@@ -4,7 +4,7 @@ name: check-boss-schedule
 # GitHub의 예약은 UTC 기준이라 한국 12:10 = UTC 03:10. (실행이 몇 분 늦어질 수 있음. 앱은 매주 수요일 12:27에 받아감)
 # 이미지가 바뀌었으면 Issue로 알린다(이미지는 저장소에 복사하지 않고 공식 사이트 주소만 적는다). 시간표 값(bosses.json)은 새 이미지를 보고 고친다.
 #
-# 정기 실행은 Google Apps Script(workers/coupon-cron/apps-script-coupon-cron.gs의 bossCheck, 주 타이머 수요일 12시대)가 맡는다.
+# 정기 실행은 Google Apps Script(workers/coupon-cron/chzzk-cron.gs의 bossCheck, 주 타이머 수요일 12시대)가 맡는다.
 # GitHub 예약 실행은 시각 보장이 안 되기 때문이다. 이 워크플로우는 수동 백업용으로만 남긴다.
 on:
   workflow_dispatch: {}

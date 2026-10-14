@@ -76,7 +76,6 @@ function parse(html) {
     }
     // 간단한 내용: 보상/혜택 박스(div)의 텍스트
     const contentLines = [];
-    const dRe = /<div[^>]*>([\s\S]*?)<\/div>/g;
     // 중첩 div 때문에 한 번에 못 자르므로: 태그를 줄바꿈으로 바꿔 줄 단위로 정리
     const flat = seg.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(div|p|li)>/gi, '\n').replace(/<[^>]+>/g, ' ');
     for (const line of flat.split('\n')) {
@@ -85,7 +84,6 @@ function parse(html) {
       if (t === decode(h3s[i].title) || (period && t === period) || extra.includes(t)) continue;
       contentLines.push(t);
     }
-    void dRe;
     const title = h3s[i].title;
     if (!title) continue;
     const summary = [...extra, ...contentLines].join(' / ');
