@@ -1,0 +1,71 @@
+name: crawl-events
+
+# 검은사막 "진행중인 이벤트 모아보기" 페이지를 읽어서 events.json을 갱신한다.
+# (브라우저에서는 CORS 때문에 직접 읽을 수 없어서, 앱은 이 파일을 받아간다)
+#
+# 정기 실행은 Google Apps Script(workers/coupon-cron/chzzk-cron.gs의 eventsCrawl,
+# 보스와 동일한 수요일 주 1회)가 맡는다.
+# 이 워크플로우는 수동 백업용으로만 남긴다.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: crawl-events
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Crawl events
+        run: node scripts/crawl-events.js
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add events.json
+          if git diff --cached --quiet; then
+            echo "no changes"
+            exit 0
+          fi
+          git commit -m "chore: update events.json"
+          # 저장소 커밋이 잦아서 push가 non-fast-forward로 실패할 수 있으니 rebase 후 재시도
+          for i in 1 2 3; do
+            git pull --rebase --autostash && git push && break
+            echo "push failed (try $i/3), retrying..."
+            sleep 10
+          done
+          git status -sb
+      - name: Close stale failure issues
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for n in $(gh issue list --state open --search "[이벤트 크롤 실패] in:title" --limit 5 --json number --jq '.[].number'); do
+            gh issue close "$n" --comment "이벤트 크롤이 다시 성공했습니다. 자동 종료합니다." || true
+          done
+      - name: Notify on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh issue list --state open --search "[이벤트 크롤 실패] in:title" --limit 1 --json number --jq -e '.[0].number' >/dev/null; then
+            echo "already reported"
+          else
+            gh issue create \
+              --title "[이벤트 크롤 실패] events.json 갱신 실패" \
+              --body "이벤트 크롤 워크플로우가 실패했습니다. Actions 로그를 확인해 주세요.
+
+          - 워크플로우: crawl-events
+          - 실행: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - events.json이 갱신되지 않으면 앱의 이벤트 모아보기가 오래된 정보를 보여줍니다."
+          fi

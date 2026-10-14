@@ -8,7 +8,7 @@
   if (!KW || typeof KW.option !== 'function' || typeof KW.enabled !== 'function') return;
   if (window.__kwBdoLoaded) return;
   window.__kwBdoLoaded = true;
-  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.5' }); } catch (e) {}
+  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.6' }); } catch (e) {}
   const ID = 'blackdesert';
   // 설정 > 일반설정의 창 투명도를 결과창(fixed, 스택 밖)에도 적용. 본체 KW.opacity() 우선, 없으면 저장값 직접 읽기.
   function bdoOpacity() {
@@ -149,6 +149,11 @@
   const partyHMax = () => Math.max(PARTY_H_MIN, window.innerHeight);
   let partyH = PARTY_H_DEF;
   try { const phv = parseInt(localStorage.getItem(LS_PARTYH), 10); if (phv >= PARTY_H_MIN && phv <= 4000) partyH = phv; } catch (e) {}
+  const LS_EVTH = '__kw_evt_h';
+  const EVT_H_DEF = 220, EVT_H_MIN = 80;
+  const evtHMax = () => Math.max(EVT_H_MIN, window.innerHeight);
+  let evtH = EVT_H_DEF;
+  try { const ehv = parseInt(localStorage.getItem(LS_EVTH), 10); if (ehv >= EVT_H_MIN && ehv <= 4000) evtH = ehv; } catch (e) {}
   function bdoOrder() { // 스택 안에서 다음→쿠폰→파티→가문 순서로, 불린대화 창 바로 위에 둔다 (띄운 창은 제외)
     try {
       const stack = document.getElementById('__kw_stack');
@@ -157,7 +162,7 @@
       const ref = (hist && hist.parentNode === stack) ? hist : null;
       if (!ref) return;
       let anchor = ref; // 뒤에서부터 제자리 확인 — 이미 맞으면 DOM을 손대지 않음 (조상 이동 시 포커스가 날아감)
-      const seq = [nextEl, cpnEl, partyEl, famEl];
+      const seq = [nextEl, cpnEl, evtEl, partyEl, famEl];
       for (let i = seq.length - 1; i >= 0; i--) {
         const el = seq[i];
         if (!el || !el.isConnected || el.parentNode !== stack || el.style.position === 'fixed' || el === ref) continue;
@@ -191,6 +196,7 @@
   const TI_TICKET = '<path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2M13 17v2M13 11v2"/>';
   const TI_USERS = '<circle cx="9" cy="8" r="3.2"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.2a4.2 4.2 0 0 1 4.5 4.3V20"/>';
   const TI_SEARCH = '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>';
+  const TI_CAL = '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>';
   function placeGroup() { bdoOrder(); }
   // 감시 화면(#__kw_stack)의 드롭스 창 바로 아래에 파란색 "다음 우두머리" 창을 둔다 (스택 직속)
   let nextEl = null;
@@ -570,6 +576,185 @@
     }
     bdoOrder();
     renderCoupons(now);
+  }
+
+  // ---------- 이벤트 모아보기 (#__kw_evt) ----------
+  // 검은사막 사이트는 다른 사이트(치지직 페이지)에서 직접 읽을 수 없어서(CORS), 저장소의 events.json을 받아온다.
+  // events.json은 scripts/crawl-events.js가 "진행중인 이벤트 모아보기" 페이지를 읽어 갱신한다.
+  // 보스와 같은 스케줄: 켜질 때 한 번 받고, 이후 6시간마다 + 매주 수요일 12:27 슬롯에 다시 받는다.
+  // 알람은 울리지 않고 목록만 보여준다. 항목을 누르면 상세 페이지가 팝업 창으로 열린다.
+  const EVT_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/events.json';
+  const EVT_COLOR = '#2dd4bf';
+  const LS_EVT_FOLD = '__kw_evt_fold';
+  const LS_EVTPOS = '__kw_evt_pos';
+  const LS_EVTSLOT = '__kw_evt_slot'; // 마지막으로 받은 수요일 슬롯 시각 (보스와 같은 슬롯 규칙)
+  let evtEl = null;
+  let evtData = null; // 마지막으로 받은 events.json
+  let evtState = 'idle'; // idle | loading | ok | err
+  let evtSig = ''; // 마지막으로 그린 내용의 서명 (바뀔 때만 다시 그림)
+  let evtFetchedAt = 0; // 마지막으로 받아온 시각
+  function evtSlotDue(now) { // 가장 최근 수요일 12:27 슬롯 이후에 받은 적이 없으면 true (보스와 같은 슬롯)
+    let last = 0;
+    try { last = parseInt(localStorage.getItem(LS_EVTSLOT), 10) || 0; } catch (e) {}
+    return bossSlotTime(now) > last;
+  }
+  let evtBusyUntil = 0; // 이 시각까지는 "가져오는 중"(도는 아이콘)으로 보여줌
+  let evtFlashUntil = 0; // 이 시각까지는 완료(체크)/실패(!) 표시
+  let evtFlashErr = false;
+  function evtFolded() { try { return localStorage.getItem(LS_EVT_FOLD) === '1'; } catch (e) { return false; } }
+  function evtList() {
+    const l = evtData && Array.isArray(evtData.events) ? evtData.events : [];
+    return l.filter((c) => c && c.title && c.link);
+  }
+  function removeEvents() {
+    if (evtEl) { try { evtEl.remove(); } catch (e) {} }
+    evtEl = null;
+    evtSig = '';
+  }
+  function loadEvents(manual) {
+    if (evtState === 'loading') return;
+    evtState = 'loading';
+    if (manual) evtBusyUntil = Date.now() + 700;
+    evtSig = '';
+    fetch(EVT_URL + '?t=' + Date.now(), { cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('http'); return r.json(); })
+      .then((j) => {
+        if (!j || !Array.isArray(j.events)) throw new Error('format');
+        evtData = j; evtState = 'ok';
+      })
+      .catch(() => { evtState = evtData ? 'ok' : 'err'; }) // 실패해도 이전에 받은 목록은 유지
+      .then(() => { evtFetchedAt = Date.now(); }) // 실패해도 6시간 뒤에 다시 시도
+      .then(() => {
+        if (manual) { // 직접 누른 경우에만 완료/실패를 눈에 띄게 표시
+          evtFlashErr = evtState === 'err';
+          const wait = Math.max(0, evtBusyUntil - Date.now()); // 최소 표시 시간만큼은 도는 모습 유지
+          setTimeout(() => { evtFlashUntil = Date.now() + 1400; evtSig = ''; renderEvents(Date.now()); setTimeout(() => { evtSig = ''; }, 1500); }, wait);
+        }
+        evtSig = '';
+      });
+  }
+  function evtOpen(link) {
+    if (!link) return;
+    try {
+      const w = window.open(link, 'kwEvent', 'width=860,height=860,menubar=no,toolbar=no,location=yes,resizable=yes,scrollbars=yes');
+      if (!w && typeof KW.toast === 'function') KW.toast('이벤트', '팝업이 차단됐습니다. 팝업을 허용하고 다시 누르세요.');
+    } catch (e) {}
+  }
+  function renderEvents(now) {
+    const list = evtList();
+    const fold = evtFolded();
+    const busy = evtState === 'loading' || now < evtBusyUntil;
+    const flash = now < evtFlashUntil;
+    const sig = [evtState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, evtData ? evtData.updatedAt : 0, evtFetchedAt, list.map((c) => c.link).join(',')].join('|');
+    if (sig === evtSig && evtEl && evtEl.isConnected) return;
+    evtSig = sig;
+    let h = '<div id="__kw_evt_hd" style="display:flex;align-items:center;justify-content:flex-start;gap:4px;cursor:pointer;min-height:26px;padding-right:58px">' +
+      '<b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_CAL, EVT_COLOR) + '이벤트 모아보기&nbsp;<span style="color:' + EVT_COLOR + '">(' + list.length + ')</span></b>' +
+      '<span style="display:inline-flex;align-items:center"><button id="__kw_evt_rf" class="' + (busy ? '__kw_ic __kw_spin' : '') + '" title="' + (evtFetchedAt ? '새로고침 (마지막 갱신 ' + pad2(new Date(evtFetchedAt).getHours()) + ':' + pad2(new Date(evtFetchedAt).getMinutes()) + ':' + pad2(new Date(evtFetchedAt).getSeconds()) + ')' : '새로고침') + '" style="border:0;background:transparent;color:' + EVT_COLOR + ';cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;position:relative;top:1.5px">' + (busy ? ICON_REFRESH : flash ? (evtFlashErr ? ICON_FAIL : ICON_DONE) : ICON_REFRESH) + '</button>' +
+      '<span title="' + (fold ? '펼치기' : '접기') + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:' + EVT_COLOR + ';position:absolute;top:2px;right:29px;z-index:2"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (fold ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></span></div>' + xBtn('__kw_evt_x', EVT_COLOR, 'position:absolute;top:2px;right:3px;z-index:2');
+    if (!fold) {
+      h += '<div style="height:1px;background:rgba(255,255,255,.14);margin:4px -10px"></div>';
+      h += '<div class="__kw_sb_evt" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
+      if (evtState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">이벤트 목록을 받지 못했습니다. 새로고침(↻)을 눌러 보세요.</div>';
+      else if (evtState === 'idle' || (evtState === 'loading' && !evtData)) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
+      else if (!list.length) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">진행 중인 이벤트가 없습니다.</div>';
+      list.forEach((c, ci) => {
+        h += '<div style="' + (ci ? 'margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)' : 'margin-top:2px') + '">' +
+          '<button data-evt-go="' + ci + '" title="상세 페이지 열기" style="border:0;background:transparent;padding:0;cursor:pointer;display:block;width:100%;text-align:left">' +
+          (c.category ? '<span style="display:inline-block;background:rgba(45,212,191,.14);color:' + EVT_COLOR + ';border-radius:6px;padding:1px 6px;font-size:10px;font-weight:bold;margin-bottom:2px">' + esc(c.category) + '</span><br>' : '') +
+          '<span style="font-size:12px;font-weight:bold;color:#fff">' + esc(c.title || '이벤트') + '</span></button>' +
+          (c.period ? '<div style="font-size:11px;color:' + EVT_COLOR + '">⏱ ' + esc(c.period) + '</div>' : '') +
+          (c.summary ? '<div style="font-size:11px;color:#a9a9b8;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical">' + esc(c.summary) + '</div>' : '') + '</div>';
+      });
+      if (evtData && evtData.updatedAt) {
+        const d = new Date(evtData.updatedAt + KST);
+        const p2 = (n) => String(n).padStart(2, '0');
+        h += '<div style="font-size:10px;color:#777;margin-top:6px">목록 갱신 ' + (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + '</div>';
+      }
+      h += '</div>';
+    }
+    evtEl.innerHTML = h;
+    // 높이는 패널 통째로 명시 (내용 길이에 관계없이 조절이 바로 보이게). 접힘 상태는 자동 높이.
+    try {
+      evtEl.style.display = 'flex';
+      evtEl.style.flexDirection = 'column';
+      evtEl.style.height = fold ? '' : Math.min(evtH, evtHMax()) + 'px';
+    } catch (e5) {}
+    const hd = evtEl.querySelector('#__kw_evt_hd');
+    if (hd) hd.onclick = (e) => {
+      if (e.target && e.target.id === '__kw_evt_rf') return;
+      const was = evtFolded();
+      try { localStorage.setItem(LS_EVT_FOLD, was ? '0' : '1'); } catch (er) {}
+      evtSig = '';
+    };
+    const cx = evtEl.querySelector('#__kw_evt_x');
+    if (cx) cx.onclick = (e) => { e.stopPropagation(); turnOff('events'); removeEvents(); };
+    const rf = evtEl.querySelector('#__kw_evt_rf');
+    if (rf) rf.onclick = (e) => { e.stopPropagation(); if (evtState === 'loading') return; loadEvents(true); renderEvents(Date.now()); };
+    evtEl.querySelectorAll('[data-evt-go]').forEach((el) => {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const item = list[Number(el.getAttribute('data-evt-go'))];
+        if (item) evtOpen(item.link);
+      };
+    });
+    try { // 창 기본형 상속: 이벤트=가로+세로
+      if (KW && typeof KW.window === 'function') {
+        KW.window(evtEl, {
+          color: EVT_COLOR, posKey: LS_EVTPOS, rsz: fold ? 'h' : 'd', dock: () => bdoOrder(), // 접힘=가로만, 펼침=가로+세로
+          getH: () => evtH,
+          setH: (v) => {
+            evtH = Math.max(EVT_H_MIN, Math.min(evtHMax(), v));
+            evtEl.style.height = Math.min(evtH, evtHMax()) + 'px';
+          },
+          saveH: () => { try { localStorage.setItem(LS_EVTH, String(evtH)); } catch (er) {} },
+        });
+      } else {
+        if (KW && typeof KW.rsz === 'function') {
+          const cpos = bdoPosGet(LS_EVTPOS);
+          const base = {
+            dir: 'd', color: EVT_COLOR,
+            getH: () => evtH,
+            setH: (v) => {
+              evtH = Math.max(EVT_H_MIN, Math.min(evtHMax(), v));
+              const lst = evtEl.querySelector('.__kw_sb_evt');
+              if (lst) lst.style.maxHeight = Math.min(evtH, evtHMax()) + 'px';
+            },
+            save: () => {
+              try { localStorage.setItem(LS_EVTH, String(evtH)); } catch (er) {}
+              if (cpos) bdoPosSaveEl(LS_EVTPOS, evtEl);
+            },
+          };
+          if (cpos) {
+            base.wMode = 'self';
+            base.getW = () => evtEl.getBoundingClientRect().width;
+            base.setW = (v) => { evtEl.style.width = Math.max(225, Math.min(600, Math.round(v))) + 'px'; };
+          }
+          KW.rsz(evtEl, base);
+        }
+        if (KW && typeof KW.float === 'function') KW.float(evtEl, { color: EVT_COLOR, key: LS_EVTPOS, dock: () => bdoOrder() });
+      }
+    } catch (e) {}
+  }
+  function updateEvents(now) {
+    const stack = document.getElementById('__kw_stack');
+    const panel = document.getElementById('__kw_panel');
+    if (!opt('events', true) || !stack || !panel || !panel.classList.contains('show')) { removeEvents(); return; }
+    if (evtState === 'idle') loadEvents(); // 처음 켜질 때 한 번 받아온다
+    else if (evtState !== 'loading' && now - evtFetchedAt >= BOSS_REFRESH_MS) loadEvents(); // 이후 6시간마다
+    else if (evtState !== 'loading' && evtSlotDue(now)) { // 매주 수요일 12:27 슬롯 (보스와 동일)
+      try { localStorage.setItem(LS_EVTSLOT, String(bossSlotTime(now))); } catch (e) {}
+      loadEvents();
+    }
+    if (!evtEl || !evtEl.isConnected) {
+      evtEl = document.createElement('div');
+      evtEl.id = '__kw_evt';
+      evtEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid ' + EVT_COLOR + ';position:relative';
+      evtSig = '';
+      stack.appendChild(evtEl);
+    }
+    bdoOrder();
+    renderEvents(now);
   }
 
   // ---------- 파티모집 ----------
@@ -2509,7 +2694,7 @@
         }
         lastHref = href;
       } catch (e) {}
-      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeParty(); removeFamily(); removeRes(); marketData = null; marketPhase = 'idle'; try { if (typeof removeMarket === 'function') removeMarket(); } catch (e) {} return; }
+      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeEvents(); removeParty(); removeFamily(); removeRes(); marketData = null; marketPhase = 'idle'; try { if (typeof removeMarket === 'function') removeMarket(); } catch (e) {} return; }
       const now = Date.now();
       if (now - bossFetchedAt >= BOSS_REFRESH_MS) loadSchedule(); // 처음 켜질 때 한 번, 이후 6시간마다
       if (bossSlotDue(now)) { // 매주 수요일 12:27 (액션 17분 뒤)
@@ -2518,6 +2703,7 @@
       }
       updateNext(now);
       updateCoupons(now);
+      updateEvents(now);
       updateParty(now);
       updateFamily(now);
       updateRes(now);
