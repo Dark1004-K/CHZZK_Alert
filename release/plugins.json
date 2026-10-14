@@ -27,30 +27,14 @@
           "default": true
         },
         {
-          "key": "coupons",
-          "label": "쿠폰 모아보기 창 표시",
+          "key": "couponAlarm",
+          "label": "쿠폰 알림",
           "type": "bool",
           "default": true
         },
         {
-          "key": "events",
-          "label": "이벤트 모아보기 창 표시",
-          "type": "bool",
-          "default": true
-        },
-        {
-          "key": "family",
-          "label": "검은사막 검색 창 표시",
-          "type": "bool",
-          "default": true,
-          "help": {
-            "title": "검은사막 검색 사용 방법",
-            "text": "창의 입력칸에 가문명·길드명·아이템명을 쓰고 돋보기 버튼을 누르면\n오른쪽 결과창 하나에 나옵니다(둘 이상이면 상단 탭으로 전환).\n가문: 캐릭터 목록(이름 · 직업 · 레벨)\n길드: 길드원 목록(가문명 · 직위)\n아이템: bdolytics 목록(dbType \"item\"만) 검색(누르면 옆에 상세: 1차 bdolytics 기본·효과를 먼저 보여주고 설명은 bdocodex 2차 로딩 후 중복 제거 병합)\n레벨이 비공개인 캐릭터는 '비공개'로 표시됩니다.\n\n실시간 검색이므로 동반 브릿지(chzzk_bridge) 설치가 필요합니다.\n브릿지가 없으면 검색이 동작하지 않습니다."
-          }
-        },
-        {
-          "key": "nextBoss",
-          "label": "다음 우두머리 창 표시",
+          "key": "eventAlarm",
+          "label": "이벤트 알림",
           "type": "bool",
           "default": true
         },
@@ -131,7 +115,7 @@
         },
         {
           "key": "party",
-          "label": "파티모집 창 표시",
+          "label": "파티모집 알림",
           "type": "bool",
           "default": true,
           "help": {
