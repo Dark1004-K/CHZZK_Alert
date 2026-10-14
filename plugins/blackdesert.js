@@ -323,8 +323,8 @@
         if (!b) return;
         const act = b.getAttribute('data-bdo-act');
         if (act === 'opt') { try { if (KW && typeof KW.openOpts === 'function') KW.openOpts(ID); } catch (er) {} return; }
-        if (act === 'evt') { try { evtSummaryToast(); } catch (er) {} }
-        else if (act === 'cpn') { try { cpnSummaryToast(); } catch (er) {} }
+        if (act === 'evt') { setShow(LS_SHOW_EVT, !showEvt()); try { updateEvents(Date.now()); } catch (er) {} }
+        else if (act === 'cpn') { setShow(LS_SHOW_CPN, !showCpn()); try { updateCoupons(Date.now()); } catch (er) {} }
         else if (act === 'fam') { setShow(LS_SHOW_FAM, !showFam()); try { updateFamily(Date.now()); } catch (er) {} }
         else if (act === 'pty') {
           window.__KW_UI.partyAlarmBlink = false;
@@ -1186,7 +1186,6 @@
     const sel = partyKindsSel();
     const list = parties.filter((x) => sel.includes(x.kind));
     if (!window.__KW_UI.partyShown) { removeParty(); return; } // 기본 숨음 + X로 닫은 뒤: 새 알림까지 숨음 유지
-    if (!list.length) { setPartyShown(false); removeParty(); return; } // 모두 만료되면 자동 숨김
     if (window.__KW_UI.partyAlarmBlink) { window.__KW_UI.partyAlarmBlink = false; try { if (typeof renderPanel === 'function') renderPanel(); } catch (e) {} } // 보이면 반짝임 해제
     if (!partyEl || !partyEl.isConnected) {
       partyEl = document.createElement('div');
