@@ -444,7 +444,7 @@ function attachHistHandlers() {
   };
   const x = histPanel.querySelector('#__kw_hits_close');
   if (x) x.onclick = () => { // X = 창만 닫기 (알림 옵션은 유지, 다음 알람에 다시 표시)
-    try { histShown = false; } catch (e) {}
+    try { window.__KW_UI.histShown = false; } catch (e) {}
     applyHistVisibility();
     renderPanel();
     try { if (window.__KW && typeof window.__KW.refreshBdo === 'function') window.__KW.refreshBdo(); } catch (e) {}
@@ -486,9 +486,9 @@ function ensureHistPanel() {
 function applyHistVisibility() {
   applyDropsVisibility();
   if (!histPanel) return;
-  const show = histOn() && histShown && panel && panel.classList.contains('show');
+  const show = histOn() && window.__KW_UI.histShown && panel && panel.classList.contains('show');
   histPanel.style.display = show ? 'flex' : 'none'; // 세로 flex: 화면이 모자라면 목록이 먼저 줄어든다
-  if (show && histAlarmBlink) histAlarmBlink = false; // 열린 것은 확인한 것으로 봄
+  if (show && window.__KW_UI.histAlarmBlink) window.__KW_UI.histAlarmBlink = false; // 열린 것은 확인한 것으로 봄
 }
 function buildPanel() {
   ensureMidrow();
@@ -592,22 +592,22 @@ function renderPanel() {
   panel.className = 'show' + (running ? '' : ' off');
 
   panel.innerHTML = `
-    <div id="__kw_row"><div style="flex:1;min-width:0"><div id="__kw_ch"><span style="display:inline-flex;align-items:center;gap:5px;min-width:0"><span class="__kw_ti" style="color:#00ffa3">${IC.house}</span><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(chDisplayName())}</b></span><span id="__kw_links">${chLinksHtml()}<button class="__kw_ic" id="__kw_gear" title="설정" style="color:#00ffa3">${IC.sliders}</button></span></div><div id="__kw_titlerow"><div id="__kw_title" style="flex:1;min-width:0"><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b><span id="__kw_dot"></span> · 단어 ${keywords.length}개</div><span style="display:inline-flex;gap:0;flex:none"><button class="__kw_ic${histAlarmBlink ? ' __kw_urg' : ''}" id="__kw_histbtn" title="불린 대화${histAlarmBlink ? ' (새 알림)' : ''}" style="color:${histAlarmBlink || (histOn() && histShown) ? '#ffd400' : '#555'}">${IC.bell}</button><button class="__kw_ic${partyAlarmBlink ? ' __kw_urg' : ''}" id="__kw_partybtn" title="파티 모집${partyAlarmBlink ? ' (새 알림)' : ''}" style="color:${partyAlarmBlink || partyShown ? '#ff7a59' : '#555'}">${IC.users}</button><button class="__kw_ic" id="__kw_btn" title="${running ? '정지' : '시작'}" style="color:#00ffa3">${running ? IC.pause : IC.play}</button></span></div></div></div>
+    <div id="__kw_row"><div style="flex:1;min-width:0"><div id="__kw_ch"><span style="display:inline-flex;align-items:center;gap:5px;min-width:0"><span class="__kw_ti" style="color:#00ffa3">${IC.house}</span><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(chDisplayName())}</b></span><span id="__kw_links">${chLinksHtml()}<button class="__kw_ic" id="__kw_gear" title="설정" style="color:#00ffa3">${IC.sliders}</button></span></div><div id="__kw_titlerow"><div id="__kw_title" style="flex:1;min-width:0"><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b><span id="__kw_dot"></span> · 단어 ${keywords.length}개</div><span style="display:inline-flex;gap:0;flex:none"><button class="__kw_ic${window.__KW_UI.histAlarmBlink ? ' __kw_urg' : ''}" id="__kw_histbtn" title="불린 대화${window.__KW_UI.histAlarmBlink ? ' (새 알림)' : ''}" style="color:${window.__KW_UI.histAlarmBlink || (histOn() && window.__KW_UI.histShown) ? '#ffd400' : '#555'}">${IC.bell}</button><button class="__kw_ic${window.__KW_UI.partyAlarmBlink ? ' __kw_urg' : ''}" id="__kw_partybtn" title="파티 모집${window.__KW_UI.partyAlarmBlink ? ' (새 알림)' : ''}" style="color:${window.__KW_UI.partyAlarmBlink || window.__KW_UI.partyShown ? '#ff7a59' : '#555'}">${IC.users}</button><button class="__kw_ic" id="__kw_btn" title="${running ? '정지' : '시작'}" style="color:#00ffa3">${running ? IC.pause : IC.play}</button></span></div></div></div>
     <div id="__kw_expwarn" style="display:${allowExpiry ? 'block' : 'none'};font-size:11px;color:#ff9f1a;margin-top:4px">⚠ 만료 경고 · ${allowExpiry ? escapeHtml(allowExpiry.date) : ''} 만료, ${allowExpiry ? allowExpiry.stopDays : ''}일 뒤 동작 중지</div>
     <div id="__kw_plugwarn" style="display:${pluginHealthText() ? 'block' : 'none'};font-size:11px;color:#ff7b7b;margin-top:4px">⚠ ${escapeHtml(pluginHealthText())}</div>
     <div id="__kw_warn" style="display:${limitedMode ? 'block' : 'none'};font-size:11px;color:#ffd400;margin-top:4px">⚠ 사용자 스크립트 허용 꺼짐: WS 감시 불가, DOM 감시만 동작. chrome://extensions → Tampermonkey 상세에서 허용 후 새로고침</div>`;
 
   panel.querySelector('#__kw_btn').onclick = () => (running ? stop() : start());
   panel.querySelector('#__kw_histbtn').onclick = () => { // 불린대화 창 띄우기/숨기기 (감시중 옆 종 버튼 자리)
-    try { histShown = !histShown; } catch (e) {}
-    histAlarmBlink = false;
+    try { window.__KW_UI.histShown = !window.__KW_UI.histShown; } catch (e) {}
+    window.__KW_UI.histAlarmBlink = false;
     applyHistVisibility();
     renderPanel();
     try { if (window.__KW && typeof window.__KW.refreshBdo === 'function') window.__KW.refreshBdo(); } catch (e) {}
   };
   panel.querySelector('#__kw_partybtn').onclick = () => { // 파티모집 창 띄우기/숨기기
-    try { partyShown = !partyShown; } catch (e) {}
-    partyAlarmBlink = false;
+    try { window.__KW_UI.partyShown = !window.__KW_UI.partyShown; } catch (e) {}
+    window.__KW_UI.partyAlarmBlink = false;
     renderPanel();
     try { if (window.__KW && typeof window.__KW.refreshBdo === 'function') window.__KW.refreshBdo(); } catch (e) {}
   };

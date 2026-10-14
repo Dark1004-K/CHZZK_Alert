@@ -222,7 +222,7 @@
   const showCpn = () => showCpnFlag;
   const showEvt = () => showEvtFlag;
   const showFam = () => showFamFlag;
-  function histOnNow() { try { return (typeof histOn === 'function' ? histOn() : true) && histShown; } catch (e) { return false; } }
+  function histOnNow() { try { return (typeof histOn === 'function' ? histOn() : true) && window.__KW_UI.histShown; } catch (e) { return false; } }
   const SHOW_X_TITLE = '닫기 (검은사막 창의 버튼으로 다시 표시)';
   let mainEl = null, mainSig = null;
   let cpnAlarmBlink = false, evtAlarmBlink = false; // 새 쿠폰·이벤트 알람 후 상세창이 숨어있으면 메인 버튼 반짝임 (창이 보이면 해제)
@@ -284,8 +284,8 @@
       mainBtn('evt', '이벤트 모아보기', BDO_BTN(TI_CAL), EVT_COLOR, showEvt(), evtAlarmBlink) +
       mainBtn('cpn', '쿠폰 모아보기', BDO_BTN(TI_TICKET), '#b784ff', showCpn(), cpnAlarmBlink) +
       mainBtn('fam', '검은사막 검색', BDO_BTN(TI_SEARCH), '#ff7ab8', showFam(), false) +
-      mainBtn('hist', '불린 대화', BDO_BTN(TI_BELL_P), '#ffd400', histOnNow(), histAlarmBlink) +
-      mainBtn('pty', '파티 모집', BDO_BTN(TI_USERS), '#ff7a59', partyShown, partyAlarmBlink) +
+      mainBtn('hist', '불린 대화', BDO_BTN(TI_BELL_P), '#ffd400', histOnNow(), window.__KW_UI.histAlarmBlink) +
+      mainBtn('pty', '파티 모집', BDO_BTN(TI_USERS), '#ff7a59', window.__KW_UI.partyShown, window.__KW_UI.partyAlarmBlink) +
       mainBtn('opt', '검은사막 옵션', BDO_BTN(TI_SLIDERS), '#ccc', true, false) +
       '</span></div>' +
       '<div style="display:flex;align-items:center;gap:8px;margin-top:1px;padding-left:19px">' +
@@ -317,14 +317,14 @@
         else if (act === 'cpn') { setShow(LS_SHOW_CPN, !showCpn()); try { updateCoupons(Date.now()); } catch (er) {} }
         else if (act === 'fam') { setShow(LS_SHOW_FAM, !showFam()); try { updateFamily(Date.now()); } catch (er) {} }
         else if (act === 'hist') {
-          try { histShown = !histShown; } catch (er) {}
-          histAlarmBlink = false;
+          try { window.__KW_UI.histShown = !window.__KW_UI.histShown; } catch (er) {}
+          window.__KW_UI.histAlarmBlink = false;
           try { if (typeof applyHistVisibility === 'function') applyHistVisibility(); } catch (er) {}
           try { if (typeof renderPanel === 'function') renderPanel(); } catch (er) {}
         }
         else if (act === 'pty') {
-          partyAlarmBlink = false;
-          setPartyShown(!partyShown);
+          window.__KW_UI.partyAlarmBlink = false;
+          setPartyShown(!window.__KW_UI.partyShown);
           try { updateParty(Date.now()); } catch (er) {}
         }
         mainSig = null;
@@ -336,7 +336,7 @@
     bdoOrder();
     const nc = nextCounter(now);
     try { const kd = new Date(now + KST); mainDbg('render next=' + (nc ? nc.bosses.join('/') + '@' + nc.label : 'none') + ' now=' + kd.getUTCHours() + ':' + String(kd.getUTCMinutes()).padStart(2, '0') + ' sel=' + (nc ? nc.selN : '-')); } catch (e) {} // [BETA-ONLY-LINE] 진단용
-    const sig = [showEvt() ? 1 : 0, showCpn() ? 1 : 0, showFam() ? 1 : 0, evtAlarmBlink ? 1 : 0, cpnAlarmBlink ? 1 : 0, histOnNow() ? 1 : 0, partyShown ? 1 : 0, histAlarmBlink ? 1 : 0, partyAlarmBlink ? 1 : 0, nc ? nc.t + '|' + nc.bosses.join(',') : '-'].join('|');
+    const sig = [showEvt() ? 1 : 0, showCpn() ? 1 : 0, showFam() ? 1 : 0, evtAlarmBlink ? 1 : 0, cpnAlarmBlink ? 1 : 0, histOnNow() ? 1 : 0, window.__KW_UI.partyShown ? 1 : 0, window.__KW_UI.histAlarmBlink ? 1 : 0, window.__KW_UI.partyAlarmBlink ? 1 : 0, nc ? nc.t + '|' + nc.bosses.join(',') : '-'].join('|');
     if (sig !== mainSig) {
       try { mainDbg('sig-diff: ' + sigDiff(mainSig, sig)); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
       mainSig = sig;
@@ -1059,7 +1059,7 @@
   const PARTY_MAX_MIN = 10;
   let parties = []; // { id, nick, kind, content, exp }
   let partyEl = null, partySig = null;
-  // partyShown/partyAlarmBlink는 코어(src/core.js)와 공유 (녹색창 버튼도 같은 값을 씀)
+  // window.__KW_UI.partyShown/partyAlarmBlink는 코어(src/core.js)와 공유 (녹색창 버튼도 같은 값을 씀)
   function partyKindsSel() {
     const v = opt('partyKinds', null);
     return Array.isArray(v) ? v : PARTY_KINDS.slice();
@@ -1124,7 +1124,7 @@
         if (opt('sound', true)) { if (typeof KW.sound === 'function') KW.sound(); else beep(); }
         try { if (typeof KW.emit === 'function') KW.emit('party', { nick, kind: e.kind, content: e.content }); } catch (er) {}
         setPartyShown(true);
-        partyAlarmBlink = true; // 보이면 아래 updateParty가 바로 해제, 숨어있으면 메인 버튼 반짝임 유지
+        window.__KW_UI.partyAlarmBlink = true; // 보이면 아래 updateParty가 바로 해제, 숨어있으면 메인 버튼 반짝임 유지
         try { updateParty(Date.now()); } catch (er) {}
         try { updateMain(Date.now()); } catch (er) {}
       }
@@ -1167,9 +1167,9 @@
   }
   function setPartyShown(v) { // 표시 전환 (바뀔 때만 녹색 버튼 갱신)
     v = !!v;
-    if (partyShown === v) return;
-    partyShown = v;
-    if (!v) partyAlarmBlink = false; // 닫힘=확인
+    if (window.__KW_UI.partyShown === v) return;
+    window.__KW_UI.partyShown = v;
+    if (!v) window.__KW_UI.partyAlarmBlink = false; // 닫힘=확인
     try { if (typeof renderPanel === 'function') renderPanel(); } catch (e) {}
   }
   function updateParty(now) {
@@ -1180,9 +1180,9 @@
     parties = parties.filter((x) => x.exp > now);
     const sel = partyKindsSel();
     const list = parties.filter((x) => sel.includes(x.kind));
-    if (!partyShown) { removeParty(); return; } // 기본 숨음 + X로 닫은 뒤: 새 알림까지 숨음 유지
+    if (!window.__KW_UI.partyShown) { removeParty(); return; } // 기본 숨음 + X로 닫은 뒤: 새 알림까지 숨음 유지
     if (!list.length) { setPartyShown(false); removeParty(); return; } // 모두 만료되면 자동 숨김
-    if (partyAlarmBlink) { partyAlarmBlink = false; try { if (typeof renderPanel === 'function') renderPanel(); } catch (e) {} } // 보이면 반짝임 해제
+    if (window.__KW_UI.partyAlarmBlink) { window.__KW_UI.partyAlarmBlink = false; try { if (typeof renderPanel === 'function') renderPanel(); } catch (e) {} } // 보이면 반짝임 해제
     if (!partyEl || !partyEl.isConnected) {
       partyEl = document.createElement('div');
       partyEl.id = '__kw_bdo_party';

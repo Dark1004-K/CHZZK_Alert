@@ -95,10 +95,10 @@ function fireAlert(nick, text, el, kw) {
     showCallToast(nick, body);
     playAlertSound();
     // 알람 조건 충족 → 불린대화 창 자동 표시 (X로 닫았어도 다음 알람에 다시 표시)
-    try { histShown = true; } catch (e) {}
+    try { window.__KW_UI.histShown = true; } catch (e) {}
     try { if (typeof ensureHistPanel === 'function') ensureHistPanel(); } catch (e) {}
     try { if (typeof applyHistVisibility === 'function') applyHistVisibility(); } catch (e) {}
-    try { histAlarmBlink = (typeof histPanel !== 'undefined' && histPanel && histPanel.style.display === 'none'); } catch (e) {}
+    try { window.__KW_UI.histAlarmBlink = (typeof histPanel !== 'undefined' && histPanel && histPanel.style.display === 'none'); } catch (e) {}
     try { if (typeof renderPanel === 'function') renderPanel(); } catch (e) {}
   }
   highlightMessage(el);
