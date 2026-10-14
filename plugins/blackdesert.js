@@ -661,25 +661,19 @@
     }
     cpnEl.innerHTML = h;
     try { cpnEl.classList.toggle('__kw_urg', fold && urgKeys.length > 0); } catch (e5b) {} // 접힘 + 임박 항목 → 창 전체 깜빡임
-    if (cpnFitNext && !cpnFolded()) { // 펼치기 직후: 아래 기준으로 내용만큼, 화면을 넘으면 거기까지만
+    if (cpnFitNext && !cpnFolded()) { // 펼치기 직후: 아래 기준 + 저장된 높이 그대로 (줄여놓은 크기 유지)
       cpnFitNext = false;
       try {
         const anchorB = cpnAnchorB > 0 ? cpnAnchorB : cpnEl.getBoundingClientRect().bottom; // 클릭 시점 아래 모서리
         cpnAnchorB = 0;
-        cpnEl.style.height = 'auto';
-        const need = cpnEl.scrollHeight;
+        cpnH = Math.max(CPN_H_MIN, Math.min(cpnH, cpnHMax()));
         if (cpnEl.style.position === 'fixed') {
-          // 띄움: 펼치기 전 아래 모서리 고정 → 위로 늘어남
-          const room = Math.max(CPN_H_MIN, anchorB);
-          cpnH = Math.max(CPN_H_MIN, Math.min(need, room, cpnHMax()));
+          // 띄움: 펼치기 전 아래 모서리 고정 → 위로 늘어남 (저장된 높이 유지)
           cpnEl.style.height = Math.min(cpnH, cpnHMax()) + 'px';
           cpnEl.style.top = Math.max(0, Math.round(anchorB - cpnH)) + 'px';
           try { bdoPosSaveEl(LS_CPNNPOS, cpnEl); } catch (er2) {}
         } else {
-          // 도크: 레이아웃이 아래 고정 → 위로 늘어남
-          const r = cpnEl.getBoundingClientRect();
-          const room = Math.max(CPN_H_MIN, r.top + r.height);
-          cpnH = Math.max(CPN_H_MIN, Math.min(need, room, cpnHMax()));
+          // 도크: 저장된 높이 그대로
           cpnEl.style.height = Math.min(cpnH, cpnHMax()) + 'px';
         }
         try { localStorage.setItem(LS_CPNH, String(cpnH)); } catch (er) {}
@@ -1008,25 +1002,19 @@
     }
     evtEl.innerHTML = h;
     try { evtEl.classList.toggle('__kw_urg', fold && urgKeys.length > 0); } catch (e5b) {} // 접힘 + 임박 항목 → 창 전체 깜빡임
-    if (evtFitNext && !evtFolded()) { // 펼치기 직후: 아래 기준으로 내용만큼, 화면을 넘으면 거기까지만 (쿠폰과 동일)
+    if (evtFitNext && !evtFolded()) { // 펼치기 직후: 아래 기준 + 저장된 높이 그대로 (줄여놓은 크기 유지)
       evtFitNext = false;
       try {
         const anchorB = evtAnchorB > 0 ? evtAnchorB : evtEl.getBoundingClientRect().bottom; // 클릭 시점 아래 모서리
         evtAnchorB = 0;
-        evtEl.style.height = 'auto';
-        const need = evtEl.scrollHeight;
+        evtH = Math.max(EVT_H_MIN, Math.min(evtH, evtHMax()));
         if (evtEl.style.position === 'fixed') {
-          // 띄움: 펼치기 전 아래 모서리 고정 → 위로 늘어남
-          const room = Math.max(EVT_H_MIN, anchorB);
-          evtH = Math.max(EVT_H_MIN, Math.min(need, room, evtHMax()));
+          // 띄움: 펼치기 전 아래 모서리 고정 → 위로 늘어남 (저장된 높이 유지)
           evtEl.style.height = Math.min(evtH, evtHMax()) + 'px';
           evtEl.style.top = Math.max(0, Math.round(anchorB - evtH)) + 'px';
           try { bdoPosSaveEl(LS_EVTPOS, evtEl); } catch (er2) {}
         } else {
-          // 도크: 레이아웃이 아래 고정 → 위로 늘어남
-          const r = evtEl.getBoundingClientRect();
-          const room = Math.max(EVT_H_MIN, r.top + r.height);
-          evtH = Math.max(EVT_H_MIN, Math.min(need, room, evtHMax()));
+          // 도크: 저장된 높이 그대로
           evtEl.style.height = Math.min(evtH, evtHMax()) + 'px';
         }
         try { localStorage.setItem(LS_EVTH, String(evtH)); } catch (er) {}
