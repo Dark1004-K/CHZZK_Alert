@@ -1,6 +1,6 @@
 {
   "source": "https://www.kr.playblackdesert.com/ko-KR/News/Detail?groupContentNo=10748",
-  "updatedAt": 1791896460951,
+  "updatedAt": 1791957659871,
   "coupons": [
     {
       "name": "[2026 마스터 클래스] 대진표 추첨 방송 쿠폰",
@@ -14,15 +14,6 @@
       ],
       "expires": "2026년 10월 28일(수) 정기점검 전",
       "expiresAt": null
-    },
-    {
-      "name": "째깍 쿠폰 14일차",
-      "code": "WEEK224HCOUPON14",
-      "rewards": [
-        "궁극의 프리미엄 강화 상자"
-      ],
-      "expires": "2026년 10월 14일(수) 13:59",
-      "expiresAt": 1791953940000
     },
     {
       "name": "한가위 쿠폰",
