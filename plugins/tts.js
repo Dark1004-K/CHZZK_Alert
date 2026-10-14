@@ -30,12 +30,15 @@
   window.__KW.on('ext:boss30', () => speak('보스 출현 30초 전입니다', true)); // 출현 30초 전에 한 번 더
   window.__KW.on('ext:party', (d) => d && speak((d.nick || '누군가') + '님이 ' + (d.kind || '') + ' 파티를 모집합니다'));
   window.__KW.on('drops', (d) => speak(d && d.last ? '드롭스 시간이 모두 충족되었습니다' : '드롭스 시간이 충족되었습니다. 다음 보상을 확인하세요'));
-  // [BETA-TEST-ONLY:start]
-  // 새 쿠폰 알림 읽기 (베타 전용)
+  // 새 쿠폰·이벤트 알림 읽기
   window.__KW.on('ext:coupon', (d) => {
     const l = d && Array.isArray(d.coupons) ? d.coupons : [];
     if (!l.length) return;
     speak('새 쿠폰 ' + l.length + '개가 등록되었습니다. ' + l.slice(0, 3).map((c) => c.name || '쿠폰').join(', '), true);
   });
-  // [BETA-TEST-ONLY:end]
+  window.__KW.on('ext:event', (d) => {
+    const l = d && Array.isArray(d.events) ? d.events : [];
+    if (!l.length) return;
+    speak('새 이벤트 ' + l.length + '개가 등록되었습니다. ' + l.slice(0, 3).map((c) => c.title || '이벤트').join(', '), true);
+  });
 })();

@@ -98,6 +98,8 @@ function fireAlert(nick, text, el, kw) {
     try { histShown = true; } catch (e) {}
     try { if (typeof ensureHistPanel === 'function') ensureHistPanel(); } catch (e) {}
     try { if (typeof applyHistVisibility === 'function') applyHistVisibility(); } catch (e) {}
+    try { histAlarmBlink = (typeof histPanel !== 'undefined' && histPanel && histPanel.style.display === 'none'); } catch (e) {}
+    try { if (typeof renderPanel === 'function') renderPanel(); } catch (e) {}
   }
   highlightMessage(el);
 }
@@ -139,7 +141,7 @@ function placeToastBox(box) {
       const r = target.getBoundingClientRect();
       box.style.maxWidth = Math.max(220, window.innerWidth - r.right - 8 - 14) + 'px';
       box.style.bottom = '0';
-      const obs = ['__kw_setp', '__kw_dropsp', '__kw_histp', '__kw_bdop', '__kw_cpn', '__kw_bdo_party', '__kw_bdo_family', '__kw_bdo_family_r', '__kw_bdo_guild_r', '__kw_optwin'].map((id) => document.getElementById(id)).filter((el) => {
+      const obs = ['__kw_setp', '__kw_dropsp', '__kw_histp', '__kw_bdo_main', '__kw_cpn', '__kw_bdo_party', '__kw_bdo_family', '__kw_bdo_family_r', '__kw_bdo_guild_r', '__kw_optwin'].map((id) => document.getElementById(id)).filter((el) => {
         if (!el || el.style.display === 'none') return false;
         const q = el.getBoundingClientRect();
         return q.width > 20 && q.height > 20;
@@ -193,7 +195,7 @@ function hideBoxIfEmpty() {
     if (box && box.children.length === 0) box.style.display = 'none';
   } catch (e) {}
 }
-function showCallToast(nick, body) {
+function showCallToast(nick, body, onClick) {
   const box = ensureToastBox();
   if (!box) return;
   // 도배 시 DOM 비대화 방지: 최대 5개 유지
@@ -201,7 +203,7 @@ function showCallToast(nick, body) {
   const t = document.createElement('div');
   t.className = '__kw_toast';
   t.innerHTML = '<b>🔔 ' + escapeHtml((nick || 'CHZZK').slice(0, 24)) + '</b><span style="font-weight:normal">: ' + escapeHtml((body || '').slice(0, 120)) + '</span>';
-  t.onclick = () => { t.remove(); hideBoxIfEmpty(); };
+  t.onclick = () => { try { if (typeof onClick === 'function') onClick(); } catch (e) {} t.remove(); hideBoxIfEmpty(); };
   box.appendChild(t);
   setTimeout(() => { t.remove(); hideBoxIfEmpty(); }, TOAST_MS);
 }

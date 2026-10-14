@@ -8,7 +8,7 @@
   if (!KW || typeof KW.option !== 'function' || typeof KW.enabled !== 'function') return;
   if (window.__kwBdoLoaded) return;
   window.__kwBdoLoaded = true;
-  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.8' }); } catch (e) {}
+  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.1.1' }); } catch (e) {}
   const ID = 'blackdesert';
   // 설정 > 일반설정의 창 투명도를 결과창(fixed, 스택 밖)에도 적용. 본체 KW.opacity() 우선, 없으면 저장값 직접 읽기.
   function bdoOpacity() {
@@ -101,6 +101,7 @@
   function opt(key, def) {
     try { const v = KW.option(ID, key); return v === undefined || v === null ? def : v; } catch (e) { return def; }
   }
+  try { KW.refreshBdo = () => { try { updateParty(Date.now()); } catch (e) {} try { updateMain(Date.now()); } catch (e) {} }; } catch (e) {} // 녹색 메인 버튼용: 파티·검은사막메인 즉시 갱신
   // 지금 기준 오늘/내일의 출현 목록 (절대 시각 ms)
   function occurrences(now, days) {
     const out = [];
@@ -133,12 +134,13 @@
   }
   // [BETA-TEST-ONLY:end]
 
-  // ---------- 창 묶음(그룹): 다음 우두머리 + 쿠폰 모아보기 ----------
-  // 평소에는 감시 화면(#__kw_stack)의 드롭스 창 아래에 붙어 있고, 맨 위의 손잡이를 끌면 화면 아무 곳으로 옮길 수 있다.
-  // 옮기는 동안 화면 가장자리와 다른 창(초록·드롭스·불린 대화·설정)의 가장자리에 자석처럼 붙는다. 손잡이를 더블클릭하면 원래 자리로 돌아온다.
-  // 스택 직속 배치: 그룹 컨테이너 없이 각 창을 감시 화면(#__kw_stack)에 직접 둔다 (순서: 드롭스 → 다음 → 쿠폰 → 파티 → 불린대화).
+  // ---------- 검은사막 메인창 + 서브창 (쿠폰·이벤트·파티·검색) ----------
+  // 감시 화면(#__kw_stack)의 드롭스 창 아래에 파란색 "검은사막" 메인창을 둔다 (감시중 녹색창과 같은 도크형).
+  // 메인창 타이틀 아래에는 다음 우두머리 카운터를 항상 표시하고, 타이틀 옆 버튼으로 서브창을 띄웠다 숨겼다 한다.
+  // 스택 직속 배치: 그룹 컨테이너 없이 각 창을 감시 화면(#__kw_stack)에 직접 둔다 (순서: 드롭스 → 메인 → 쿠폰 → 이벤트 → 파티 → 검색 → 불린대화).
   // 가로(↔·대각의 가로축)는 스택 너비를 공유하고, 세로는 창마다 따로 저장한다.
   try { localStorage.removeItem('__kw_bdo_gpos'); } catch (e) {} // 묶음 위치값 잔재 정리
+  try { localStorage.removeItem('__kw_bdop_pos'); } catch (e) {} // 구 "다음 우두머리" 창 위치값 잔재 정리
   const LS_CPNH = '__kw_cpn_h';
   const CPN_H_DEF = 190, CPN_H_MIN = 80;
   const cpnHMax = () => Math.max(CPN_H_MIN, window.innerHeight);
@@ -154,7 +156,7 @@
   const evtHMax = () => Math.max(EVT_H_MIN, window.innerHeight);
   let evtH = EVT_H_DEF;
   try { const ehv = parseInt(localStorage.getItem(LS_EVTH), 10); if (ehv >= EVT_H_MIN && ehv <= 4000) evtH = ehv; } catch (e) {}
-  function bdoOrder() { // 스택 안에서 다음→쿠폰→파티→가문 순서로, 불린대화 창 바로 위에 둔다 (띄운 창은 제외)
+  function bdoOrder() { // 스택 안에서 메인→쿠폰→이벤트→파티→검색 순서로, 불린대화 창 바로 위에 둔다 (띄운 창은 제외)
     try {
       const stack = document.getElementById('__kw_stack');
       if (!stack) return;
@@ -162,7 +164,7 @@
       const ref = (hist && hist.parentNode === stack) ? hist : null;
       if (!ref) return;
       let anchor = ref; // 뒤에서부터 제자리 확인 — 이미 맞으면 DOM을 손대지 않음 (조상 이동 시 포커스가 날아감)
-      const seq = [nextEl, cpnEl, evtEl, partyEl, famEl];
+      const seq = [mainEl, cpnEl, evtEl, partyEl, famEl];
       for (let i = seq.length - 1; i >= 0; i--) {
         const el = seq[i];
         if (!el || !el.isConnected || el.parentNode !== stack || el.style.position === 'fixed' || el === ref) continue;
@@ -172,7 +174,6 @@
     } catch (e) {}
   }
   // 띄우기 위치 {x,y,w} (본체 KW.float이 읽는 형식과 동일). w는 225~600으로 감시중 창을 따름.
-  const LS_BDOPPOS = '__kw_bdop_pos';
   const LS_CPNNPOS = '__kw_cpn_pos';
   const LS_PARTYPOS = '__kw_party_pos';
   function bdoPosGet(key) {
@@ -190,19 +191,39 @@
       localStorage.setItem(key, JSON.stringify({ x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width) }));
     } catch (e) {}
   }
-  // 창 제목 아이콘 (이모지는 색을 못 바꿔서 SVG로): 다음 우두머리=파랑, 쿠폰=보라, 파티=주황
+  // 창 제목 아이콘 (이모지는 색을 못 바꿔서 SVG로): 이벤트=청록, 쿠폰=보라, 파티=주황, 검색=분홍
   const TI = (path, color) => '<span style="display:inline-flex;align-items:center;color:' + color + ';margin-right:5px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + path + '</svg></span>';
-  const TI_SWORDS = '<path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M14.5 6.5L18 3h3v3l-3.5 3.5M5 14l4 4M7 17l-3 3M3 19l2 2"/>';
   const TI_TICKET = '<path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2M13 17v2M13 11v2"/>';
   const TI_USERS = '<circle cx="9" cy="8" r="3.2"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.2a4.2 4.2 0 0 1 4.5 4.3V20"/>';
   const TI_SEARCH = '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>';
   const TI_CAL = '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>';
   function placeGroup() { bdoOrder(); }
-  // 감시 화면(#__kw_stack)의 드롭스 창 바로 아래에 파란색 "다음 우두머리" 창을 둔다 (스택 직속)
-  let nextEl = null;
-  function removeNext() {
-    if (nextEl) { try { nextEl.remove(); } catch (e) {} }
-    nextEl = null;
+  // ---------- 검은사막 메인창 (#__kw_bdo_main) ----------
+  // 감시중(녹색창)과 같은 성격의 도크 창 (이동 불가, 가로=스택 너비 공유). 색은 우두머리 파랑.
+  // 타이틀(로고형 아이콘 + "검은사막") 아래에 다음 우두머리 카운터를 항상 표시 (구 "다음 우두머리" 창 대체).
+  // 타이틀 옆 버튼: 이벤트·쿠폰·검색 창 띄우기/숨기기, 설정(검은사막 확장 옵션 열기).
+  const BDO_BLUE = '#3b9eff';
+  const TI_BDO = '<path d="M9.4 5.6L2.8 12l9.2 9.2L21.2 12 12 2.8"/><path d="M11.3 8.3l4.1 4.1-3.3 3.3-3.3-3.3 2.5-2.5"/>';
+  const TI_BELL_P = '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 21h4"/>';
+  const TI_SLIDERS = '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/>';
+  const BDO_BTN = (path) => '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + path + '</svg>';
+  // 서브창 표시 상태 (확장 옵션에서 분리, 기본 표시. 메인 버튼·X로 전환, 새로고침 후에도 유지)
+  const LS_SHOW_CPN = '__kw_bdo_show_cpn';
+  const LS_SHOW_EVT = '__kw_bdo_show_evt';
+  const LS_SHOW_FAM = '__kw_bdo_show_fam';
+  const showFlag = (k) => { try { return localStorage.getItem(k) !== '0'; } catch (e) { return true; } };
+  const setShow = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0'); } catch (e) {} };
+  const showCpn = () => showFlag(LS_SHOW_CPN);
+  const showEvt = () => showFlag(LS_SHOW_EVT);
+  const showFam = () => showFlag(LS_SHOW_FAM);
+  function histOnNow() { try { return (typeof histOn === 'function' ? histOn() : true) && histShown; } catch (e) { return false; } }
+  const SHOW_X_TITLE = '닫기 (검은사막 창의 버튼으로 다시 표시)';
+  let mainEl = null, mainSig = null;
+  let cpnAlarmBlink = false, evtAlarmBlink = false; // 새 쿠폰·이벤트 알람 후 상세창이 숨어있으면 메인 버튼 반짝임 (창이 보이면 해제)
+  function removeMain() {
+    if (mainEl) { try { mainEl.remove(); } catch (e) {} }
+    mainEl = null;
+    mainSig = null;
   }
   function fmtLong(ms) {
     const s = Math.max(0, Math.floor(ms / 1000));
@@ -210,40 +231,86 @@
     const p = (n) => String(n).padStart(2, '0');
     return (h ? h + ':' : '') + p(m) + ':' + p(x);
   }
-  function updateNext(now) {
-    const stack = document.getElementById('__kw_stack');
-    const panel = document.getElementById('__kw_panel');
-    if (!opt('nextBoss', true) || !stack || !panel || !panel.classList.contains('show')) { removeNext(); return; }
+  function nextCounter(now) { // 다음 출현 (선택 우두머리 필터 적용). 없으면 null
     const sel = opt('bosses', null);
-    let next = null;
     for (const o of occurrences(now, 8).sort((a, b) => a.t - b.t)) {
       if (o.t <= now) continue;
       const bosses = Array.isArray(sel) ? o.bosses.filter((b) => sel.includes(b)) : o.bosses;
-      if (bosses.length) { next = { t: o.t, hhmm: o.hhmm, bosses }; break; }
+      if (bosses.length) {
+        const when = new Date(o.t + KST);
+        const days = Math.floor((o.t + KST) / DAY) - Math.floor((now + KST) / DAY);
+        const dayTxt = days <= 1 ? '' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + ' ';
+        return { t: o.t, label: dayTxt + o.hhmm, bosses };
+      }
     }
-    if (!next) { removeNext(); return; }
-    if (!nextEl || !nextEl.isConnected) {
-      nextEl = document.createElement('div');
-      nextEl.id = '__kw_bdop';
-      nextEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid #3b9eff;position:relative';
-      nextEl.onclick = (e) => { // X 버튼 (내용을 매초 다시 그리므로 창에 한 번만 달아 둔다)
-        if (e.target && e.target.closest && e.target.closest('#__kw_bdop_x')) { turnOff('nextBoss'); removeNext(); }
+    return null;
+  }
+  function mainBtn(act, title, svg, color, on, blink) {
+    return '<button class="__kw_ic' + (blink ? ' __kw_urg' : '') + '" data-bdo-act="' + act + '" title="' + title + '" style="color:' + (on ? color : '#555') + ';padding:4px">' + svg + '</button>';
+  }
+  function renderMain(nc) {
+    if (!mainEl) return;
+    try { urgCss(); } catch (e) {} // 반짝임 스타일 (상세창을 한 번도 안 열어도 메인 버튼용으로 필요)
+    mainEl.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:26px">' +
+      '<span style="display:inline-flex;align-items:center;font-weight:bold;font-size:13px;min-width:0;overflow:hidden;white-space:nowrap"><span style="display:inline-flex;align-items:center;color:' + BDO_BLUE + ';margin-right:5px;flex:none"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">' + TI_BDO + '</svg></span>검은사막</span>' +
+      '<span style="display:inline-flex;gap:0;flex:none">' +
+      mainBtn('evt', '이벤트 모아보기', BDO_BTN(TI_CAL), EVT_COLOR, showEvt(), evtAlarmBlink) +
+      mainBtn('cpn', '쿠폰 모아보기', BDO_BTN(TI_TICKET), '#b784ff', showCpn(), cpnAlarmBlink) +
+      mainBtn('fam', '검은사막 검색', BDO_BTN(TI_SEARCH), '#ff7ab8', showFam(), false) +
+      mainBtn('hist', '불린 대화', BDO_BTN(TI_BELL_P), '#ffd400', histOnNow(), histAlarmBlink) +
+      mainBtn('pty', '파티 모집', BDO_BTN(TI_USERS), '#ff7a59', partyShown, partyAlarmBlink) +
+      mainBtn('opt', '검은사막 옵션', BDO_BTN(TI_SLIDERS), '#ccc', true, false) +
+      '</span></div>' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:1px;padding-left:19px">' +
+      (nc
+        ? '<div style="flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">다음 <b>' + nc.bosses.map((n) => esc(n)).join(' · ') + '</b> <span style="color:#888">(' + esc(nc.label) + ')</span></div>' +
+          '<span id="__kw_bdo_main_left" style="flex:none;font-size:12px;font-weight:bold;color:' + BDO_BLUE + ';white-space:nowrap">' + fmtLong(nc.t - Date.now()) + '</span>'
+        : '<div style="flex:1;font-size:12px;color:#888">다음 우두머리 없음 (확장 옵션에서 선택)</div>') +
+      '</div>';
+  }
+  function updateMain(now) {
+    const stack = document.getElementById('__kw_stack');
+    const panel = document.getElementById('__kw_panel');
+    if (!stack || !panel || !panel.classList.contains('show')) { removeMain(); return; }
+    if (!mainEl || !mainEl.isConnected) {
+      mainEl = document.createElement('div');
+      mainEl.id = '__kw_bdo_main';
+      mainEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid ' + BDO_BLUE + ';position:relative';
+      mainEl.onclick = (e) => { // 버튼 4개 (1초마다 다시 그리므로 위임으로 한 번만 달아 둔다)
+        const b = e.target && e.target.closest ? e.target.closest('[data-bdo-act]') : null;
+        if (!b) return;
+        const act = b.getAttribute('data-bdo-act');
+        if (act === 'opt') { try { if (KW && typeof KW.openOpts === 'function') KW.openOpts(ID); } catch (er) {} return; }
+        if (act === 'evt') { setShow(LS_SHOW_EVT, !showEvt()); try { updateEvents(Date.now()); } catch (er) {} }
+        else if (act === 'cpn') { setShow(LS_SHOW_CPN, !showCpn()); try { updateCoupons(Date.now()); } catch (er) {} }
+        else if (act === 'fam') { setShow(LS_SHOW_FAM, !showFam()); try { updateFamily(Date.now()); } catch (er) {} }
+        else if (act === 'hist') {
+          try { histShown = !histShown; } catch (er) {}
+          histAlarmBlink = false;
+          try { if (typeof applyHistVisibility === 'function') applyHistVisibility(); } catch (er) {}
+          try { if (typeof renderPanel === 'function') renderPanel(); } catch (er) {}
+        }
+        else if (act === 'pty') {
+          partyAlarmBlink = false;
+          setPartyShown(!partyShown);
+          try { updateParty(Date.now()); } catch (er) {}
+        }
+        mainSig = null;
+        try { updateMain(Date.now()); } catch (er) {}
       };
-      stack.appendChild(nextEl);
+      stack.appendChild(mainEl);
+      mainSig = null;
     }
     bdoOrder();
-    const when = new Date(next.t + KST);
-    const days = Math.floor((next.t + KST) / DAY) - Math.floor((now + KST) / DAY);
-    const dayTxt = days <= 1 ? '' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + '요일 ';
-    // 쿠폰 모아보기 창과 같은 디자인: 굵은 12px 제목 줄(이모지 아이콘 + 제목) → 보스 이름 줄 → 시각 줄
-    nextEl.innerHTML = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SWORDS, '#3b9eff') + '다음 우두머리 (' + dayTxt + next.hhmm + ')</b></div>' +
-      // 한 줄: 보스 이름 ········· 남은 시간(34:08, 오른쪽 끝). 본문은 타이틀 글자 시작점에 맞춤
-      '<div style="display:flex;align-items:center;gap:8px;margin-top:2px;padding-left:19px;padding-right:19px">' +
-      '<div style="font-size:13px;font-weight:bold;display:flex;flex-wrap:wrap;gap:2px 10px;word-break:keep-all;min-width:0">' + next.bosses.map((n) => '<span>' + esc(n) + '</span>').join('') + '</div>' +
-      '<span style="flex:none;margin-left:auto;font-size:12px;font-weight:bold;color:#3b9eff;white-space:nowrap">' + fmtLong(next.t - now) + '</span></div>' + xBtn('__kw_bdop_x', '#3b9eff', 'position:absolute;top:2px;right:3px');
-    try { // 창 기본형 상속: 우두머리=가로 (dock=스택공유, float=자기너비)
-      if (KW && typeof KW.window === 'function') KW.window(nextEl, { color: '#3b9eff', posKey: LS_BDOPPOS, rsz: 'h', dock: () => bdoOrder() });
-      else if (KW && typeof KW.float === 'function') KW.float(nextEl, { color: '#3b9eff', key: LS_BDOPPOS, dock: () => bdoOrder() });
+    const nc = nextCounter(now);
+    const sig = [showEvt() ? 1 : 0, showCpn() ? 1 : 0, showFam() ? 1 : 0, evtAlarmBlink ? 1 : 0, cpnAlarmBlink ? 1 : 0, histOnNow() ? 1 : 0, partyShown ? 1 : 0, histAlarmBlink ? 1 : 0, partyAlarmBlink ? 1 : 0, nc ? nc.t + '|' + nc.bosses.join(',') : '-'].join('|');
+    if (sig !== mainSig) { mainSig = sig; renderMain(nc); }
+    else if (nc) { // 카운터 숫자만 갱신 (버튼 깜빡임 방지)
+      try { const l = mainEl.querySelector('#__kw_bdo_main_left'); if (l) l.textContent = fmtLong(nc.t - now); } catch (e) {}
+    }
+    try { // 창 기본형 상속: 감시중과 같은 도크형 (가로=스택공유, 이동 불가)
+      if (KW && typeof KW.window === 'function') KW.window(mainEl, { color: BDO_BLUE, rsz: 'h', dock: () => bdoOrder() });
     } catch (e) {}
   }
 
@@ -375,8 +442,7 @@
   const ICON_FAIL = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#ff7b7b" stroke-width="2.6" stroke-linecap="round"><path d="M12 6v8M12 18v.5"/></svg>';
   const pad2 = (n) => String(n).padStart(2, '0');
   // 창 오른쪽 위 X 버튼 (창 색에 맞춤). 누르면 설정 > 확장의 해당 옵션을 끈다.
-  const xBtn = (id, color, style) => '<button id="' + id + '" title="닫기 (설정 > 확장에서 다시 켤 수 있음)" style="border:0;background:transparent;color:' + color + ';cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;' + (style || '') + '"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
-  const turnOff = (key) => { try { if (typeof KW.setOption === 'function') KW.setOption(ID, key, false); } catch (e) {} };
+  const xBtn = (id, color, style, title) => '<button id="' + id + '" title="' + (title || '닫기 (설정 > 확장에서 다시 켤 수 있음)') + '" style="border:0;background:transparent;color:' + color + ';cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;' + (style || '') + '"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
   const ICON_COPY = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
   const ICON_OK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#7dffb3" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -385,8 +451,7 @@
     const l = cpnData && Array.isArray(cpnData.coupons) ? cpnData.coupons : [];
     return l.filter((c) => c && c.code && (!c.expiresAt || c.expiresAt > now)); // 기간이 지난 쿠폰은 숨김
   }
-  // [BETA-TEST-ONLY:start]
-  // 새 쿠폰 감지·알림 (베타 전용): 본 적 없는 유효 쿠폰이 들어오면 토스트+알림음. 첫 수신 때는 조용히 기억만.
+  // 새 쿠폰 감지·알림: 본 적 없는 유효 쿠폰이 들어오면 토스트+알림음 (+확장 TTS). 첫 수신 때는 조용히 기억만.
   const LS_CPNSEEN = '__kw_cpn_seen';
   function cpnSeenSet() { try { return new Set(JSON.parse(localStorage.getItem(LS_CPNSEEN)) || []); } catch (e) { return new Set(); } }
   function cpnCheckNew() {
@@ -399,14 +464,22 @@
   }
   function cpnAlarmNew(fresh) {
     (fresh || []).forEach((c) => {
-      try { if (typeof KW.toast === 'function') KW.toast('🎟 새 쿠폰', (c.name || '쿠폰') + '\n' + c.code); } catch (e) {}
+      try {
+        if (typeof KW.toast === 'function') KW.toast('🎟 새 쿠폰', (c.name || '쿠폰') + '\n' + c.code, () => {
+          setShow(LS_SHOW_CPN, true); mainSig = null; // 토스트 클릭=쿠폰창 열기
+          try { updateCoupons(Date.now()); } catch (e) {}
+          try { updateMain(Date.now()); } catch (e) {}
+        });
+      } catch (e) {}
     });
     if (fresh && fresh.length) {
       try { if (opt('sound', true) && typeof KW.sound === 'function') KW.sound(); } catch (e) {}
       try { if (typeof KW.emit === 'function') KW.emit('coupon', { coupons: fresh.map((c) => ({ name: c.name, code: c.code })) }); } catch (e) {}
+      if (!showCpn()) { cpnAlarmBlink = true; try { updateMain(Date.now()); } catch (e) {} } // 숨어있으면 메인 버튼 반짝임
     }
     return (fresh || []).length;
   }
+  // [BETA-TEST-ONLY:start]
   // 테스트: 콘솔에서 __kwBdoCouponTest() 를 호출하면 가짜 새 쿠폰으로 알람 경로를 즉시 시험 (옵션 무시)
   if (KW.beta) { // 정식 앱에서는 테스트 후크를 만들지 않는다
     window.__kwBdoCouponTest = () => {
@@ -427,6 +500,17 @@
       cpnState = 'ok'; cpnSig = '';
       try { updateCoupons(Date.now()); } catch (e) {}
       return '쿠폰 임박 깜빡임 테스트: ' + code;
+    };
+    // 테스트: __kwBdoEventTest() → 가짜 새 이벤트로 알람 경로 즉시 시험 (옵션 무시)
+    window.__kwBdoEventTest = () => {
+      const link = 'https://www.kr.playblackdesert.com/ko-KR/News/Detail?groupContentNo=13733#evttest' + Date.now().toString(36);
+      if (!evtData || !Array.isArray(evtData.events)) evtData = { updatedAt: Date.now(), events: [] };
+      evtData.events.unshift({ category: 'NEW 이벤트', title: '테스트 새 이벤트', period: '', summary: '새 이벤트 알람 시험용', link });
+      evtState = 'ok'; evtSig = '';
+      evtAlarmNew([{ title: '테스트 새 이벤트', link }]);
+      try { const s = evtSeenSet(); s.add(link); localStorage.setItem(LS_EVTSEEN, JSON.stringify([...s].slice(-200))); } catch (e) {}
+      try { updateEvents(Date.now()); } catch (e) {}
+      return '이벤트 테스트 알람: ' + link;
     };
     // 테스트: __kwBdoEventUrgTest() → 12시간 뒤 종료 가짜 이벤트로 마감 임박 깜빡임 즉시 시험
     window.__kwBdoEventUrgTest = () => {
@@ -458,9 +542,7 @@
       .then((j) => {
         if (!j || !Array.isArray(j.coupons)) throw new Error('format');
         cpnData = j; cpnState = 'ok';
-        // [BETA-TEST-ONLY:start]
-        try { cpnAlarmNew(cpnCheckNew()); } catch (e) {} // 새 쿠폰 감지·알림 (베타 전용)
-        // [BETA-TEST-ONLY:end]
+        try { const fresh = cpnCheckNew(); if (opt('couponAlarm', true)) cpnAlarmNew(fresh); } catch (e) {} // 새 쿠폰 감지·알림 (끄면 조용히 기억만)
       })
       .catch(() => { cpnState = cpnData ? 'ok' : 'err'; }) // 실패해도 이전에 받은 목록은 유지
       .then(() => { cpnFetchedAt = Date.now(); }) // 실패해도 1시간 뒤에 다시 시도
@@ -499,7 +581,7 @@
       '<b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_TICKET, '#b784ff') + '쿠폰 모아보기&nbsp;<span style="color:#b784ff">(' + list.length + ')</span></b>' +
       (fold && urgKeys.length ? urgOffBtn('cpn-all', true) : '') +
       '<span style="display:inline-flex;align-items:center"><button id="__kw_cpn_rf" class="' + (busy ? '__kw_ic __kw_spin' : '') + '" title="' + (cpnFetchedAt ? '새로고침 (마지막 갱신 ' + pad2(new Date(cpnFetchedAt).getHours()) + ':' + pad2(new Date(cpnFetchedAt).getMinutes()) + ':' + pad2(new Date(cpnFetchedAt).getSeconds()) + ')' : '새로고침') + '" style="border:0;background:transparent;color:#b784ff;cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;position:relative;top:1.5px">' + (busy ? ICON_REFRESH : flash ? (cpnFlashErr ? ICON_FAIL : ICON_DONE) : ICON_REFRESH) + '</button>' +
-      '<span title="' + (fold ? '펼치기' : '접기') + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:#b784ff;position:absolute;top:2px;right:26px;z-index:2"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (fold ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></span></div>' + xBtn('__kw_cpn_x', '#b784ff', 'position:absolute;top:2px;right:3px;z-index:2');
+      '<span title="' + (fold ? '펼치기' : '접기') + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:#b784ff;position:absolute;top:2px;right:26px;z-index:2"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (fold ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></span></div>' + xBtn('__kw_cpn_x', '#b784ff', 'position:absolute;top:2px;right:3px;z-index:2', SHOW_X_TITLE);
     if (!fold) {
       h += '<div style="height:1px;background:rgba(255,255,255,.14);margin:4px -10px"></div>';
       h += '<div class="__kw_sb_cpn" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
@@ -584,7 +666,7 @@
       cpnSig = '';
     };
     const cx = cpnEl.querySelector('#__kw_cpn_x');
-    if (cx) cx.onclick = (e) => { e.stopPropagation(); turnOff('coupons'); removeCoupons(); };
+    if (cx) cx.onclick = (e) => { e.stopPropagation(); setShow(LS_SHOW_CPN, false); removeCoupons(); mainSig = null; try { updateMain(Date.now()); } catch (er) {} };
     const rf = cpnEl.querySelector('#__kw_cpn_rf');
     if (rf) rf.onclick = (e) => { e.stopPropagation(); if (cpnState === 'loading') return; loadCoupons(true); renderCoupons(Date.now()); };
     cpnEl.querySelectorAll('.__kw_cpn_cp').forEach((el) => {
@@ -645,9 +727,11 @@
   function updateCoupons(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
-    if (!opt('coupons', true) || !stack || !panel || !panel.classList.contains('show')) { removeCoupons(); return; }
-    if (cpnState === 'idle') loadCoupons(); // 처음 켜질 때 한 번 받아온다
+    if (!stack || !panel || !panel.classList.contains('show')) { removeCoupons(); return; }
+    if (cpnState === 'idle') loadCoupons(); // 처음 켜질 때 한 번 받아온다 (창 숨김과 무관, 알람용)
     else if (cpnState !== 'loading' && cpnSlotDue(now)) loadCoupons(); // 이후 매시 17분에 자동 갱신
+    if (!showCpn()) { removeCoupons(); return; } // 창 숨김: 데이터·알람은 위에서 계속
+    cpnAlarmBlink = false; // 창이 보이면 메인 반짝임 해제
     if (!cpnEl || !cpnEl.isConnected) {
       cpnEl = document.createElement('div');
       cpnEl.id = '__kw_cpn';
@@ -682,6 +766,34 @@
   let evtBusyUntil = 0; // 이 시각까지는 "가져오는 중"(도는 아이콘)으로 보여줌
   let evtFlashUntil = 0; // 이 시각까지는 완료(체크)/실패(!) 표시
   let evtFlashErr = false;
+  // 새 이벤트 감지·알림: 본 적 없는 이벤트가 들어오면 토스트+알림음 (+확장 TTS). 첫 수신 때는 조용히 기억만.
+  const LS_EVTSEEN = '__kw_evt_seen';
+  function evtSeenSet() { try { return new Set(JSON.parse(localStorage.getItem(LS_EVTSEEN)) || []); } catch (e) { return new Set(); } }
+  function evtCheckNew() {
+    const list = evtList();
+    const seen = evtSeenSet();
+    const fresh = list.filter((c) => c && c.link && !seen.has(c.link));
+    try { localStorage.setItem(LS_EVTSEEN, JSON.stringify(list.map((c) => c.link).slice(-200))); } catch (e) {}
+    if (!seen.size) return []; // 첫 수신: 알람 없이 기억만
+    return fresh;
+  }
+  function evtAlarmNew(fresh) {
+    (fresh || []).forEach((c) => {
+      try {
+        if (typeof KW.toast === 'function') KW.toast('📅 새 이벤트', (c.title || '이벤트'), () => {
+          setShow(LS_SHOW_EVT, true); mainSig = null; // 토스트 클릭=이벤트창 열기
+          try { updateEvents(Date.now()); } catch (e) {}
+          try { updateMain(Date.now()); } catch (e) {}
+        });
+      } catch (e) {}
+    });
+    if (fresh && fresh.length) {
+      try { if (opt('sound', true) && typeof KW.sound === 'function') KW.sound(); } catch (e) {}
+      try { if (typeof KW.emit === 'function') KW.emit('event', { events: fresh.map((c) => ({ title: c.title, link: c.link })) }); } catch (e) {}
+      if (!showEvt()) { evtAlarmBlink = true; try { updateMain(Date.now()); } catch (e) {} } // 숨어있으면 메인 버튼 반짝임
+    }
+    return (fresh || []).length;
+  }
   function evtFolded() { try { return localStorage.getItem(LS_EVT_FOLD) === '1'; } catch (e) { return false; } }
   function evtList() {
     const l = evtData && Array.isArray(evtData.events) ? evtData.events : [];
@@ -702,6 +814,7 @@
       .then((j) => {
         if (!j || !Array.isArray(j.events)) throw new Error('format');
         evtData = j; evtState = 'ok';
+        try { const fresh = evtCheckNew(); if (opt('eventAlarm', true)) evtAlarmNew(fresh); } catch (e) {} // 새 이벤트 감지·알림 (끄면 조용히 기억만)
       })
       .catch(() => { evtState = evtData ? 'ok' : 'err'; }) // 실패해도 이전에 받은 목록은 유지
       .then(() => { evtFetchedAt = Date.now(); }) // 실패해도 6시간 뒤에 다시 시도
@@ -753,7 +866,7 @@
       '<b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_CAL, EVT_COLOR) + '이벤트 모아보기&nbsp;<span style="color:' + EVT_COLOR + '">(' + list.length + ')</span></b>' +
       (fold && urgKeys.length ? urgOffBtn('evt-all', true) : '') +
       '<span style="display:inline-flex;align-items:center"><button id="__kw_evt_rf" class="' + (busy ? '__kw_ic __kw_spin' : '') + '" title="' + (evtFetchedAt ? '새로고침 (마지막 갱신 ' + pad2(new Date(evtFetchedAt).getHours()) + ':' + pad2(new Date(evtFetchedAt).getMinutes()) + ':' + pad2(new Date(evtFetchedAt).getSeconds()) + ')' : '새로고침') + '" style="border:0;background:transparent;color:' + EVT_COLOR + ';cursor:pointer;padding:5px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;position:relative;top:1.5px">' + (busy ? ICON_REFRESH : flash ? (evtFlashErr ? ICON_FAIL : ICON_DONE) : ICON_REFRESH) + '</button>' +
-      '<span title="' + (fold ? '펼치기' : '접기') + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:' + EVT_COLOR + ';position:absolute;top:2px;right:26px;z-index:2"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (fold ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></span></div>' + xBtn('__kw_evt_x', EVT_COLOR, 'position:absolute;top:2px;right:3px;z-index:2');
+      '<span title="' + (fold ? '펼치기' : '접기') + '" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:' + EVT_COLOR + ';position:absolute;top:2px;right:26px;z-index:2"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (fold ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></span></div>' + xBtn('__kw_evt_x', EVT_COLOR, 'position:absolute;top:2px;right:3px;z-index:2', SHOW_X_TITLE);
     if (!fold) {
       h += '<div style="height:1px;background:rgba(255,255,255,.14);margin:4px -10px"></div>';
       h += '<div class="__kw_sb_evt" style="flex:1;min-height:0;overflow-y:auto;margin-top:4px">';
@@ -803,7 +916,7 @@
       evtSig = '';
     };
     const cx = evtEl.querySelector('#__kw_evt_x');
-    if (cx) cx.onclick = (e) => { e.stopPropagation(); turnOff('events'); removeEvents(); };
+    if (cx) cx.onclick = (e) => { e.stopPropagation(); setShow(LS_SHOW_EVT, false); removeEvents(); mainSig = null; try { updateMain(Date.now()); } catch (er) {} };
     const rf = evtEl.querySelector('#__kw_evt_rf');
     if (rf) rf.onclick = (e) => { e.stopPropagation(); if (evtState === 'loading') return; loadEvents(true); renderEvents(Date.now()); };
     evtEl.querySelectorAll('[data-evt-go]').forEach((el) => {
@@ -878,13 +991,15 @@
   function updateEvents(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
-    if (!opt('events', true) || !stack || !panel || !panel.classList.contains('show')) { removeEvents(); return; }
-    if (evtState === 'idle') loadEvents(); // 처음 켜질 때 한 번 받아온다
+    if (!stack || !panel || !panel.classList.contains('show')) { removeEvents(); return; }
+    if (evtState === 'idle') loadEvents(); // 처음 켜질 때 한 번 받아온다 (창 숨김과 무관, 알람용)
     else if (evtState !== 'loading' && now - evtFetchedAt >= BOSS_REFRESH_MS) loadEvents(); // 이후 6시간마다
     else if (evtState !== 'loading' && evtSlotDue(now)) { // 매주 수요일 12:27 슬롯 (보스와 동일)
       try { localStorage.setItem(LS_EVTSLOT, String(bossSlotTime(now))); } catch (e) {}
       loadEvents();
     }
+    if (!showEvt()) { removeEvents(); return; } // 창 숨김: 데이터·알람은 위에서 계속
+    evtAlarmBlink = false; // 창이 보이면 메인 반짝임 해제
     if (!evtEl || !evtEl.isConnected) {
       evtEl = document.createElement('div');
       evtEl.id = '__kw_evt';
@@ -904,7 +1019,7 @@
   const PARTY_MAX_MIN = 10;
   let parties = []; // { id, nick, kind, content, exp }
   let partyEl = null, partySig = null;
-  let partyShown = false; // 파티모집 창 표시 상태 (기본 숨음, 알림 조건 충족 시 자동 표시, X로 닫으면 다음 알림까지 숨음)
+  // partyShown/partyAlarmBlink는 코어(src/core.js)와 공유 (녹색창 버튼도 같은 값을 씀)
   function partyKindsSel() {
     const v = opt('partyKinds', null);
     return Array.isArray(v) ? v : PARTY_KINDS.slice();
@@ -968,8 +1083,10 @@
         try { KW.toast('👥 ' + e.kind + ' 파티 모집', nick + (e.content ? ': ' + e.content : '')); } catch (er) {}
         if (opt('sound', true)) { if (typeof KW.sound === 'function') KW.sound(); else beep(); }
         try { if (typeof KW.emit === 'function') KW.emit('party', { nick, kind: e.kind, content: e.content }); } catch (er) {}
-        partyShown = true;
+        setPartyShown(true);
+        partyAlarmBlink = true; // 보이면 아래 updateParty가 바로 해제, 숨어있으면 메인 버튼 반짝임 유지
         try { updateParty(Date.now()); } catch (er) {}
+        try { updateMain(Date.now()); } catch (er) {}
       }
     } catch (e) {}
   }
@@ -1008,21 +1125,29 @@
     partyEl = null;
     partySig = null;
   }
+  function setPartyShown(v) { // 표시 전환 (바뀔 때만 녹색 버튼 갱신)
+    v = !!v;
+    if (partyShown === v) return;
+    partyShown = v;
+    if (!v) partyAlarmBlink = false; // 닫힘=확인
+    try { if (typeof renderPanel === 'function') renderPanel(); } catch (e) {}
+  }
   function updateParty(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
-    if (!opt('party', true)) { parties = []; partyShown = false; removeParty(); return; }
+    if (!opt('party', true)) { parties = []; setPartyShown(false); removeParty(); return; }
     if (!stack || !panel || !panel.classList.contains('show')) { removeParty(); return; }
     parties = parties.filter((x) => x.exp > now);
     const sel = partyKindsSel();
     const list = parties.filter((x) => sel.includes(x.kind));
     if (!partyShown) { removeParty(); return; } // 기본 숨음 + X로 닫은 뒤: 새 알림까지 숨음 유지
-    if (!list.length) { partyShown = false; removeParty(); return; } // 모두 만료되면 자동 숨김
+    if (!list.length) { setPartyShown(false); removeParty(); return; } // 모두 만료되면 자동 숨김
+    if (partyAlarmBlink) { partyAlarmBlink = false; try { if (typeof renderPanel === 'function') renderPanel(); } catch (e) {} } // 보이면 반짝임 해제
     if (!partyEl || !partyEl.isConnected) {
       partyEl = document.createElement('div');
       partyEl.id = '__kw_bdo_party';
       partyEl.onclick = (e) => {
-        if (e.target && e.target.closest && e.target.closest('#__kw_bdo_party_x')) { partyShown = false; removeParty(); return; } // X = 창만 닫기 (알림 옵션 유지)
+        if (e.target && e.target.closest && e.target.closest('#__kw_bdo_party_x')) { setPartyShown(false); removeParty(); return; } // X = 창만 닫기 (알림 옵션 유지)
         if (e.target && e.target.closest && e.target.closest('[data-pdel]')) return; // 베타 삭제 버튼은 이동하지 않음
         const row = e.target && e.target.closest ? e.target.closest('[data-pjump]') : null;
         if (row) jumpToParty(row.getAttribute('data-pjump'));
@@ -1184,7 +1309,7 @@
       const ae = document.activeElement;
       if (ae && famEl.contains(ae) && ae.id) refocus = { id: ae.id, s: ae.selectionStart, e: ae.selectionEnd };
     } catch (er) {}
-    famEl.innerHTML = xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2') +
+    famEl.innerHTML = xBtn('__kw_bdo_family_x', '#ff7ab8', 'position:absolute;top:2px;right:3px;z-index:2', SHOW_X_TITLE) +
       '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_SEARCH, '#ff7ab8') + '검은사막 검색</b>' +
       '<button id="__kw_fam_src" title="데이터 출처" style="align-self:center;width:16px;height:16px;margin-left:6px;padding:0;border-radius:50%;border:1px solid #8a8a99;background:transparent;color:#ccc;font:bold 11px/14px sans-serif;cursor:pointer;flex:none">?</button></div>' +
       '<div style="display:flex;gap:6px;flex:none;margin-top:4px;padding-left:19px"><input id="__kw_fam_q" class="__kw_in" placeholder="가문명 입력" value="' + esc(famQuery) + '" style="flex:1;min-width:0"><button id="__kw_fam_go" title="검색" style="border:0;background:transparent;color:#ff7ab8;padding:5px;border-radius:8px;cursor:pointer;flex:none;display:inline-flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">' + TI_SEARCH + '</svg></button></div>' +
@@ -1238,7 +1363,7 @@
     const ig = famEl.querySelector('#__kw_item_go');
     if (ig) ig.onclick = goItem;
     const fx = famEl.querySelector('#__kw_bdo_family_x');
-    if (fx) fx.onclick = (e) => { e.stopPropagation(); turnOff('family'); removeFamily(); removeRes(); };
+    if (fx) fx.onclick = (e) => { e.stopPropagation(); setShow(LS_SHOW_FAM, false); removeFamily(); removeRes(); mainSig = null; try { updateMain(Date.now()); } catch (er) {} };
     const sbtn = famEl.querySelector('#__kw_fam_src');
     if (sbtn) sbtn.onclick = (e) => { try { e.stopPropagation(); } catch (er) {} openFamSrc(sbtn); };
     // 다시 그리기로 날아간 포커스 복구 (커서 위치 포함)
@@ -1252,7 +1377,7 @@
   function updateFamily(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
-    if (!opt('family', true)) { removeFamily(); return; }
+    if (!showFam()) { removeFamily(); return; }
     if (!stack || !panel || !panel.classList.contains('show')) { removeFamily(); return; }
     if (!famEl || !famEl.isConnected) {
       famEl = document.createElement('div');
@@ -2415,7 +2540,7 @@
   function updateRes(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
-    if (!opt('family', true) || !stack || !panel || !panel.classList.contains('show') || !famEl || !famEl.isConnected) { removeRes(); return; }
+    if (!showFam() || !stack || !panel || !panel.classList.contains('show') || !famEl || !famEl.isConnected) { removeRes(); return; }
     if (!resKinds().length) { removeRes(); return; }
     if (!resEl || !resEl.isConnected) {
       resEl = document.createElement('div');
@@ -2622,7 +2747,7 @@
     try { const sc2 = marketEl.querySelector('.__kw_sb_mkt'); if (sc2) sc2.scrollTop = mSt; } catch (e) {}
   }
   function updateMarket() {
-    if (!opt('family', true)) { removeMarket(); return; }
+    if (!showFam()) { removeMarket(); return; }
     if (marketPhase === 'idle' && !marketData) { removeMarket(); return; }
     if (!marketEl || !marketEl.isConnected) {
       if (marketPhase === 'loading') return; // 조회 중에는 결과 확정 후 생성 (빈 창 방지)
@@ -2838,14 +2963,14 @@
         }
         lastHref = href;
       } catch (e) {}
-      if (!KW.enabled(ID)) { clearAll(); removeNext(); removeCoupons(); removeEvents(); removeParty(); removeFamily(); removeRes(); marketData = null; marketPhase = 'idle'; try { if (typeof removeMarket === 'function') removeMarket(); } catch (e) {} return; }
+      if (!KW.enabled(ID)) { clearAll(); removeMain(); removeCoupons(); removeEvents(); removeParty(); removeFamily(); removeRes(); marketData = null; marketPhase = 'idle'; try { if (typeof removeMarket === 'function') removeMarket(); } catch (e) {} return; }
       const now = Date.now();
       if (now - bossFetchedAt >= BOSS_REFRESH_MS) loadSchedule(); // 처음 켜질 때 한 번, 이후 6시간마다
       if (bossSlotDue(now)) { // 매주 수요일 12:27 (액션 17분 뒤)
         try { localStorage.setItem(LS_BOSSLOT, String(bossSlotTime(now))); } catch (e) {}
         loadSchedule();
       }
-      updateNext(now);
+      updateMain(now);
       updateCoupons(now);
       updateEvents(now);
       updateParty(now);

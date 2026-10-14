@@ -446,6 +446,8 @@ function attachHistHandlers() {
   if (x) x.onclick = () => { // X = 창만 닫기 (알림 옵션은 유지, 다음 알람에 다시 표시)
     try { histShown = false; } catch (e) {}
     applyHistVisibility();
+    renderPanel();
+    try { if (window.__KW && typeof window.__KW.refreshBdo === 'function') window.__KW.refreshBdo(); } catch (e) {}
     dlog('hist-closed');
   };
   const b = histPanel.querySelector('#__kw_hits');
@@ -486,6 +488,7 @@ function applyHistVisibility() {
   if (!histPanel) return;
   const show = histOn() && histShown && panel && panel.classList.contains('show');
   histPanel.style.display = show ? 'flex' : 'none'; // 세로 flex: 화면이 모자라면 목록이 먼저 줄어든다
+  if (show && histAlarmBlink) histAlarmBlink = false; // 열린 것은 확인한 것으로 봄
 }
 function buildPanel() {
   ensureMidrow();
@@ -529,6 +532,7 @@ const IC = {
   down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>',
   house: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7M6 9.5V20h12V9.5"/></svg>',
   box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5V8zM3 8l9 5 9-5M12 13v8"/></svg>',
+  users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.2a4.2 4.2 0 0 1 4.5 4.3V20"/></svg>',
   bspirit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 9-9 9-9-9z"/><path d="M12 8l4 4-4 4-4-4z"/></svg>',
   chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4V5z"/></svg>',
 };
@@ -576,12 +580,10 @@ function chLinksHtml() {
   return h;
 }
 
-// 알람 끄기: 녹색 창 아이콘과 설정의 체크를 같이 맞춘다
+// 알람 끄기: 설정의 체크에 반영 (녹색 창 단축 버튼은 불린대화 버튼으로 대체됨)
 function setMuted(v) {
   try { localStorage.setItem(LS_MUTE, v ? '1' : '0'); } catch (err) {}
   dlog('mute', v);
-  const b = panel && panel.querySelector('#__kw_mutebtn');
-  if (b) { b.innerHTML = v ? IC.bellOff : IC.bell; b.style.color = v ? '#ff9f1a' : '#00ffa3'; b.title = v ? '알람 꺼짐 (누르면 켜기)' : '알람 켜짐 (누르면 끄기)'; }
   const c = setPanel && setPanel.querySelector('#__kw_mute');
   if (c) c.checked = v;
 }
@@ -590,12 +592,24 @@ function renderPanel() {
   panel.className = 'show' + (running ? '' : ' off');
 
   panel.innerHTML = `
-    <div id="__kw_row"><div style="flex:1;min-width:0"><div id="__kw_ch"><span style="display:inline-flex;align-items:center;gap:5px;min-width:0"><span class="__kw_ti" style="color:#00ffa3">${IC.house}</span><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(chDisplayName())}</b></span><span id="__kw_links">${chLinksHtml()}<button class="__kw_ic" id="__kw_gear" title="설정" style="color:#00ffa3">${IC.sliders}</button></span></div><div id="__kw_titlerow"><div id="__kw_title" style="flex:1;min-width:0"><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b><span id="__kw_dot"></span> · 단어 ${keywords.length}개</div><span style="display:inline-flex;gap:0;flex:none"><button class="__kw_ic" id="__kw_mutebtn" title="${muted() ? '알람 꺼짐 (누르면 켜기)' : '알람 켜짐 (누르면 끄기)'}" style="color:${muted() ? '#ff9f1a' : '#00ffa3'}">${muted() ? IC.bellOff : IC.bell}</button><button class="__kw_ic" id="__kw_btn" title="${running ? '정지' : '시작'}" style="color:#00ffa3">${running ? IC.pause : IC.play}</button></span></div></div></div>
+    <div id="__kw_row"><div style="flex:1;min-width:0"><div id="__kw_ch"><span style="display:inline-flex;align-items:center;gap:5px;min-width:0"><span class="__kw_ti" style="color:#00ffa3">${IC.house}</span><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(chDisplayName())}</b></span><span id="__kw_links">${chLinksHtml()}<button class="__kw_ic" id="__kw_gear" title="설정" style="color:#00ffa3">${IC.sliders}</button></span></div><div id="__kw_titlerow"><div id="__kw_title" style="flex:1;min-width:0"><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b><span id="__kw_dot"></span> · 단어 ${keywords.length}개</div><span style="display:inline-flex;gap:0;flex:none"><button class="__kw_ic${histAlarmBlink ? ' __kw_urg' : ''}" id="__kw_histbtn" title="불린 대화${histAlarmBlink ? ' (새 알림)' : ''}" style="color:${histAlarmBlink || (histOn() && histShown) ? '#ffd400' : '#555'}">${IC.bell}</button><button class="__kw_ic${partyAlarmBlink ? ' __kw_urg' : ''}" id="__kw_partybtn" title="파티 모집${partyAlarmBlink ? ' (새 알림)' : ''}" style="color:${partyAlarmBlink || partyShown ? '#ff7a59' : '#555'}">${IC.users}</button><button class="__kw_ic" id="__kw_btn" title="${running ? '정지' : '시작'}" style="color:#00ffa3">${running ? IC.pause : IC.play}</button></span></div></div></div>
     <div id="__kw_expwarn" style="display:${allowExpiry ? 'block' : 'none'};font-size:11px;color:#ff9f1a;margin-top:4px">⚠ 만료 경고 · ${allowExpiry ? escapeHtml(allowExpiry.date) : ''} 만료, ${allowExpiry ? allowExpiry.stopDays : ''}일 뒤 동작 중지</div>
     <div id="__kw_warn" style="display:${limitedMode ? 'block' : 'none'};font-size:11px;color:#ffd400;margin-top:4px">⚠ 사용자 스크립트 허용 꺼짐: WS 감시 불가, DOM 감시만 동작. chrome://extensions → Tampermonkey 상세에서 허용 후 새로고침</div>`;
 
   panel.querySelector('#__kw_btn').onclick = () => (running ? stop() : start());
-  panel.querySelector('#__kw_mutebtn').onclick = () => setMuted(!muted());
+  panel.querySelector('#__kw_histbtn').onclick = () => { // 불린대화 창 띄우기/숨기기 (감시중 옆 종 버튼 자리)
+    try { histShown = !histShown; } catch (e) {}
+    histAlarmBlink = false;
+    applyHistVisibility();
+    renderPanel();
+    try { if (window.__KW && typeof window.__KW.refreshBdo === 'function') window.__KW.refreshBdo(); } catch (e) {}
+  };
+  panel.querySelector('#__kw_partybtn').onclick = () => { // 파티모집 창 띄우기/숨기기
+    try { partyShown = !partyShown; } catch (e) {}
+    partyAlarmBlink = false;
+    renderPanel();
+    try { if (window.__KW && typeof window.__KW.refreshBdo === 'function') window.__KW.refreshBdo(); } catch (e) {}
+  };
   panel.querySelector('#__kw_gear').onclick = () => {
     setOpen = !setOpen;
     try { localStorage.setItem(LS_SET, setOpen ? '1' : '0'); } catch (e) {}
@@ -1388,7 +1402,7 @@ function renderSettings() {
           <div class="__kw_lbl">프로그램</div>
           <div><b>CHZZK Alert</b></div>
           <!-- [BETA-TEST-ONLY:start] -->
-          <div style="margin-top:4px"><button class="__kw_b" id="__kw_t_drops" style="background:#ff9f1a;color:#000">드롭스 테스트</button> <button class="__kw_b" id="__kw_t_boss" style="background:#ff9f1a;color:#000">보스 테스트</button> <button class="__kw_b" id="__kw_t_coupon" style="background:#ff9f1a;color:#000">쿠폰 테스트</button> <button class="__kw_b" id="__kw_t_cpnurg" style="background:#ff9f1a;color:#000">쿠폰임박 테스트</button> <button class="__kw_b" id="__kw_t_evturg" style="background:#ff9f1a;color:#000">이벤트임박 테스트</button> <button class="__kw_b" id="__kw_t_market" style="background:#ff9f1a;color:#000">거래소 테스트</button></div>
+          <div style="margin-top:4px"><button class="__kw_b" id="__kw_t_drops" style="background:#ff9f1a;color:#000">드롭스 테스트</button> <button class="__kw_b" id="__kw_t_boss" style="background:#ff9f1a;color:#000">보스 테스트</button> <button class="__kw_b" id="__kw_t_coupon" style="background:#ff9f1a;color:#000">쿠폰 테스트</button> <button class="__kw_b" id="__kw_t_event" style="background:#ff9f1a;color:#000">이벤트 테스트</button> <button class="__kw_b" id="__kw_t_cpnurg" style="background:#ff9f1a;color:#000">쿠폰임박 테스트</button> <button class="__kw_b" id="__kw_t_evturg" style="background:#ff9f1a;color:#000">이벤트임박 테스트</button> <button class="__kw_b" id="__kw_t_market" style="background:#ff9f1a;color:#000">거래소 테스트</button></div>
           <div id="__kw_t_msg" class="__kw_lbl"></div>
           <!-- [BETA-TEST-ONLY:end] -->
           <div style="display:flex;align-items:flex-start;gap:5px;margin-top:8px;line-height:18px"><span class="__kw_lbl" style="margin:0;width:5em;flex:none;line-height:18px">제작자</span><b>비류라미</b></div>
@@ -1463,6 +1477,7 @@ function renderSettings() {
     try { localStorage.setItem(LS_HIST, e.target.checked ? '1' : '0'); } catch (err) {}
     applyHistVisibility();
     renderHitsList();
+    renderPanel();
   };
   setPanel.querySelector('#__kw_dedup').onchange = (e) => {
     try { localStorage.setItem(LS_DEDUP, e.target.checked ? '1' : '0'); } catch (err) {}
@@ -1619,6 +1634,10 @@ function renderSettings() {
   if (tCoupon) tCoupon.onclick = () => {
     tSay(typeof window.__kwBdoCouponTest === 'function' ? window.__kwBdoCouponTest() : '검은사막 확장이 켜져 있어야 합니다 (설정 > 확장)');
   };
+  const tEvent = setPanel.querySelector('#__kw_t_event');
+  if (tEvent) tEvent.onclick = () => {
+    tSay(typeof window.__kwBdoEventTest === 'function' ? window.__kwBdoEventTest() : '검은사막 확장이 켜져 있어야 합니다 (설정 > 확장)');
+  };
   const tCpnUrg = setPanel.querySelector('#__kw_t_cpnurg');
   if (tCpnUrg) tCpnUrg.onclick = () => {
     tSay(typeof window.__kwBdoCouponUrgTest === 'function' ? window.__kwBdoCouponUrgTest() : '검은사막 확장이 켜져 있어야 합니다 (설정 > 확장)');
@@ -1677,7 +1696,7 @@ function snapRects(skipEl) {
     if (!r || r.width < 20 || r.height < 20) return;
     out.push({ el, l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height });
   };
-  ['__kw_panel', '__kw_dropsp', '__kw_histp', '__kw_bdop', '__kw_cpn', '__kw_bdo_party', '__kw_bdo_family', '__kw_bdo_family_r', '__kw_bdo_guild_r', '__kw_setp', '__kw_optwin'].forEach((id) => {
+  ['__kw_panel', '__kw_dropsp', '__kw_histp', '__kw_bdo_main', '__kw_cpn', '__kw_bdo_party', '__kw_bdo_family', '__kw_bdo_family_r', '__kw_bdo_guild_r', '__kw_setp', '__kw_optwin'].forEach((id) => {
     try { pushEl(document.getElementById(id)); } catch (e) {}
   });
   try { // 신규 창 자동 포함 (KW.float/window으로 등록된 창). id가 __kw_ 로 시작하지 않으면 제외.

@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린대화 알림 옵션 ('0'=끔, 그 외=
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.5.2-beta001';
+const SCRIPT_VERSION = '3.6.0-beta001';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -23,6 +23,9 @@ const loadNick = () => localStorage.getItem(LS_NICK) ?? localStorage.getItem(LS_
 const saveNick = (v) => localStorage.setItem(LS_NICK, v);
 const histOn = () => { try { return localStorage.getItem(LS_HIST) !== '0'; } catch (e) { return true; } };
 let histShown = false; // 불린대화 창 표시 상태 (기본 숨음, 알람 조건 충족 시 자동 표시, X로 닫으면 다음 알람까지 숨음)
+let histAlarmBlink = false; // 새 불린대화 알림이 왔는데 창이 숨어있으면 메인 버튼 반짝임
+let partyShown = false; // 파티모집 창 표시 상태 (기본 숨음, 알람 시 자동 표시. 검은사막 플러그인과 공유)
+let partyAlarmBlink = false; // 새 파티모집 알림이 왔는데 창이 숨어있으면 메인 버튼 반짝임
 const LS_DEDUP = '__kw_dedup'; // 재알림 방지 옵션. 미설정 시 기존 목록옵션 값을 물려받음
 const dedupOn = () => {
   try {
