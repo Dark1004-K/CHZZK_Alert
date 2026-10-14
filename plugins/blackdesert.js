@@ -8,7 +8,7 @@
   if (!KW || typeof KW.option !== 'function' || typeof KW.enabled !== 'function') return;
   if (window.__kwBdoLoaded) return;
   window.__kwBdoLoaded = true;
-  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.7' }); } catch (e) {}
+  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.0.8' }); } catch (e) {}
   const ID = 'blackdesert';
   // 설정 > 일반설정의 창 투명도를 결과창(fixed, 스택 밖)에도 적용. 본체 KW.opacity() 우선, 없으면 저장값 직접 읽기.
   function bdoOpacity() {
@@ -416,6 +416,28 @@
       try { updateCoupons(Date.now()); } catch (e) {}
       return '쿠폰 테스트 알람: ' + code;
     };
+    // 테스트: __kwBdoCouponUrgTest() → 12시간 뒤 만료 가짜 쿠폰으로 마감 임박 깜빡임 즉시 시험
+    window.__kwBdoCouponUrgTest = () => {
+      const code = 'URGTEST-' + Date.now().toString(36).toUpperCase();
+      if (!cpnData || !Array.isArray(cpnData.coupons)) cpnData = { updatedAt: Date.now(), coupons: [] };
+      cpnData.coupons.push({ name: '테스트 임박 쿠폰', code, expires: '테스트 마감 (약 12시간 남음)', expiresAt: Date.now() + 12 * 3600 * 1000 });
+      cpnState = 'ok'; cpnSig = '';
+      try { updateCoupons(Date.now()); } catch (e) {}
+      return '쿠폰 임박 깜빡임 테스트: ' + code;
+    };
+    // 테스트: __kwBdoEventUrgTest() → 12시간 뒤 종료 가짜 이벤트로 마감 임박 깜빡임 즉시 시험
+    window.__kwBdoEventUrgTest = () => {
+      const t = Date.now() + 12 * 3600 * 1000;
+      const d = new Date(t + KST);
+      const p2 = (n) => String(n).padStart(2, '0');
+      const yo = ['일', '월', '화', '수', '목', '금', '토'][d.getUTCDay()];
+      const period = '~ ' + d.getUTCFullYear() + '년 ' + (d.getUTCMonth() + 1) + '월 ' + d.getUTCDate() + '일(' + yo + ') ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes());
+      if (!evtData || !Array.isArray(evtData.events)) evtData = { updatedAt: Date.now(), events: [] };
+      evtData.events.unshift({ category: 'NEW 이벤트', title: '테스트 임박 이벤트', period, summary: '마감 임박 깜빡임 시험용', link: 'https://www.kr.playblackdesert.com/ko-KR/News/Detail?groupContentNo=13733#urgtest' + Date.now().toString(36) });
+      evtState = 'ok'; evtSig = '';
+      try { updateEvents(Date.now()); } catch (e) {}
+      return '이벤트 임박 깜빡임 테스트: ' + period;
+    };
   }
   // [BETA-TEST-ONLY:end]
   function removeCoupons() {
@@ -696,6 +718,10 @@
       if (!w && typeof KW.toast === 'function') KW.toast('이벤트', '팝업이 차단됐습니다. 팝업을 허용하고 다시 누르세요.');
     } catch (e) {}
   }
+  const LS_EVTCATS = '__kw_evt_cats'; // { [category]: 1 } 접힌 카테고리 (기본: NEW만 펼침)
+  const EVT_CAT_ORDER = ['NEW 이벤트', 'HOT 이벤트', '상시 이벤트'];
+  function evtCatsFolded() { try { return JSON.parse(localStorage.getItem(LS_EVTCATS)) || {}; } catch (e) { return {}; } }
+  function evtCatFolded(cat, map) { const m = map || evtCatsFolded(); if (m && (cat in m)) return !!m[cat]; return cat !== 'NEW 이벤트'; } // 저장값 우선, 기본 NEW만 펼침
   function renderEvents(now) {
     const list = evtList();
     const fold = evtFolded();
@@ -705,7 +731,19 @@
     const off = urgPrune(list.map((c) => 'e:' + c.link)); // 끄기 기록 정리 + 현재 끈 집합
     const urg = (c) => urgIs(urgEndMs(c.period), now) && !off.has('e:' + c.link);
     const urgKeys = list.filter(urg).map((c) => 'e:' + c.link);
-    const sig = [evtState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, evtData ? evtData.updatedAt : 0, evtFetchedAt, list.map((c) => c.link).join(','), urgKeys.join(',')].join('|');
+    const cats = evtCatsFolded();
+    // 카테고리 묶음 (NEW → HOT → 상시 → 기타 순)
+    const gmap = {};
+    const gorder = [];
+    list.forEach((c, i) => { const k = c.category || '기타'; if (!(k in gmap)) { gmap[k] = []; gorder.push(k); } gmap[k].push({ c, i }); });
+    gorder.sort((a, b) => {
+      const ia = EVT_CAT_ORDER.indexOf(a), ib = EVT_CAT_ORDER.indexOf(b);
+      if (ia < 0 && ib < 0) return 0;
+      if (ia < 0) return 1;
+      if (ib < 0) return -1;
+      return ia - ib;
+    });
+    const sig = [evtState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, evtData ? evtData.updatedAt : 0, evtFetchedAt, list.map((c) => c.link).join(','), urgKeys.join(','), JSON.stringify(cats)].join('|');
     if (sig === evtSig && evtEl && evtEl.isConnected) return;
     evtSig = sig;
     let h = '<div id="__kw_evt_hd" style="display:flex;align-items:center;justify-content:flex-start;gap:4px;cursor:pointer;min-height:26px;padding-right:58px">' +
@@ -719,15 +757,25 @@
       if (evtState === 'err') h += '<div style="font-size:11px;color:#ff7b7b;margin-top:6px">이벤트 목록을 받지 못했습니다. 새로고침(↻)을 눌러 보세요.</div>';
       else if (evtState === 'idle' || (evtState === 'loading' && !evtData)) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">불러오는 중...</div>';
       else if (!list.length) h += '<div style="font-size:11px;color:#aaa;margin-top:6px">진행 중인 이벤트가 없습니다.</div>';
-      list.forEach((c, ci) => {
-        const u = urg(c);
-        h += '<div' + (u ? ' class="__kw_urg"' : '') + ' style="' + (ci ? 'margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)' : 'margin-top:2px') + '">' +
-          '<div style="display:flex;align-items:flex-start;gap:4px"><button data-evt-go="' + ci + '" title="상세 페이지 열기" style="border:0;background:transparent;padding:0;cursor:pointer;display:block;flex:1;min-width:0;text-align:left">' +
-          (c.category ? '<span style="display:inline-block;background:rgba(45,212,191,.14);color:' + EVT_COLOR + ';border-radius:6px;padding:1px 6px;font-size:10px;font-weight:bold;margin-bottom:2px">' + esc(c.category) + '</span><br>' : '') +
-          '<span style="font-size:12px;font-weight:bold;color:#fff">' + esc(c.title || '이벤트') + '</span></button>' +
-          (u ? urgOffBtn('e:' + c.link, false) : '') + '</div>' +
-          (c.period ? '<div style="font-size:11px;color:' + EVT_COLOR + '">⏱ ' + esc(c.period) + (u ? ' <b style="color:#ff9a9a">D-1</b>' : '') + '</div>' : '') +
-          (c.summary ? '<div style="font-size:11px;color:#a9a9b8;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical">' + esc(c.summary) + '</div>' : '') + '</div>';
+      gorder.forEach((cat, gi) => {
+        const items = gmap[cat];
+        const collapsed = evtCatFolded(cat, cats);
+        const gUrg = items.filter(({ c }) => urg(c));
+        h += '<div' + (collapsed && gUrg.length ? ' class="__kw_urg"' : '') + ' data-evt-cat="' + esc(cat) + '" title="' + (collapsed ? '펼치기' : '접기') + '" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:' + (gi ? '8px' : '2px') + ';padding:4px 6px;background:rgba(255,255,255,.05);border-radius:8px">' +
+          '<b style="font-size:12px;color:' + EVT_COLOR + '">' + esc(cat) + ' (' + items.length + ')</b>' +
+          '<span style="margin-left:auto;display:inline-flex;align-items:center;gap:2px">' +
+          (gUrg.length ? urgOffBtn('evt-cat:' + cat, true) : '') +
+          '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + (collapsed ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6') + '"/></svg></span></div>';
+        if (collapsed) return;
+        items.forEach(({ c, i }) => {
+          const u = urg(c);
+          h += '<div' + (u ? ' class="__kw_urg"' : '') + ' style="margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12)">' +
+            '<div style="display:flex;align-items:flex-start;gap:4px"><button data-evt-go="' + i + '" title="상세 페이지 열기" style="border:0;background:transparent;padding:0;cursor:pointer;display:block;flex:1;min-width:0;text-align:left">' +
+            '<span style="font-size:12px;font-weight:bold;color:#fff">' + esc(c.title || '이벤트') + '</span></button>' +
+            (u ? urgOffBtn('e:' + c.link, false) : '') + '</div>' +
+            (c.period ? '<div style="font-size:11px;color:' + EVT_COLOR + '">⏱ ' + esc(c.period) + (u ? ' <b style="color:#ff9a9a">D-1</b>' : '') + '</div>' : '') +
+            (c.summary ? '<div style="font-size:11px;color:#a9a9b8;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical">' + esc(c.summary) + '</div>' : '') + '</div>';
+        });
       });
       if (evtData && evtData.updatedAt) {
         const d = new Date(evtData.updatedAt + KST);
@@ -767,9 +815,24 @@
       el.onclick = (e) => {
         e.stopPropagation();
         const k = el.getAttribute('data-urg-off');
-        if (k === 'evt-all') urgKeys.forEach((kk) => urgDismiss(kk)); // 접힘: 임박 항목 전체 끄기
+        if (k === 'evt-all') urgKeys.forEach((kk) => urgDismiss(kk)); // 창 접힘: 임박 항목 전체 끄기
+        else if (k.indexOf('evt-cat:') === 0) { // 카테고리 접힘: 그 묶음의 임박 항목 끄기
+          const cat = k.slice(8);
+          (gmap[cat] || []).forEach(({ c }) => { if (urgKeys.indexOf('e:' + c.link) >= 0) urgDismiss('e:' + c.link); });
+        }
         else urgDismiss(k);
         evtSig = '';
+      };
+    });
+    evtEl.querySelectorAll('[data-evt-cat]').forEach((el) => {
+      el.onclick = (e) => {
+        if (e.target && e.target.closest && e.target.closest('[data-urg-off]')) return; // 그룹 끄기 버튼은 토글 제외
+        const cat = el.getAttribute('data-evt-cat');
+        const m = evtCatsFolded();
+        m[cat] = evtCatFolded(cat, m) ? 0 : 1;
+        try { localStorage.setItem(LS_EVTCATS, JSON.stringify(m)); } catch (er) {}
+        evtSig = '';
+        renderEvents(Date.now());
       };
     });
     try { // 창 기본형 상속: 이벤트=가로+세로
