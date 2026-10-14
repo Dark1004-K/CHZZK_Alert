@@ -8,7 +8,6 @@
   if (!KW || typeof KW.option !== 'function' || typeof KW.enabled !== 'function') return;
   if (window.__kwBdoLoaded) return;
   window.__kwBdoLoaded = true;
-  try { console.log('[KW-BETA]', 'bdo-eval', 'plugin-1.1.1'); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (메인창 미표시 원인 파악 후 삭제)
   try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.1.1' }); } catch (e) {}
   const ID = 'blackdesert';
   // 설정 > 일반설정의 창 투명도를 결과창(fixed, 스택 밖)에도 적용. 본체 KW.opacity() 우선, 없으면 저장값 직접 읽기.
@@ -225,26 +224,6 @@
   const SHOW_X_TITLE = '닫기 (검은사막 창의 버튼으로 다시 표시)';
   let mainEl = null, mainSig = null;
   let cpnAlarmBlink = false, evtAlarmBlink = false; // 새 쿠폰·이벤트 알람 후 상세창이 숨어있으면 메인 버튼 반짝임 (창이 보이면 해제)
-  // [BETA-TEST-ONLY:start]
-  // 진단용 (메인창 미표시 원인 파악 후 삭제): 접두어별로 바뀔 때만 찍는다.
-  let mainDbgLast = {};
-  function mainDbg(msg) {
-    const k = String(msg).split(' ')[0];
-    if (mainDbgLast[k] === msg) return;
-    mainDbgLast[k] = msg;
-    try { console.log('[KW-BETA]', 'bdo-main', msg); } catch (e) {}
-  }
-  function sigDiff(a, b) { // sig가 안 맞는 원인을 지목한다
-    const names = ['evt', 'cpn', 'fam', 'evtBlink', 'cpnBlink', 'pty', 'ptyBlink', 'next'];
-    const pa = String(a || '').split('|'), pb = String(b || '').split('|');
-    const out = [];
-    for (let i = 0; i < names.length; i++) {
-      const x = pa[i] === undefined ? '-' : pa[i], y = pb[i] === undefined ? '-' : pb[i];
-      if (x !== y) out.push(names[i] + ':[' + String(x).slice(0, 40) + '>' + String(y).slice(0, 40) + ']');
-    }
-    return out.length ? out.join(' ') : 'first';
-  }
-  // [BETA-TEST-ONLY:end]
   function removeMain() {
     if (mainEl) { try { mainEl.remove(); } catch (e) {} }
     mainEl = null;
@@ -265,7 +244,7 @@
         const when = new Date(o.t + KST);
         const days = Math.floor((o.t + KST) / DAY) - Math.floor((now + KST) / DAY);
         const dayTxt = days <= 1 ? '' : ['일', '월', '화', '수', '목', '금', '토'][when.getUTCDay()] + ' ';
-        return { t: o.t, label: dayTxt + o.hhmm, bosses, selN: Array.isArray(sel) ? sel.length : -1 };
+        return { t: o.t, label: dayTxt + o.hhmm, bosses };
       }
     }
     return null;
@@ -293,16 +272,11 @@
         : '<div style="flex:1;font-size:12px;color:#888">다음 우두머리 없음 (확장 옵션에서 선택)</div>') +
       '</div>';
   }
-  // [BETA-TEST-ONLY:start]
-  function renderMainErr(e) { try { console.log('[KW-BETA]', 'bdo-main-render-err', (e && e.stack) || e); } catch (e2) {} }
-  // [BETA-TEST-ONLY:end]
   function updateMain(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
-    try { mainDbg('gate stack=' + !!stack + ' panel=' + !!panel + ' show=' + (!!panel && panel.classList.contains('show'))); } catch (e) {} // [BETA-ONLY-LINE] 진단용
     if (!stack || !panel || !panel.classList.contains('show')) { removeMain(); return; }
     if (!mainEl || !mainEl.isConnected) {
-      try { mainDbg('el-recreated'); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
       mainEl = document.createElement('div');
       mainEl.id = '__kw_bdo_main';
       mainEl.style.cssText = 'width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid ' + BDO_BLUE + ';position:relative';
@@ -327,14 +301,11 @@
     }
     bdoOrder();
     const nc = nextCounter(now);
-    try { const kd = new Date(now + KST); mainDbg('render next=' + (nc ? nc.bosses.join('/') + '@' + nc.label : 'none') + ' now=' + kd.getUTCHours() + ':' + String(kd.getUTCMinutes()).padStart(2, '0') + ' sel=' + (nc ? nc.selN : '-')); } catch (e) {} // [BETA-ONLY-LINE] 진단용
     const sig = [showEvt() ? 1 : 0, showCpn() ? 1 : 0, showFam() ? 1 : 0, evtAlarmBlink ? 1 : 0, cpnAlarmBlink ? 1 : 0, window.__KW_UI.partyShown ? 1 : 0, window.__KW_UI.partyAlarmBlink ? 1 : 0, nc ? nc.t + '|' + nc.bosses.join(',') : '-'].join('|');
     if (sig !== mainSig) {
-      try { mainDbg('sig-diff: ' + sigDiff(mainSig, sig)); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
       mainSig = sig;
       try { renderMain(nc); }
       catch (e) {
-        try { if (typeof renderMainErr === 'function') renderMainErr(e); } catch (e2) {}
         try { if (mainEl && !mainEl.innerHTML) mainEl.innerHTML = '<div style="font-size:12px;color:#ff7b7b">검은사막 표시 오류 (새로고침 후에도 같으면 알려주세요)</div>'; } catch (e3) {}
       }
     }
@@ -2995,9 +2966,7 @@
         }
         lastHref = href;
       } catch (e) {}
-      if (!KW.enabled(ID)) {
-        try { mainDbg('disabled'); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
-        clearAll(); removeMain(); removeCoupons(); removeEvents(); removeParty(); removeFamily(); removeRes(); marketData = null; marketPhase = 'idle'; try { if (typeof removeMarket === 'function') removeMarket(); } catch (e) {} return; }
+      if (!KW.enabled(ID)) { clearAll(); removeMain(); removeCoupons(); removeEvents(); removeParty(); removeFamily(); removeRes(); marketData = null; marketPhase = 'idle'; try { if (typeof removeMarket === 'function') removeMarket(); } catch (e) {} return; }
       const now = Date.now();
       if (now - bossFetchedAt >= BOSS_REFRESH_MS) loadSchedule(); // 처음 켜질 때 한 번, 이후 6시간마다
       if (bossSlotDue(now)) { // 매주 수요일 12:27 (액션 17분 뒤)
