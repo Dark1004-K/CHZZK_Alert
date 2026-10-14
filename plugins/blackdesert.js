@@ -265,7 +265,7 @@
       mainBtn('pty', '파티 모집', BDO_BTN(TI_USERS), '#ff7a59', window.__KW_UI.partyShown, window.__KW_UI.partyAlarmBlink) +
       mainBtn('opt', '검은사막 옵션', BDO_BTN(TI_SLIDERS), '#ccc', true, false) +
       '</span></div>' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-top:1px">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:1px;padding-left:19px">' +
       (nc
         ? '<div style="flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b>' + nc.bosses.map((n) => esc(n)).join(' · ') + '</b> <span style="color:#888">(' + esc(nc.label) + ')</span></div>' +
           '<span id="__kw_bdo_main_left" style="flex:none;font-size:12px;font-weight:bold;color:' + BDO_BLUE + ';white-space:nowrap;padding-right:4px">' + fmtLong(nc.t - Date.now()) + '</span>'
