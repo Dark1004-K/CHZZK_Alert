@@ -5,11 +5,11 @@
 //   1. script.google.com → 새 프로젝트 → 이 파일 내용 전체 붙여넣기
 //   2. 아래 GITHUB_TOKEN에 토큰 입력 (GitHub Fine-grained PAT, 대상 repo CHZZK_Alert 1개,
 //      Contents 읽기/쓰기 + Issues 읽기/쓰기) 후 저장(Ctrl+S)
-//   3. crawl() 1회 실행 → 권한 승인 → 로그에 변경 없음 또는 갱신 확인
+//   3. couponsCrawl() 1회 실행 → 권한 승인 → 로그에 변경 없음 또는 갱신 확인
 //   4. bossCheck() 1회 실행 → 로그에 변경 없음 또는 상태 처음 기록 확인
 //   5. eventsCrawl() 1회 실행 → 로그에 변경 없음 또는 갱신 확인
 //   6. 트리거 추가 3개:
-//      - crawl / 시간 기반 / 시간 타이머 / 매시간 (매시 00분 무렵)
+//      - couponsCrawl / 시간 기반 / 시간 타이머 / 매시간 (매시 00분 무렵)
 //      - bossCheck / 시간 기반 / 주 타이머 / 수요일 / 12시~13시
 //      - eventsCrawl / 시간 기반 / 주 타이머 / 수요일 / 12시~13시 (보스와 동일)
 //   7. 프로젝트 시간대 확인: 왼쪽 톱니 → (GMT+09:00) 서울
@@ -65,7 +65,7 @@ function parse_(html) {
   return coupons.filter(function (c) { return c.code; });
 }
 
-function crawl() {
+function couponsCrawl() {
   if (!GITHUB_TOKEN) throw new Error('GITHUB_TOKEN을 입력하세요 (코드 맨 위)');
   const gh = { 'Authorization': 'Bearer ' + GITHUB_TOKEN, 'Accept': 'application/vnd.github+json', 'User-Agent': 'ChzzkAlertCouponBot' };
   // 1) 공식 페이지 읽기 (최대 3회 재시도)
