@@ -33,6 +33,12 @@
           "default": true
         },
         {
+          "key": "events",
+          "label": "이벤트 모아보기 창 표시",
+          "type": "bool",
+          "default": true
+        },
+        {
           "key": "family",
           "label": "검은사막 검색 창 표시",
           "type": "bool",
