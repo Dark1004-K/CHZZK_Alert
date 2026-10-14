@@ -57,7 +57,8 @@ function parse_(html) {
       if (cur && r) cur.rewards.push(r);
     } else if (m[4] !== undefined) {
       if (cur && !cur.expires) {
-        cur.expires = decode_(m[4]);
+        // "정기점검 전"은 통상 그날 오전 05:00
+        cur.expires = decode_(m[4]).replace(/정기점검\s*전/g, '05:00');
         cur.expiresAt = parseExpire_(cur.expires);
       }
     }
@@ -245,7 +246,8 @@ function parseEvents_(html) {
     const pRe = /<p[^>]*>([\s\S]*?)<\/p>/g;
     let pm;
     while ((pm = pRe.exec(seg))) {
-      const t = decode_(pm[1]);
+      // "정기점검 전"은 통상 그날 오전 05:00
+      const t = decode_(pm[1]).replace(/정기점검\s*전/g, '05:00');
       if (!t || /^(NEW|HOT)$/.test(t)) continue;
       if (!period && isPeriod_(t)) period = t;
       else extra.push(t);

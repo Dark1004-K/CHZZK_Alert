@@ -1,6 +1,6 @@
 {
   "source": "https://www.kr.playblackdesert.com/ko-KR/News/Detail?groupContentNo=10748",
-  "updatedAt": 1791957659871,
+  "updatedAt": 1791960859004,
   "coupons": [
     {
       "name": "[2026 마스터 클래스] 대진표 추첨 방송 쿠폰",
@@ -12,8 +12,8 @@
         "심해의 향수 5개",
         "용기의 향수 5개"
       ],
-      "expires": "2026년 10월 28일(수) 정기점검 전",
-      "expiresAt": null
+      "expires": "2026년 10월 28일(수) 05:00",
+      "expiresAt": 1793131200000
     },
     {
       "name": "한가위 쿠폰",
@@ -28,8 +28,8 @@
         "관철의 향수 10개",
         "열망의 향수 10개"
       ],
-      "expires": "2026년 10월 28일(수) 정기점검 전",
-      "expiresAt": null
+      "expires": "2026년 10월 28일(수) 05:00",
+      "expiresAt": 1793131200000
     },
     {
       "name": "2026 하이델 연회",

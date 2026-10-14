@@ -24,6 +24,11 @@ function isPeriod(s) {
   return /(\d{4}\s*년|\d{1,2}\s*월\s*\d{1,2}\s*일|^~)/.test(s);
 }
 
+// "정기점검 전"은 통상 그날 오전 05:00이므로 시각으로 바꿔 적는다 ("~ 11월 4일(수) 정기점검 전" → "~ 11월 4일(수) 05:00")
+function normalizeTime(s) {
+  return String(s).replace(/정기점검\s*전/g, '05:00');
+}
+
 function parse(html) {
   const wrap = html.indexOf('tpl_glance_wrap');
   if (wrap < 0) throw new Error('모아보기 본문(tpl_glance_wrap)을 찾지 못함');
@@ -64,7 +69,7 @@ function parse(html) {
     const pRe = /<p[^>]*>([\s\S]*?)<\/p>/g;
     let pm;
     while ((pm = pRe.exec(seg))) {
-      const t = decode(pm[1]);
+      const t = normalizeTime(decode(pm[1]));
       if (!t || /^(NEW|HOT)$/.test(t)) continue;
       if (!period && isPeriod(t)) period = t;
       else extra.push(t);

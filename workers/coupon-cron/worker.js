@@ -50,7 +50,8 @@ function parse(html) {
       if (cur && r) cur.rewards.push(r);
     } else if (m[4] !== undefined) {
       if (cur && !cur.expires) {
-        cur.expires = decode(m[4]);
+        // "정기점검 전"은 통상 그날 오전 05:00
+        cur.expires = decode(m[4]).replace(/정기점검\s*전/g, '05:00');
         cur.expiresAt = parseExpire(cur.expires);
       }
     }
