@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린대화 알림 옵션 ('0'=끔, 그 외=
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.6.0-beta034';
+const SCRIPT_VERSION = '3.6.0-beta035';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -352,9 +352,16 @@ function takeHit(sig) {
 // document-start 실행이므로 head가 없을 수 있어 지연 주입
 function ensureStyle() {
   try {
-    if (document.getElementById('__kw_style') || !document.head) return;
+    const ex = document.getElementById('__kw_style');
+    if (ex) { // 이미 있으면 버전 스탬프 비교: 같으면 유지, 다르면(낡은 CSS) 걷어내고 재생성
+      if (!document.head) return;
+      try { if (ex.getAttribute('data-v') === SCRIPT_VERSION) return; } catch (e2) { return; }
+      try { ex.remove(); } catch (e3) {}
+    }
+    if (!document.head) return;
     const style = document.createElement('style');
     style.id = '__kw_style';
+    try { style.setAttribute('data-v', SCRIPT_VERSION); } catch (e4) {}
     style.textContent = `
 @keyframes __kwspin{to{transform:rotate(360deg)}}
 .__kw_spin svg{animation:__kwspin .8s linear infinite}
