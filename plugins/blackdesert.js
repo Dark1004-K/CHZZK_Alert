@@ -556,19 +556,20 @@
       try { updateEvents(Date.now()); } catch (e) {}
       return '이벤트 테스트 알람: ' + link;
     };
-    // 테스트: __kwBdoEventUrgTest() → 12시간 뒤 종료 가짜 이벤트로 마감 임박 깜빡임 즉시 시험
+    // 테스트: __kwBdoEventUrgTest() → 12시간 뒤 종료 가짜 이벤트로 마감 임박 깜빡임 즉시 시험 (새 이벤트 등록과 동일하게 토스트+메인 깜빡임)
     window.__kwBdoEventUrgTest = () => {
       const t = Date.now() + 12 * 3600 * 1000;
       const d = new Date(t + KST);
       const p2 = (n) => String(n).padStart(2, '0');
       const yo = ['일', '월', '화', '수', '목', '금', '토'][d.getUTCDay()];
       const period = '~ ' + d.getUTCFullYear() + '년 ' + (d.getUTCMonth() + 1) + '월 ' + d.getUTCDate() + '일(' + yo + ') ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes());
+      const link = 'https://www.kr.playblackdesert.com/ko-KR/News/Detail?groupContentNo=13733#urgtest' + Date.now().toString(36);
       if (!evtData || !Array.isArray(evtData.events)) evtData = { updatedAt: Date.now(), events: [] };
-      evtData.events.unshift({ category: 'NEW 이벤트', title: '테스트 임박 이벤트', period, summary: '마감 임박 깜빡임 시험용', link: 'https://www.kr.playblackdesert.com/ko-KR/News/Detail?groupContentNo=13733#urgtest' + Date.now().toString(36) });
+      evtData.events.unshift({ category: 'NEW 이벤트', title: '테스트 임박 이벤트', period, summary: '마감 임박 깜빡임 시험용', link });
       evtState = 'ok'; evtSig = '';
-      setShow(LS_SHOW_EVT, true); mainSig = null; // 테스트 항목이 보이도록 이벤트창을 연다
+      evtAlarmNew([{ title: '테스트 임박 이벤트', link }]); // 새 이벤트 등록과 동일: 토스트+알림음+TTS+숨김 시 메인 버튼 깜빡임 (토스트 클릭=이벤트창 열기)
+      try { const s = evtSeenSet(); s.add(link); localStorage.setItem(LS_EVTSEEN, JSON.stringify([...s].slice(-200))); } catch (e) {}
       try { updateEvents(Date.now()); } catch (e) {}
-      try { updateMain(Date.now()); } catch (e) {}
       return '이벤트 임박 깜빡임 테스트: ' + period;
     };
   }
