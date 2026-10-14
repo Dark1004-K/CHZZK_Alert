@@ -308,16 +308,19 @@
   // 만료/종료까지 24시간 이하로 남으면 해당 항목이 깜빡인다. 창이 접혀 있으면 창 전체가 깜빡인다.
   // 깜빡이는 항목의 🔕 버튼을 누르면 그 항목은 멈춘다 (항목이 사라지면 기록도 정리).
   const URG_MS = 24 * 3600 * 1000; // 하루
-  const LS_URG_OFF = '__kw_urg_off';
-  function urgOffSet() { try { return new Set(JSON.parse(localStorage.getItem(LS_URG_OFF)) || []); } catch (e) { return new Set(); } }
-  function urgOffSave(s) { try { localStorage.setItem(LS_URG_OFF, JSON.stringify([...s].slice(-200))); } catch (e) {} }
-  function urgDismiss(key) { const s = urgOffSet(); s.add(key); urgOffSave(s); }
-  function urgPrune(aliveKeys) { // 목록에 없는 항목의 끄기 기록 정리
+  // 끄기 기록은 창별로 저장 (공유하면 다른 창의 렌더가 정리 단계에서 지워버림)
+  const LS_URG_OFF_CPN = '__kw_urg_off_cpn';
+  const LS_URG_OFF_EVT = '__kw_urg_off_evt';
+  function urgOffSet(storeKey) { try { return new Set(JSON.parse(localStorage.getItem(storeKey)) || []); } catch (e) { return new Set(); } }
+  function urgOffSave(storeKey, s) { try { localStorage.setItem(storeKey, JSON.stringify([...s].slice(-200))); } catch (e) {} }
+  function urgDismiss(storeKey, key) { const s = urgOffSet(storeKey); s.add(key); urgOffSave(storeKey, s); }
+  function urgPrune(storeKey, aliveKeys) { // 목록에 없는 항목의 끄기 기록 정리
     const alive = new Set(aliveKeys);
-    const s = urgOffSet();
+    const s = urgOffSet(storeKey);
     let changed = false;
     for (const k of [...s]) if (!alive.has(k)) { s.delete(k); changed = true; }
-    if (changed) urgOffSave(s);
+    if (changed) urgOffSave(storeKey, s);
+    try { localStorage.removeItem('__kw_urg_off'); } catch (e) {} // 구 공유키 잔재 정리
     return s;
   }
   function urgEndMs(text) { // "… 2026년 11월 4일(수) 05:00" / "… ~ … 23:59" → 마지막 시각(KST ms), 못 읽으면 0
@@ -486,7 +489,7 @@
     const busy = cpnState === 'loading' || now < cpnBusyUntil;
     const flash = now < cpnFlashUntil;
     urgCss();
-    const off = urgPrune(list.map((c) => 'c:' + c.code)); // 끄기 기록 정리 + 현재 끈 집합
+    const off = urgPrune(LS_URG_OFF_CPN, list.map((c) => 'c:' + c.code)); // 끄기 기록 정리 + 현재 끈 집합
     const urg = (c) => { const end = c.expiresAt || urgEndMs(c.expires); return urgIs(end, now) && !off.has('c:' + c.code); };
     const urgKeys = list.filter(urg).map((c) => 'c:' + c.code);
     const sig = [cpnState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, cpnData ? cpnData.updatedAt : 0, cpnFetchedAt, list.map((c) => c.code).join(','), urgKeys.join(',')].join('|');
@@ -596,8 +599,8 @@
       el.onclick = (e) => {
         e.stopPropagation();
         const k = el.getAttribute('data-urg-off');
-        if (k === 'cpn-all') urgKeys.forEach((kk) => urgDismiss(kk)); // 접힘: 임박 항목 전체 끄기
-        else urgDismiss(k);
+        if (k === 'cpn-all') urgKeys.forEach((kk) => urgDismiss(LS_URG_OFF_CPN, kk)); // 접힘: 임박 항목 전체 끄기
+        else urgDismiss(LS_URG_OFF_CPN, k);
         cpnSig = '';
       };
     });
@@ -728,7 +731,7 @@
     const busy = evtState === 'loading' || now < evtBusyUntil;
     const flash = now < evtFlashUntil;
     urgCss();
-    const off = urgPrune(list.map((c) => 'e:' + c.link)); // 끄기 기록 정리 + 현재 끈 집합
+    const off = urgPrune(LS_URG_OFF_EVT, list.map((c) => 'e:' + c.link)); // 끄기 기록 정리 + 현재 끈 집합
     const urg = (c) => urgIs(urgEndMs(c.period), now) && !off.has('e:' + c.link);
     const urgKeys = list.filter(urg).map((c) => 'e:' + c.link);
     const cats = evtCatsFolded();
@@ -814,12 +817,12 @@
       el.onclick = (e) => {
         e.stopPropagation();
         const k = el.getAttribute('data-urg-off');
-        if (k === 'evt-all') urgKeys.forEach((kk) => urgDismiss(kk)); // 창 접힘: 임박 항목 전체 끄기
+        if (k === 'evt-all') urgKeys.forEach((kk) => urgDismiss(LS_URG_OFF_EVT, kk)); // 창 접힘: 임박 항목 전체 끄기
         else if (k.indexOf('evt-cat:') === 0) { // 카테고리 접힘: 그 묶음의 임박 항목 끄기
           const cat = k.slice(8);
-          (gmap[cat] || []).forEach(({ c }) => { if (urgKeys.indexOf('e:' + c.link) >= 0) urgDismiss('e:' + c.link); });
+          (gmap[cat] || []).forEach(({ c }) => { if (urgKeys.indexOf('e:' + c.link) >= 0) urgDismiss(LS_URG_OFF_EVT, 'e:' + c.link); });
         }
-        else urgDismiss(k);
+        else urgDismiss(LS_URG_OFF_EVT, k);
         evtSig = '';
       };
     });
