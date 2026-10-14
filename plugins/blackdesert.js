@@ -624,6 +624,8 @@
     const sig = [cpnState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, cpnData ? cpnData.updatedAt : 0, cpnFetchedAt, list.map((c) => c.code).join(','), urgKeys.join(',')].join('|');
     if (sig === cpnSig && cpnEl && cpnEl.isConnected) return;
     cpnSig = sig;
+    let cpnKeepTop = 0;
+    try { const _s = cpnEl.querySelector('.__kw_sb_cpn'); if (_s) cpnKeepTop = _s.scrollTop; } catch (e) {} // 스크롤 유지: 다시 그려도 위치 그대로
     let h = '<div id="__kw_cpn_hd" style="display:flex;align-items:center;justify-content:flex-start;gap:4px;cursor:pointer;min-height:26px;padding-right:58px">' +
       '<b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_TICKET, '#b784ff') + '쿠폰 모아보기&nbsp;<span style="color:#b784ff">(' + list.length + ')</span></b>' +
       (fold && urgKeys.length ? urgOffBtn('cpn-all', true) : '') +
@@ -695,6 +697,7 @@
         } catch (e6) {}
       }
     }
+    try { const _s2 = cpnEl.querySelector('.__kw_sb_cpn'); if (_s2) _s2.scrollTop = cpnKeepTop; } catch (e) {} // 스크롤 유지: 높이 확정 후 복원
     const hd = cpnEl.querySelector('#__kw_cpn_hd');
     if (hd) hd.onclick = (e) => {
       if (e.target && e.target.id === '__kw_cpn_rf') return;
@@ -909,6 +912,8 @@
     const sig = [evtState, fold ? 1 : 0, busy ? 1 : 0, flash ? 1 : 0, evtData ? evtData.updatedAt : 0, evtFetchedAt, list.map((c) => c.link).join(','), urgKeys.join(','), JSON.stringify(cats)].join('|');
     if (sig === evtSig && evtEl && evtEl.isConnected) return;
     evtSig = sig;
+    let evtKeepTop = 0;
+    try { const _s = evtEl.querySelector('.__kw_sb_evt'); if (_s) evtKeepTop = _s.scrollTop; } catch (e) {} // 스크롤 유지: 다시 그려도 위치 그대로
     let h = '<div id="__kw_evt_hd" style="display:flex;align-items:center;justify-content:flex-start;gap:4px;cursor:pointer;min-height:26px;padding-right:58px">' +
       '<b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center">' + TI(TI_CAL, EVT_COLOR) + '이벤트 모아보기&nbsp;<span style="color:' + EVT_COLOR + '">(' + list.length + ')</span></b>' +
       (fold && urgKeys.length ? urgOffBtn('evt-all', true) : '') +
@@ -954,6 +959,7 @@
       evtEl.style.flexDirection = 'column';
       evtEl.style.height = fold ? '' : Math.min(evtH, evtHMax()) + 'px';
     } catch (e5) {}
+    try { const _s2 = evtEl.querySelector('.__kw_sb_evt'); if (_s2) _s2.scrollTop = evtKeepTop; } catch (e) {} // 스크롤 유지: 높이 확정 후 복원
     const hd = evtEl.querySelector('#__kw_evt_hd');
     if (hd) hd.onclick = (e) => {
       if (e.target && e.target.id === '__kw_evt_rf') return;

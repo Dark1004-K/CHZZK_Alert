@@ -889,6 +889,8 @@ function renderOptWin() {
   if (!p || !pluginHasOpts(p) || !pluginIsOn(p)) { if (old) old.remove(); optWinId = null; try { closeOptHelp(); } catch (e) {} return; }
   const w = old || document.createElement('div');
   w.id = '__kw_optwin';
+  let optKeepTop = 0;
+  try { const _ob = w.querySelector('#__kw_optwin_body'); if (_ob) optKeepTop = _ob.scrollTop; } catch (e) {} // 스크롤 유지
   // 설정 창 오른쪽에 붙여서 연다 (설정 창이 없으면 화면 가운데)
   let pos = 'top:50%;left:50%;transform:translate(-50%,-50%)';
   try {
@@ -960,6 +962,7 @@ function renderOptWin() {
       } catch (err) {}
     },
   });
+  try { const _ob2 = w.querySelector('#__kw_optwin_body'); if (_ob2) _ob2.scrollTop = optKeepTop; } catch (e) {} // 스크롤 유지
 }
 function extListHtml() {
   if (limitedMode) return '<div class="__kw_lbl" style="color:#ffd400">사용자 스크립트 허용이 꺼져 있어 확장을 쓸 수 없습니다</div>';
@@ -1356,6 +1359,8 @@ function showReloadPopup(openInstall, texts, skipConfirm) {
 }
 function renderSettings() {
   if (!setPanel) return;
+  let setKeepTop = 0;
+  try { const _sb = setPanel.querySelector('#__kw_set_body'); if (_sb) setKeepTop = _sb.scrollTop; } catch (e) {} // 스크롤 유지
   setPanel.innerHTML = `
     <b id="__kw_set_title" title="끌어서 설정 창 이동" style="position:absolute;top:10px;left:18px;font-size:14px;color:#fff;cursor:grab;touch-action:none;user-select:none;display:inline-flex;align-items:center;gap:5px"><span class="__kw_ti" style="color:#ccc">${IC.sliders}</span>설정</b>
     <button id="__kw_set_move" class="__kw_mv" title="드래그로 설정 창 이동 (화면 가장자리·다른 창에 자석처럼 붙음) · 더블클릭: 원래 자리로" style="border-color:#777;color:#ccc"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -1670,6 +1675,7 @@ function renderSettings() {
   if (updateCheckBtn) updateCheckBtn.onclick = () => checkUpdate();
   const updateGoBtn = setPanel.querySelector('#__kw_update_go');
   if (updateGoBtn) updateGoBtn.onclick = () => showReloadPopup(() => window.open(UPDATE_URL, '_blank')); // 확인 팝업 → 확인하면 설치 창
+  try { const _sb2 = setPanel.querySelector('#__kw_set_body'); if (_sb2) _sb2.scrollTop = setKeepTop; } catch (e) {} // 스크롤 유지
   applySetVisibility();
 }
 // ---------- 설정 창 떼어서 옮기기 + 자석 ----------
