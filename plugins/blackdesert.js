@@ -480,6 +480,43 @@
     }
     return (fresh || []).length;
   }
+  // 마감 임박 진입 감지·알림: 24시간 안으로 들어온 항목이 새로 생기면 토스트+알림음 (+확장 TTS). 첫 기록 때는 조용히 기억만.
+  const LS_CPNURG = '__kw_cpn_urg';
+  function cpnCheckUrg(now, skip) {
+    try {
+      if (!cpnData || !Array.isArray(cpnData.coupons)) return 0;
+      now = now || Date.now();
+      const off = urgOffSet(LS_URG_OFF_CPN);
+      const urg = cpnVisible(now).filter((c) => { const end = c.expiresAt || urgEndMs(c.expires); return urgIs(end, now) && !off.has('c:' + c.code); });
+      let raw = null;
+      try { raw = localStorage.getItem(LS_CPNURG); } catch (e) {}
+      const seen = new Set();
+      if (raw) { try { JSON.parse(raw).forEach((k) => seen.add(k)); } catch (e2) {} }
+      const keys = urg.map((c) => 'c:' + c.code);
+      try { localStorage.setItem(LS_CPNURG, JSON.stringify(keys.slice(-200))); } catch (e3) {}
+      if (raw === null) return 0; // 첫 기록: 조용히 기억만
+      const fresh = urg.filter((c) => !seen.has('c:' + c.code) && !(skip && skip.has('c:' + c.code)));
+      if (fresh.length) cpnAlarmUrg(fresh);
+      return fresh.length;
+    } catch (e) { return 0; }
+  }
+  function cpnAlarmUrg(fresh) {
+    (fresh || []).forEach((c) => {
+      try {
+        if (typeof KW.toast === 'function') KW.toast('⏱ 쿠폰 마감 임박', (c.name || '쿠폰') + '\n' + c.code, () => {
+          setShow(LS_SHOW_CPN, true); mainSig = null; // 토스트 클릭=쿠폰창 열기
+          try { updateCoupons(Date.now()); } catch (e) {}
+          try { updateMain(Date.now()); } catch (e2) {}
+        });
+      } catch (e) {}
+    });
+    if (fresh && fresh.length) {
+      try { if (opt('sound', true) && typeof KW.sound === 'function') KW.sound(); } catch (e) {}
+      try { if (typeof KW.emit === 'function') KW.emit('coupon', { coupons: fresh.map((c) => ({ name: c.name, code: c.code })), urgent: true }); } catch (e) {}
+      if (!showCpn()) { cpnAlarmBlink = true; try { updateMain(Date.now()); } catch (e) {} } // 숨어있으면 메인 버튼 반짝임
+    }
+    return (fresh || []).length;
+  }
   // [BETA-TEST-ONLY:start]
   // 테스트: 콘솔에서 __kwBdoCouponTest() 를 호출하면 가짜 새 쿠폰으로 알람 경로를 즉시 시험 (옵션 무시)
   if (KW.beta) { // 정식 앱에서는 테스트 후크를 만들지 않는다
@@ -546,7 +583,7 @@
       .then((j) => {
         if (!j || !Array.isArray(j.coupons)) throw new Error('format');
         cpnData = j; cpnState = 'ok';
-        try { const fresh = cpnCheckNew(); if (opt('couponAlarm', true)) cpnAlarmNew(fresh); } catch (e) {} // 새 쿠폰 감지·알림 (끄면 조용히 기억만)
+        try { const fresh = cpnCheckNew(); if (opt('couponAlarm', true)) { cpnAlarmNew(fresh); cpnCheckUrg(Date.now(), new Set(fresh.map((c) => 'c:' + c.code))); } } catch (e) {} // 새 쿠폰 감지·알림 (끄면 조용히 기억만). 방금 새 알람한 것은 임박 중복 제외
       })
       .catch(() => { cpnState = cpnData ? 'ok' : 'err'; }) // 실패해도 이전에 받은 목록은 유지
       .then(() => { cpnFetchedAt = Date.now(); }) // 실패해도 1시간 뒤에 다시 시도
@@ -737,6 +774,7 @@
     if (!stack || !panel || !panel.classList.contains('show')) { removeCoupons(); return; }
     if (cpnState === 'idle') loadCoupons(); // 처음 켜질 때 한 번 받아온다 (창 숨김과 무관, 알람용)
     else if (cpnState !== 'loading' && cpnSlotDue(now)) loadCoupons(); // 이후 매시 17분에 자동 갱신
+    try { if (opt('couponAlarm', true)) cpnCheckUrg(now); } catch (e) {} // 마감 임박 진입 감지 (창 숨김과 무관, 1초 틱)
     if (!showCpn()) { removeCoupons(); return; } // 창 숨김: 데이터·알람은 위에서 계속
     cpnAlarmBlink = false; // 창이 보이면 메인 반짝임 해제
     if (!cpnEl || !cpnEl.isConnected) {
@@ -801,6 +839,43 @@
     }
     return (fresh || []).length;
   }
+  // 마감 임박 진입 감지·알림: 24시간 안으로 들어온 이벤트가 새로 생기면 토스트+알림음 (+확장 TTS). 첫 기록 때는 조용히 기억만.
+  const LS_EVTURG = '__kw_evt_urg';
+  function evtCheckUrg(now, skip) {
+    try {
+      if (!evtData || !Array.isArray(evtData.events)) return 0;
+      now = now || Date.now();
+      const off = urgOffSet(LS_URG_OFF_EVT);
+      const urg = evtList().filter((c) => urgIs(urgEndMs(c.period), now) && !off.has('e:' + c.link));
+      let raw = null;
+      try { raw = localStorage.getItem(LS_EVTURG); } catch (e) {}
+      const seen = new Set();
+      if (raw) { try { JSON.parse(raw).forEach((k) => seen.add(k)); } catch (e2) {} }
+      const keys = urg.map((c) => 'e:' + c.link);
+      try { localStorage.setItem(LS_EVTURG, JSON.stringify(keys.slice(-200))); } catch (e3) {}
+      if (raw === null) return 0; // 첫 기록: 조용히 기억만
+      const fresh = urg.filter((c) => !seen.has('e:' + c.link) && !(skip && skip.has('e:' + c.link)));
+      if (fresh.length) evtAlarmUrg(fresh);
+      return fresh.length;
+    } catch (e) { return 0; }
+  }
+  function evtAlarmUrg(fresh) {
+    (fresh || []).forEach((c) => {
+      try {
+        if (typeof KW.toast === 'function') KW.toast('📅 이벤트 마감 임박', (c.title || '이벤트'), () => {
+          setShow(LS_SHOW_EVT, true); mainSig = null; // 토스트 클릭=이벤트창 열기
+          try { updateEvents(Date.now()); } catch (e) {}
+          try { updateMain(Date.now()); } catch (e2) {}
+        });
+      } catch (e) {}
+    });
+    if (fresh && fresh.length) {
+      try { if (opt('sound', true) && typeof KW.sound === 'function') KW.sound(); } catch (e) {}
+      try { if (typeof KW.emit === 'function') KW.emit('event', { events: fresh.map((c) => ({ title: c.title, link: c.link })), urgent: true }); } catch (e) {}
+      if (!showEvt()) { evtAlarmBlink = true; try { updateMain(Date.now()); } catch (e) {} } // 숨어있으면 메인 버튼 반짝임
+    }
+    return (fresh || []).length;
+  }
   function evtFolded() { try { return localStorage.getItem(LS_EVT_FOLD) === '1'; } catch (e) { return false; } }
   function evtList() {
     const l = evtData && Array.isArray(evtData.events) ? evtData.events : [];
@@ -821,7 +896,7 @@
       .then((j) => {
         if (!j || !Array.isArray(j.events)) throw new Error('format');
         evtData = j; evtState = 'ok';
-        try { const fresh = evtCheckNew(); if (opt('eventAlarm', true)) evtAlarmNew(fresh); } catch (e) {} // 새 이벤트 감지·알림 (끄면 조용히 기억만)
+        try { const fresh = evtCheckNew(); if (opt('eventAlarm', true)) { evtAlarmNew(fresh); evtCheckUrg(Date.now(), new Set(fresh.map((c) => 'e:' + c.link))); } } catch (e) {} // 새 이벤트 감지·알림 (끄면 조용히 기억만). 방금 새 알람한 것은 임박 중복 제외
       })
       .catch(() => { evtState = evtData ? 'ok' : 'err'; }) // 실패해도 이전에 받은 목록은 유지
       .then(() => { evtFetchedAt = Date.now(); }) // 실패해도 6시간 뒤에 다시 시도
@@ -1008,6 +1083,7 @@
       try { localStorage.setItem(LS_EVTSLOT, String(bossSlotTime(now))); } catch (e) {}
       loadEvents();
     }
+    try { if (opt('eventAlarm', true)) evtCheckUrg(now); } catch (e) {} // 마감 임박 진입 감지 (창 숨김과 무관, 1초 틱)
     if (!showEvt()) { removeEvents(); return; } // 창 숨김: 데이터·알람은 위에서 계속
     evtAlarmBlink = false; // 창이 보이면 메인 반짝임 해제
     if (!evtEl || !evtEl.isConnected) {
