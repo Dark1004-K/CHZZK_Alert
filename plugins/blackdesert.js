@@ -295,6 +295,9 @@
         : '<div style="flex:1;font-size:12px;color:#888">다음 우두머리 없음 (확장 옵션에서 선택)</div>') +
       '</div>';
   }
+  // [BETA-TEST-ONLY:start]
+  function renderMainErr(e) { try { console.log('[KW-BETA]', 'bdo-main-render-err', (e && e.stack) || e); } catch (e2) {} }
+  // [BETA-TEST-ONLY:end]
   function updateMain(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
@@ -336,7 +339,12 @@
     const sig = [showEvt() ? 1 : 0, showCpn() ? 1 : 0, showFam() ? 1 : 0, evtAlarmBlink ? 1 : 0, cpnAlarmBlink ? 1 : 0, histOnNow() ? 1 : 0, partyShown ? 1 : 0, histAlarmBlink ? 1 : 0, partyAlarmBlink ? 1 : 0, nc ? nc.t + '|' + nc.bosses.join(',') : '-'].join('|');
     if (sig !== mainSig) {
       try { mainDbg('sig-diff: ' + sigDiff(mainSig, sig)); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
-      mainSig = sig; renderMain(nc);
+      mainSig = sig;
+      try { renderMain(nc); }
+      catch (e) {
+        try { if (typeof renderMainErr === 'function') renderMainErr(e); } catch (e2) {}
+        try { if (mainEl && !mainEl.innerHTML) mainEl.innerHTML = '<div style="font-size:12px;color:#ff7b7b">검은사막 표시 오류 (새로고침 후에도 같으면 알려주세요)</div>'; } catch (e3) {}
+      }
     }
     else if (nc) { // 카운터 숫자만 갱신 (버튼 깜빡임 방지)
       try { const l = mainEl.querySelector('#__kw_bdo_main_left'); if (l) l.textContent = fmtLong(nc.t - now); } catch (e) {}
