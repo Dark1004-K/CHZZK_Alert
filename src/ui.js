@@ -281,6 +281,7 @@ function kwFloat(el, o) {
         kwBringToFront(el);
       });
     } catch (e5) {}
+    try { kwBringToFront(el); } catch (e6) {} // 새로 열린 창을 최상단으로
     try {
       const p = o.load ? o.load() : null;
       if (p && isFinite(p.x) && isFinite(p.y) && o.apply) o.apply(p);
@@ -290,6 +291,7 @@ function kwFloat(el, o) {
 function dragFloatBtn(e, el, o) {
   if (!el || (e.button !== undefined && e.button !== 0)) return;
   e.preventDefault();
+  try { kwBringToFront(el); } catch (err0) {} // 끌어올린 창을 최상단으로
   if (e.stopPropagation) e.stopPropagation();
   const r = el.getBoundingClientRect();
   const w = Math.round(r.width), h = Math.round(r.height);
@@ -487,7 +489,9 @@ function applyHistVisibility() {
   applyDropsVisibility();
   if (!histPanel) return;
   const show = histOn() && window.__KW_UI.histShown && panel && panel.classList.contains('show');
+  const was = histPanel.style.display !== 'none';
   histPanel.style.display = show ? 'flex' : 'none'; // 세로 flex: 화면이 모자라면 목록이 먼저 줄어든다
+  if (show && !was) { try { kwBringToFront(histPanel); } catch (e) {} } // 새로 열린 창을 최상단으로
   if (show && window.__KW_UI.histAlarmBlink) window.__KW_UI.histAlarmBlink = false; // 열린 것은 확인한 것으로 봄
 }
 function buildPanel() {
@@ -1757,7 +1761,10 @@ function snapGuideShow(lines) {
 function snapGuideHide() { try { const g = document.getElementById('__kw_snapguide'); if (g) g.style.display = 'none'; } catch (e) {} }
 function applySetVisibility() {
   if (!setPanel) return;
-  setPanel.style.display = (setOpen && panel && panel.classList.contains('show')) ? 'block' : 'none';
+  const show = (setOpen && panel && panel.classList.contains('show'));
+  const was = setPanel.style.display !== 'none';
+  setPanel.style.display = show ? 'block' : 'none';
+  if (show && !was) { try { kwBringToFront(setPanel); } catch (e) {} } // 새로 열린 창을 최상단으로
   applySetSize();
   applySetPos();
   try { const tb = document.getElementById('__kw_box'); if (tb) placeToastBox(tb); } catch (e) {} // 열려 있는 알람 토스트 위치 갱신
@@ -1925,7 +1932,9 @@ function fmtElapsed(ms) {
 function applyDropsVisibility() {
   if (!dropsPanel) return;
   const show = dropsInfo && dropsOn() && panel && panel.classList.contains('show');
+  const was = dropsPanel.style.display !== 'none';
   dropsPanel.style.display = show ? 'block' : 'none';
+  if (show && !was) { try { kwBringToFront(dropsPanel); } catch (e) {} } // 새로 열린 창을 최상단으로
 }
 function removeDropsPanel() {
   if (dropsPanel) { try { dropsPanel.remove(); } catch (e) {} }

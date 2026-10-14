@@ -213,6 +213,7 @@ try {
       } catch (e) {}
     },
     window(el, cfg) { try { return kwWindow(el, cfg); } catch (e) {} }, // 창 기본형 (색+띄우기+리사이즈+자석 일괄. rsz h/v/d)
+    front(el) { try { return kwBringToFront(el); } catch (e) {} }, // 열린 창을 최상단으로 (플러그인·대화방용)
     stackW(v) { try { return kwStackW(v); } catch (e) {} }, // 스택 너비 공유 (225~600)
     bridge(kind, params, timeoutMs) { try { return bridgeCall(kind, params, timeoutMs); } catch (e) { return Promise.resolve({ ok: false, error: 'bridge' }); } }, // 동반 브릿지 호출
     bridgeReady() { try { return bridgeIsReady(); } catch (e) { return false; } }, // 동반 감지 여부
