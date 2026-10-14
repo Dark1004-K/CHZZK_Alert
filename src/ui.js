@@ -307,15 +307,20 @@ try {
     let t = null;
     try {
       const tg = e.target;
-      t = tg && tg.closest ? tg.closest('[title]') : null;
+      // data-kw-tip도 함께 탐색: 이미 걷어낸 요소 안을 이동해도 같은 요소로 판정 (깜빡임 방지)
+      t = tg && tg.closest ? tg.closest('[title],[data-kw-tip]') : null;
       if (t && !t.closest(KW_TIP_SCOPE)) t = null;
     } catch (err) { t = null; }
     if (__kwTipFor && __kwTipFor !== t) kwTipHide();
     if (!t || __kwTipFor === t) return;
     let txt = '';
-    try { txt = t.getAttribute('title') || ''; } catch (err2) {}
+    try { txt = t.getAttribute('title') || t.getAttribute('data-kw-tip') || ''; } catch (err2) {}
     if (!txt) return;
-    try { t.setAttribute('data-kw-tip', txt); t.removeAttribute('title'); } catch (err3) { return; }
+    try {
+      const cur = t.getAttribute('title');
+      if (cur) t.setAttribute('data-kw-tip', cur);
+      t.removeAttribute('title');
+    } catch (err3) { return; }
     __kwTipFor = t;
     kwTipShow(t, txt, e.clientX, e.clientY);
   }, true);
