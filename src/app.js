@@ -189,6 +189,9 @@ try {
     enabled(id) { return pluginIdIsOn(id); }, // 설정 > 확장에서 켜져 있는지
     setOption(id, key, v) { pluginOptSet(id, key, v); try { if (setPanel && setPanel.isConnected) renderSettings(); } catch (e) {} }, // 플러그인 창의 X 버튼이 옵션을 끌 때 (설정 화면도 갱신)
     openOpts(id) { try { optWinId = id; renderOptWin(); } catch (e) {} }, // 메인창 설정 버튼: 해당 확장의 옵션 창 열기
+    toggleOpts(id) { try { if (typeof toggleOptWin === 'function') toggleOptWin(id); else { optWinId = id; renderOptWin(); } } catch (e) {} }, // 파란 메인창 옵션 버튼: 토글 (녹색 설정 버튼처럼)
+    closeOpts() { try { closeOptWin(); } catch (e) {} },
+    optWinOpen(id) { try { if (id) return optWinId === id && !!document.getElementById('__kw_optwin'); return !!optWinId; } catch (e) { return false; } }, // 옵션 창 열림 상태 (파란 메인창 버튼 색용)
     volume() { return volPct() / 100; }, // 설정 > 음향설정의 볼륨 (0~1)
     opacity() { try { return (100 - getTransparency()) / 100; } catch (e) { return 0.85; } }, // 설정 > 일반설정의 창 투명도 (0.1~1, 스택 밖 fixed 창용)
     sink(target) { applySink(target); }, // AudioContext/Audio를 선택한 출력 장치로

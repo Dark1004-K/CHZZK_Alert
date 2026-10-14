@@ -223,6 +223,7 @@
   const showCpn = () => showCpnFlag;
   const showEvt = () => showEvtFlag;
   const showFam = () => showFamFlag;
+  function optWinOpen() { try { if (KW && typeof KW.optWinOpen === 'function') return !!KW.optWinOpen(ID); } catch (e) {} return false; } // 검은사막 옵션 창 열림 (파란 메인 옵션 버튼 토글·색용)
   const SHOW_X_TITLE = '닫기 (검은사막 창의 버튼으로 다시 표시)';
   let mainEl = null, mainSig = null;
   let cpnAlarmBlink = false, evtAlarmBlink = false; // 새 쿠폰·이벤트 알람 후 상세창이 숨어있으면 메인 버튼 반짝임 (창이 보이면 해제)
@@ -265,7 +266,7 @@
       mainBtn('cpn', '쿠폰 모아보기', BDO_BTN(TI_TICKET), '#b784ff', showCpn(), cpnAlarmBlink) +
       mainBtn('fam', '검은사막 검색', BDO_BTN(TI_SEARCH), '#ff7ab8', showFam(), false) +
       mainBtn('pty', '파티 모집', BDO_BTN(TI_USERS), '#ff7a59', window.__KW_UI.partyShown, window.__KW_UI.partyAlarmBlink) +
-      mainBtn('opt', '검은사막 옵션', BDO_BTN(TI_SLIDERS), '#ccc', true, false) +
+      mainBtn('opt', '검은사막 옵션', BDO_BTN(TI_SLIDERS), BDO_BLUE, optWinOpen(), false) +
       '</span></div>' +
       '<div style="display:flex;align-items:center;gap:8px;margin-top:1px;padding-left:19px">' +
       (nc
@@ -286,7 +287,7 @@
         const b = e.target && e.target.closest ? e.target.closest('[data-bdo-act]') : null;
         if (!b) return;
         const act = b.getAttribute('data-bdo-act');
-        if (act === 'opt') { try { if (KW && typeof KW.openOpts === 'function') KW.openOpts(ID); } catch (er) {} return; }
+        if (act === 'opt') { try { if (KW && typeof KW.toggleOpts === 'function') KW.toggleOpts(ID); else if (KW && typeof KW.openOpts === 'function') KW.openOpts(ID); } catch (er) {} }
         if (act === 'evt') { setShow(LS_SHOW_EVT, !showEvt()); try { updateEvents(Date.now()); } catch (er) {} }
         else if (act === 'cpn') { setShow(LS_SHOW_CPN, !showCpn()); try { updateCoupons(Date.now()); } catch (er) {} }
         else if (act === 'fam') { setShow(LS_SHOW_FAM, !showFam()); try { updateFamily(Date.now()); } catch (er) {} }
@@ -303,7 +304,7 @@
     }
     bdoOrder();
     const nc = nextCounter(now);
-    const sig = [showEvt() ? 1 : 0, showCpn() ? 1 : 0, showFam() ? 1 : 0, evtAlarmBlink ? 1 : 0, cpnAlarmBlink ? 1 : 0, window.__KW_UI.partyShown ? 1 : 0, window.__KW_UI.partyAlarmBlink ? 1 : 0, nc ? nc.t + '|' + nc.bosses.join(',') : '-'].join('|');
+    const sig = [showEvt() ? 1 : 0, showCpn() ? 1 : 0, showFam() ? 1 : 0, optWinOpen() ? 1 : 0, evtAlarmBlink ? 1 : 0, cpnAlarmBlink ? 1 : 0, window.__KW_UI.partyShown ? 1 : 0, window.__KW_UI.partyAlarmBlink ? 1 : 0, nc ? nc.t + '|' + nc.bosses.join(',') : '-'].join('|');
     if (sig !== mainSig) {
       mainSig = sig;
       try { renderMain(nc); }

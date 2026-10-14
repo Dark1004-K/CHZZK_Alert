@@ -946,7 +946,8 @@ function extOptHtml(p) {
 }
 // 확장 옵션 창: 설정 > 확장의 [옵션] 버튼으로 여는 별도 창 (옵션이 있는 확장만)
 let optWinId = null;
-function closeOptWin() { optWinId = null; const w = document.getElementById('__kw_optwin'); if (w) w.remove(); try { closeOptHelp(); } catch (e) {} }
+function closeOptWin() { optWinId = null; const w = document.getElementById('__kw_optwin'); if (w) w.remove(); try { closeOptHelp(); } catch (e) {} try { if (window.__KW && typeof window.__KW.refreshBdo === 'function') window.__KW.refreshBdo(); } catch (e2) {} }
+function toggleOptWin(id) { try { if (optWinId === id) closeOptWin(); else { optWinId = id; renderOptWin(); try { if (window.__KW && typeof window.__KW.refreshBdo === 'function') window.__KW.refreshBdo(); } catch (e) {} } } catch (e2) {} }
 const LS_OPTSIZE = '__kw_opt_size';
 const LS_OPTPOS = '__kw_opt_pos';
 const OPT_H_MIN = 200;
@@ -999,7 +1000,7 @@ function renderOptWin() {
       if (rr.right > window.innerWidth - 4 && pos.indexOf('translate') < 0) w.style.cssText = w.style.cssText.replace(/(bottom|top):[^;]+;left:[^;]+;/, 'top:50%;left:50%;transform:translate(-50%,-50%);');
     }
   } catch (e) {}
-  w.querySelector('#__kw_optwin_x').onclick = closeOptWin;
+  try { const __ox = w.querySelector('#__kw_optwin_x'); if (__ox) __ox.onclick = (e) => { try { if (e && e.stopPropagation) e.stopPropagation(); } catch (err) {} closeOptWin(); }; } catch (e) {}
   bindPluginOpts(w);
   bindCompanionInstall(w);
   try { const cb0 = w.querySelector('#__kw_optwin_compcheck'); if (cb0) cb0.style.display = companionNeedsUpdate(p) ? 'none' : ''; } catch (e) {} // 업그레이드 대상이면 새로고침 숨김
