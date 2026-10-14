@@ -592,7 +592,7 @@ function renderPanel() {
   panel.className = 'show' + (running ? '' : ' off');
 
   panel.innerHTML = `
-    <div id="__kw_row"><div style="flex:1;min-width:0"><div id="__kw_ch"><span style="display:inline-flex;align-items:center;gap:5px;min-width:0"><span class="__kw_ti" style="color:#00ffa3">${IC.house}</span><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(chDisplayName())}</b></span><span id="__kw_links">${chLinksHtml()}<button class="__kw_ic" id="__kw_gear" title="설정" style="color:#00ffa3">${IC.sliders}</button></span></div><div id="__kw_titlerow"><div id="__kw_title" style="flex:1;min-width:0"><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b><span id="__kw_dot"></span> · 단어 ${keywords.length}개</div><span style="display:inline-flex;gap:0;flex:none"><button class="__kw_ic${window.__KW_UI.histAlarmBlink ? ' __kw_urg' : ''}" id="__kw_histbtn" title="불린 대화${window.__KW_UI.histAlarmBlink ? ' (새 알림)' : ''}" style="color:${window.__KW_UI.histAlarmBlink || (histOn() && window.__KW_UI.histShown) ? '#ffd400' : '#555'}">${IC.bell}</button><button class="__kw_ic${window.__KW_UI.partyAlarmBlink ? ' __kw_urg' : ''}" id="__kw_partybtn" title="파티 모집${window.__KW_UI.partyAlarmBlink ? ' (새 알림)' : ''}" style="color:${window.__KW_UI.partyAlarmBlink || window.__KW_UI.partyShown ? '#ff7a59' : '#555'}">${IC.users}</button><button class="__kw_ic" id="__kw_btn" title="${running ? '정지' : '시작'}" style="color:#00ffa3">${running ? IC.pause : IC.play}</button></span></div></div></div>
+    <div id="__kw_row"><div style="flex:1;min-width:0"><div id="__kw_ch"><span style="display:inline-flex;align-items:center;gap:5px;min-width:0"><span class="__kw_ti" style="color:#00ffa3">${IC.house}</span><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(chDisplayName())}</b></span><span id="__kw_links">${chLinksHtml()}<button class="__kw_ic" id="__kw_gear" title="설정" style="color:#00ffa3">${IC.sliders}</button></span></div><div id="__kw_titlerow"><div id="__kw_title" style="flex:1;min-width:0"><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b><span id="__kw_dot"></span> · 단어 ${keywords.length}개</div><span style="display:inline-flex;gap:0;flex:none"><button class="__kw_ic${window.__KW_UI.histAlarmBlink ? ' __kw_urg' : ''}" id="__kw_histbtn" title="불린 대화${window.__KW_UI.histAlarmBlink ? ' (새 알림)' : ''}" style="color:${window.__KW_UI.histAlarmBlink || (histOn() && window.__KW_UI.histShown) ? '#ffd400' : '#555'}">${IC.bell}</button><button class="__kw_ic" id="__kw_btn" title="${running ? '정지' : '시작'}" style="color:#00ffa3">${running ? IC.pause : IC.play}</button></span></div></div></div>
     <div id="__kw_expwarn" style="display:${allowExpiry ? 'block' : 'none'};font-size:11px;color:#ff9f1a;margin-top:4px">⚠ 만료 경고 · ${allowExpiry ? escapeHtml(allowExpiry.date) : ''} 만료, ${allowExpiry ? allowExpiry.stopDays : ''}일 뒤 동작 중지</div>
     <div id="__kw_plugwarn" style="display:${pluginHealthText() ? 'block' : 'none'};font-size:11px;color:#ff7b7b;margin-top:4px">⚠ ${escapeHtml(pluginHealthText())}</div>
     <div id="__kw_warn" style="display:${limitedMode ? 'block' : 'none'};font-size:11px;color:#ffd400;margin-top:4px">⚠ 사용자 스크립트 허용 꺼짐: WS 감시 불가, DOM 감시만 동작. chrome://extensions → Tampermonkey 상세에서 허용 후 새로고침</div>`;
@@ -602,12 +602,6 @@ function renderPanel() {
     try { window.__KW_UI.histShown = !window.__KW_UI.histShown; } catch (e) {}
     window.__KW_UI.histAlarmBlink = false;
     applyHistVisibility();
-    renderPanel();
-    try { if (window.__KW && typeof window.__KW.refreshBdo === 'function') window.__KW.refreshBdo(); } catch (e) {}
-  };
-  panel.querySelector('#__kw_partybtn').onclick = () => { // 파티모집 창 띄우기/숨기기
-    try { window.__KW_UI.partyShown = !window.__KW_UI.partyShown; } catch (e) {}
-    window.__KW_UI.partyAlarmBlink = false;
     renderPanel();
     try { if (window.__KW && typeof window.__KW.refreshBdo === 'function') window.__KW.refreshBdo(); } catch (e) {}
   };
@@ -1872,6 +1866,9 @@ const DROPS_API = 'https://api.chzzk.naver.com/service/';
 const DROPS_VAULT_URL = 'https://game.naver.com/profile#drops';
 const DROPS_WEBSTORE_URL = 'https://www.kr.playblackdesert.com/ko-KR/MyPage/WebItemStorage';
 let dropsPanel = null, dropsPoll = null, dropsTick = null;
+// [BETA-TEST-ONLY:start]
+let dropsNoLogged = null; // 캠페인 전환 진단용 (원인 파악 후 삭제)
+// [BETA-TEST-ONLY:end]
 let dropsSaveN = 0;
 let dropsCid = '', dropsJoinAt = 0, dropsNo = 0, dropsInfo = null;
 let dropsDone = new Set(); // 시간 충족 알림을 이미 한 보상 번호
@@ -1934,7 +1931,10 @@ function dropsNextReward(el) {
 }
 function dropsSubHtml(el, cur) {
   const t = dropsSrv ? Math.floor(el / 60000) + '분' : fmtElapsed(el);
-  return '시청 <b id="__kw_dr_time">' + t + '</b>' + (cur ? ' / ' + cur.conditionForMinutes + '분' : ' · 시간충족');
+  if (cur) return '시청 <b id="__kw_dr_time">' + t + '</b> / ' + cur.conditionForMinutes + '분';
+  const rw = dropsRewards();
+  const allClaimed = dropsSrv && rw.length > 0 && rw.every((r) => dropsSrv.claimed.has(r.rewardNo));
+  return '시청 <b id="__kw_dr_time">' + t + '</b> · ' + (allClaimed ? '전부 수령 완료' : '시간충족');
 }
 function renderDrops() {
   if (!dropsInfo || !dropsOn()) { removeDropsPanel(); return; }
@@ -1944,6 +1944,7 @@ function renderDrops() {
     d.id = '__kw_dropsp';
     stackEl.insertBefore(d, histPanel && histPanel.isConnected ? histPanel : null);
     dropsPanel = d;
+    try { console.log('[KW-BETA]', 'drops-shown', dropsNo); } catch (e) {} // [BETA-ONLY-LINE] 드롭스 창 생성 진단 (원인 파악 후 삭제)
   }
   const elapsed = dropsElapsed();
   const rewards = dropsRewards();
@@ -2089,6 +2090,7 @@ function pollDrops() { // 끝나면 resolve되는 Promise를 돌려준다 (새�
     .then((j) => {
       if (cid !== dropsCid) return;
       const no = j && j.content && j.content.dropsCampaignNo;
+      try { if (typeof dropsNoLogged !== 'undefined' && no !== dropsNoLogged) { dropsNoLogged = no; try { console.log('[KW-BETA]', 'drops-campaign', cid, no || '(없음)'); } catch (e3) {} } } catch (e2) {} // [BETA-ONLY-LINE] 캠페인 전환 진단 (원인 파악 후 삭제)
       if (!no) { dropsNo = 0; dropsInfo = null; dropsSrv = null; dropsSrvSynced = false; renderDrops(); return; }
       if (no === dropsNo && dropsInfo) return fetchDropsServer(cid, no);
       dropsNo = no;
@@ -2105,7 +2107,7 @@ function pollDrops() { // 끝나면 resolve되는 Promise를 돌려준다 (새�
           return fetchDropsServer(cid, no);
         });
     })
-    .catch(() => {}) // 네트워크 오류 시 현재 표시 유지
+    .catch((e) => { try { console.log('[KW-BETA]', 'drops-poll-err', (e && e.stack) || e); } catch (e2) {} }) // [BETA-ONLY-LINE] 드롭스 조회 실패 진단 (원인 파악 후 삭제)
     .then(() => { dropsRefreshedAt = Date.now(); });
 }
 function startDrops() {

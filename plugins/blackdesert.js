@@ -222,7 +222,6 @@
   const showCpn = () => showCpnFlag;
   const showEvt = () => showEvtFlag;
   const showFam = () => showFamFlag;
-  function histOnNow() { try { return (typeof histOn === 'function' ? histOn() : true) && window.__KW_UI.histShown; } catch (e) { return false; } }
   const SHOW_X_TITLE = '닫기 (검은사막 창의 버튼으로 다시 표시)';
   let mainEl = null, mainSig = null;
   let cpnAlarmBlink = false, evtAlarmBlink = false; // 새 쿠폰·이벤트 알람 후 상세창이 숨어있으면 메인 버튼 반짝임 (창이 보이면 해제)
@@ -236,7 +235,7 @@
     try { console.log('[KW-BETA]', 'bdo-main', msg); } catch (e) {}
   }
   function sigDiff(a, b) { // sig가 안 맞는 원인을 지목한다
-    const names = ['evt', 'cpn', 'fam', 'evtBlink', 'cpnBlink', 'histOn', 'pty', 'histBlink', 'ptyBlink', 'next'];
+    const names = ['evt', 'cpn', 'fam', 'evtBlink', 'cpnBlink', 'pty', 'ptyBlink', 'next'];
     const pa = String(a || '').split('|'), pb = String(b || '').split('|');
     const out = [];
     for (let i = 0; i < names.length; i++) {
@@ -261,7 +260,7 @@
     const sel = opt('bosses', null);
     for (const o of occurrences(now, 8).sort((a, b) => a.t - b.t)) {
       if (o.t <= now) continue;
-      const bosses = Array.isArray(sel) ? o.bosses.filter((b) => sel.includes(b)) : o.bosses;
+      const bosses = o.bosses.filter((b) => b !== '가모스' && (!Array.isArray(sel) || sel.includes(b))); // 메인 카운터에서는 가모스 제외 (알람은 그대로)
       if (bosses.length) {
         const when = new Date(o.t + KST);
         const days = Math.floor((o.t + KST) / DAY) - Math.floor((now + KST) / DAY);
@@ -284,7 +283,6 @@
       mainBtn('evt', '이벤트 모아보기', BDO_BTN(TI_CAL), EVT_COLOR, showEvt(), evtAlarmBlink) +
       mainBtn('cpn', '쿠폰 모아보기', BDO_BTN(TI_TICKET), '#b784ff', showCpn(), cpnAlarmBlink) +
       mainBtn('fam', '검은사막 검색', BDO_BTN(TI_SEARCH), '#ff7ab8', showFam(), false) +
-      mainBtn('hist', '불린 대화', BDO_BTN(TI_BELL_P), '#ffd400', histOnNow(), window.__KW_UI.histAlarmBlink) +
       mainBtn('pty', '파티 모집', BDO_BTN(TI_USERS), '#ff7a59', window.__KW_UI.partyShown, window.__KW_UI.partyAlarmBlink) +
       mainBtn('opt', '검은사막 옵션', BDO_BTN(TI_SLIDERS), '#ccc', true, false) +
       '</span></div>' +
@@ -316,12 +314,6 @@
         if (act === 'evt') { setShow(LS_SHOW_EVT, !showEvt()); try { updateEvents(Date.now()); } catch (er) {} }
         else if (act === 'cpn') { setShow(LS_SHOW_CPN, !showCpn()); try { updateCoupons(Date.now()); } catch (er) {} }
         else if (act === 'fam') { setShow(LS_SHOW_FAM, !showFam()); try { updateFamily(Date.now()); } catch (er) {} }
-        else if (act === 'hist') {
-          try { window.__KW_UI.histShown = !window.__KW_UI.histShown; } catch (er) {}
-          window.__KW_UI.histAlarmBlink = false;
-          try { if (typeof applyHistVisibility === 'function') applyHistVisibility(); } catch (er) {}
-          try { if (typeof renderPanel === 'function') renderPanel(); } catch (er) {}
-        }
         else if (act === 'pty') {
           window.__KW_UI.partyAlarmBlink = false;
           setPartyShown(!window.__KW_UI.partyShown);
@@ -336,7 +328,7 @@
     bdoOrder();
     const nc = nextCounter(now);
     try { const kd = new Date(now + KST); mainDbg('render next=' + (nc ? nc.bosses.join('/') + '@' + nc.label : 'none') + ' now=' + kd.getUTCHours() + ':' + String(kd.getUTCMinutes()).padStart(2, '0') + ' sel=' + (nc ? nc.selN : '-')); } catch (e) {} // [BETA-ONLY-LINE] 진단용
-    const sig = [showEvt() ? 1 : 0, showCpn() ? 1 : 0, showFam() ? 1 : 0, evtAlarmBlink ? 1 : 0, cpnAlarmBlink ? 1 : 0, histOnNow() ? 1 : 0, window.__KW_UI.partyShown ? 1 : 0, window.__KW_UI.histAlarmBlink ? 1 : 0, window.__KW_UI.partyAlarmBlink ? 1 : 0, nc ? nc.t + '|' + nc.bosses.join(',') : '-'].join('|');
+    const sig = [showEvt() ? 1 : 0, showCpn() ? 1 : 0, showFam() ? 1 : 0, evtAlarmBlink ? 1 : 0, cpnAlarmBlink ? 1 : 0, window.__KW_UI.partyShown ? 1 : 0, window.__KW_UI.partyAlarmBlink ? 1 : 0, nc ? nc.t + '|' + nc.bosses.join(',') : '-'].join('|');
     if (sig !== mainSig) {
       try { mainDbg('sig-diff: ' + sigDiff(mainSig, sig)); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
       mainSig = sig;
