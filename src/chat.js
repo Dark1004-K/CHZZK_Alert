@@ -84,7 +84,7 @@ function fireAlert(nick, text, el, kw) {
   const body = splitBody(nick, text);
   const title = nick ? '🔔 ' + nick : '🔔 CHZZK 채팅 호출';
   kwEmit('hit', { nick: nick || '', text: body, kw: kw || '', el: el || null });
-  if (!muted()) {
+  if (histOn() && !muted()) {
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       try {
         // 다른 탭을 보고 있어도 놓치지 않도록: 겹치지 않는 태그 + 직접 닫을 때까지 유지 + 클릭 시 창 포커스
@@ -94,6 +94,10 @@ function fireAlert(nick, text, el, kw) {
     }
     showCallToast(nick, body);
     playAlertSound();
+    // 알람 조건 충족 → 불린대화 창 자동 표시 (X로 닫았어도 다음 알람에 다시 표시)
+    try { histShown = true; } catch (e) {}
+    try { if (typeof ensureHistPanel === 'function') ensureHistPanel(); } catch (e) {}
+    try { if (typeof applyHistVisibility === 'function') applyHistVisibility(); } catch (e) {}
   }
   highlightMessage(el);
 }

@@ -904,6 +904,7 @@
   const PARTY_MAX_MIN = 10;
   let parties = []; // { id, nick, kind, content, exp }
   let partyEl = null, partySig = null;
+  let partyShown = false; // 파티모집 창 표시 상태 (기본 숨음, 알림 조건 충족 시 자동 표시, X로 닫으면 다음 알림까지 숨음)
   function partyKindsSel() {
     const v = opt('partyKinds', null);
     return Array.isArray(v) ? v : PARTY_KINDS.slice();
@@ -963,10 +964,12 @@
       parties.push(e);
       partySig = null;
       if (p.clamped) partyNotice(nick, '모집 시간은 최대 ' + PARTY_MAX_MIN + '분이라 ' + PARTY_MAX_MIN + '분으로 등록했어요.');
-      if (partyKindsSel().includes(e.kind)) { // 선택한 종류만 알림
+      if (partyKindsSel().includes(e.kind)) { // 선택한 종류만 알림 + 창 자동 표시
         try { KW.toast('👥 ' + e.kind + ' 파티 모집', nick + (e.content ? ': ' + e.content : '')); } catch (er) {}
         if (opt('sound', true)) { if (typeof KW.sound === 'function') KW.sound(); else beep(); }
         try { if (typeof KW.emit === 'function') KW.emit('party', { nick, kind: e.kind, content: e.content }); } catch (er) {}
+        partyShown = true;
+        try { updateParty(Date.now()); } catch (er) {}
       }
     } catch (e) {}
   }
@@ -1008,16 +1011,18 @@
   function updateParty(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
-    if (!opt('party', true)) { parties = []; removeParty(); return; }
+    if (!opt('party', true)) { parties = []; partyShown = false; removeParty(); return; }
     if (!stack || !panel || !panel.classList.contains('show')) { removeParty(); return; }
     parties = parties.filter((x) => x.exp > now);
     const sel = partyKindsSel();
     const list = parties.filter((x) => sel.includes(x.kind));
+    if (!partyShown) { removeParty(); return; } // 기본 숨음 + X로 닫은 뒤: 새 알림까지 숨음 유지
+    if (!list.length) { partyShown = false; removeParty(); return; } // 모두 만료되면 자동 숨김
     if (!partyEl || !partyEl.isConnected) {
       partyEl = document.createElement('div');
       partyEl.id = '__kw_bdo_party';
       partyEl.onclick = (e) => {
-        if (e.target && e.target.closest && e.target.closest('#__kw_bdo_party_x')) { turnOff('party'); removeParty(); return; }
+        if (e.target && e.target.closest && e.target.closest('#__kw_bdo_party_x')) { partyShown = false; removeParty(); return; } // X = 창만 닫기 (알림 옵션 유지)
         if (e.target && e.target.closest && e.target.closest('[data-pdel]')) return; // 베타 삭제 버튼은 이동하지 않음
         const row = e.target && e.target.closest ? e.target.closest('[data-pjump]') : null;
         if (row) jumpToParty(row.getAttribute('data-pjump'));

@@ -110,11 +110,11 @@ function kwRsz(el, o) {
     // 자석 후보는 시작 때 한 번만 고정: 늘리면서 창들이 움직여도 후보가 흔들리지 않음
     const listW = (dir === 'h' || dir === 'd') ? snapLenList('w', originL, el, startW) : null;
     const snapBottom = originT + (rectH || startH); // 도크 세로용 고정 아래 모서리
-    // 높이 조절이 패널 통째가 아니라 안쪽 박스면(불린대화·쿠폰) 헤더분 오프셋을 뺀다
+    // 높이 조절이 패널 통째가 아니라 안쪽 박스면(불린대화) 헤더분 오프셋을 뺀다
     let snapOff = 0;
     try { if ((dir === 'v' || dir === 'd') && o.setH && o.getBoxH) { const bh = Math.round(o.getBoxH()); if (isFinite(bh) && bh > 0) snapOff = Math.max(0, (rectH || startH) - bh); } } catch (e1) {}
     const listH = ((dir === 'v' || dir === 'd') && o.setH)
-      ? (o.snapTop ? snapLenListTop(snapBottom, el, startH, snapOff) : snapLenList('h', originT, el, startH))
+      ? (o.snapTop ? snapLenListTop(snapBottom, el, startH, snapOff) : snapLenList('h', originT, el, startH + snapOff).map((c) => c - snapOff))
       : null;
     const move = (ev) => {
       let hit = false;
@@ -128,14 +128,14 @@ function kwRsz(el, o) {
         else kwStackW(sn.v);
       }
       if ((dir === 'v' || dir === 'd') && o.setH) {
-        // 브라우저 밖으로 못 나가게: 도크(아래 고정)는 snapBottom, 고정창(위 고정)은 vh - originT
+        // 브라우저 밖으로 못 나가게: 도크(아래 고정)는 snapBottom, 고정창(위 고정)은 vh - originT (안쪽 박스 기준이면 헤더분 제외)
         let viewMax = Infinity;
-        try { viewMax = Math.max(0, Math.round(o.snapTop ? snapBottom : window.innerHeight - originT)); } catch (e6) {}
+        try { viewMax = Math.max(0, Math.round((o.snapTop ? snapBottom : window.innerHeight - originT) - snapOff)); } catch (e6) {}
         let hgt = Math.min(Math.round(startH + (ev.clientY - startY)), viewMax);
         const sn = snapLenNear(hgt, listH);
         hit = hit || sn.hit;
         const hv = Math.min(sn.v, viewMax);
-        if (sn.hit && hv === sn.v) guides.push({ axis: 'h', pos: o.snapTop ? snapBottom - hv - snapOff : originT + hv }); // 움직이는 모서리선
+        if (sn.hit && hv === sn.v) guides.push({ axis: 'h', pos: o.snapTop ? snapBottom - hv - snapOff : originT + hv + snapOff }); // 움직이는 모서리선
         o.setH(hv);
       }
       el.style.boxShadow = hit ? '0 0 0 2px rgba(0,255,163,.7)' : '';
@@ -443,11 +443,9 @@ function attachHistHandlers() {
     hitLog = []; saveHits(); renderHitsList(); dlog('hits-cleared');
   };
   const x = histPanel.querySelector('#__kw_hits_close');
-  if (x) x.onclick = () => { // X = 설정의 "불린 대화 목록 별도 표시" 체크를 끈 것과 같음
-    try { localStorage.setItem(LS_HIST, '0'); } catch (e) {}
+  if (x) x.onclick = () => { // X = 창만 닫기 (알림 옵션은 유지, 다음 알람에 다시 표시)
+    try { histShown = false; } catch (e) {}
     applyHistVisibility();
-    renderHitsList();
-    refreshSettingsIfOpen();
     dlog('hist-closed');
   };
   const b = histPanel.querySelector('#__kw_hits');
@@ -473,7 +471,7 @@ function ensureHistPanel() {
   }
   const d = document.createElement('div');
   d.id = '__kw_histp';
-  d.innerHTML = `<div id="__kw_hist_head"><span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-flex;align-items:center">${TI(TI_BELL, '#ffd400')}불린 대화&nbsp;<b id="__kw_hits_count">0</b></span><button class="__kw_ic" id="__kw_hits_clear" title="지우기" style="color:#ffd400">${IC.trash}</button></span><button class="__kw_ic __kw_xabs" id="__kw_hits_close" title="닫기 (설정 > 일반설정에서 다시 켤 수 있음)" style="color:#ffd400">${IC.close}</button></div><div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:2px -10px 4px"></div><div id="__kw_hits"></div>`;
+  d.innerHTML = `<div id="__kw_hist_head"><span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-flex;align-items:center">${TI(TI_BELL, '#ffd400')}불린 대화&nbsp;<b id="__kw_hits_count">0</b></span><button class="__kw_ic" id="__kw_hits_clear" title="지우기" style="color:#ffd400">${IC.trash}</button></span><button class="__kw_ic __kw_xabs" id="__kw_hits_close" title="닫기 (새 알림이 오면 다시 표시)" style="color:#ffd400">${IC.close}</button></div><div style="flex:none;height:1px;background:rgba(255,255,255,.14);margin:2px -10px 4px"></div><div id="__kw_hits"></div>`;
   stackEl.appendChild(d);
   histPanel = d;
   histBox = d.querySelector('#__kw_hits');
@@ -486,7 +484,7 @@ function ensureHistPanel() {
 function applyHistVisibility() {
   applyDropsVisibility();
   if (!histPanel) return;
-  const show = histOn() && panel && panel.classList.contains('show');
+  const show = histOn() && histShown && panel && panel.classList.contains('show');
   histPanel.style.display = show ? 'flex' : 'none'; // 세로 flex: 화면이 모자라면 목록이 먼저 줄어든다
 }
 function buildPanel() {
@@ -1346,7 +1344,7 @@ function renderSettings() {
       <div id="__kw_set_body" style="flex:1;min-width:0;min-height:0;overflow-y:auto;display:flex;flex-direction:column;padding-right:8px">
         <div id="__kw_set_general" style="display:${setTab === 'general' ? 'block' : 'none'}">
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_auto" ${autoOn() ? 'checked' : ''}> 방송 들어가면 묻지 않고 자동으로 켜기</label></div>
-          <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_hist" ${histOn() ? 'checked' : ''}> 불린 대화 목록 별도 표시 (클릭 이동)</label></div>
+          <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_hist" ${histOn() ? 'checked' : ''}> 불린대화 알림</label></div>
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_drops" ${dropsOn() ? 'checked' : ''}> 드롭스 보기 (진행 중인 드롭스가 있을 때만 표시)</label></div>
           <div class="__kw_lbl"><label style="cursor:pointer"><input type="checkbox" id="__kw_mute" ${muted() ? 'checked' : ''}> 알람 끄기 (감지·기록은 유지)</label></div>
           <div class="__kw_lbl">창 투명도 <b id="__kw_op_val">${getTransparency()}%</b> <span style="color:#888">(0~90%)</span></div>

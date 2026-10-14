@@ -131,7 +131,7 @@
         },
         {
           "key": "party",
-          "label": "파티모집 창 표시",
+          "label": "파티모집 알림",
           "type": "bool",
           "default": true,
           "help": {
