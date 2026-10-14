@@ -714,6 +714,8 @@
         // [BETA-TEST-ONLY:end]
         '</div>' +
         xBtn('__kw_chatroom_x', COLOR, 'position:absolute;top:2px;right:3px;z-index:2');
+      // 상용 표시이지만 아직 테스트 중임을 알림 (베타·정식 공통)
+      if (panelActive) h += '<div style="flex:none;font-size:10px;color:#888;margin-top:1px;padding-left:19px">베타 버전 테스트 중입니다</div>';
       // [BETA-TEST-ONLY:start]
       if (selfTestResult) {
         h += '<div style="margin-top:6px;flex:none;font-size:11px;line-height:1.5;color:#ccc;background:rgba(255,255,255,.05);border-radius:8px;padding:6px 8px;white-space:pre-wrap;max-height:120px;overflow-y:auto">' + esc(selfTestResult) + '</div>';
