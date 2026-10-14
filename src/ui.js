@@ -636,6 +636,26 @@ function isNewer(remote, local) {
   return r.preN > l.preN;
 }
 // 수동 업데이트 확인: 새 버전이 있을 때만 파란 업데이트 버튼을 켜줌
+function fetchRemoteVersion() {
+  return fetch(UPDATE_URL + '?t=' + Date.now(), { cache: 'no-store' })
+    .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.text(); })
+    .then((t) => {
+      const m = t.match(/@version\s+([^\s]+)/);
+      if (!m) throw new Error('parse');
+      return m[1].trim();
+    });
+}
+let updateChecking = false; // 수동·자동 확인 중이면 중복 실행 방지
+function armUpdateGo(remote, stamp) {
+  const msg = setPanel ? setPanel.querySelector('#__kw_update_msg') : null;
+  const go = setPanel ? setPanel.querySelector('#__kw_update_go') : null;
+  if (!msg || !go) return;
+  msg.textContent = '새버전 : ' + remote + (stamp ? ' + ' + stamp : '');
+  msg.classList.add('hot');
+  go.disabled = false;
+  try { msg.appendChild(go); } catch (e) {}
+  go.style.display = '';
+}
 function checkUpdate() {
   const msg = setPanel ? setPanel.querySelector('#__kw_update_msg') : null;
   const btn = setPanel ? setPanel.querySelector('#__kw_update_check') : null;
@@ -647,20 +667,17 @@ function checkUpdate() {
     else msg.classList.remove('hot');
   };
   const stamp = () => { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()); };
+  if (updateChecking) return;
+  updateChecking = true;
   if (btn) { btn.disabled = true; btn.classList.add('__kw_spin'); }
   if (go) go.style.display = 'none';
   say('확인 중...');
-  const done = () => { if (btn) { btn.disabled = false; btn.classList.remove('__kw_spin'); } };
+  const done = () => { if (btn) { btn.disabled = false; btn.classList.remove('__kw_spin'); } updateChecking = false; };
   try {
-    fetch(UPDATE_URL + '?t=' + Date.now(), { cache: 'no-store' })
-      .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.text(); })
-      .then((t) => {
-        const m = t.match(/@version\s+([^\s]+)/);
-        if (!m) throw new Error('parse');
-        const remote = m[1].trim();
+    fetchRemoteVersion()
+      .then((remote) => {
         if (isNewer(remote, SCRIPT_VERSION)) {
-          say('새버전 : ' + remote + ' + ' + stamp(), true);
-          if (go) { go.disabled = false; try { if (msg) msg.appendChild(go); } catch (e) {} go.style.display = ''; }
+          armUpdateGo(remote, stamp());
           dlog('update-avail', remote);
         } else {
           say('최신 버전입니다 (' + SCRIPT_VERSION + ') · ' + stamp(), false);
@@ -674,6 +691,33 @@ function checkUpdate() {
     say('확인 실패 (네트워크)');
     done();
   }
+}
+// 자동 업데이트 확인: 1시간마다 조용히 확인하고, 새 버전이면 버전당 1회 토스트 (수동 확인과 같은 UPDATE_URL)
+const LS_UPD_LAST = '__kw_update_last';
+const LS_UPD_NOTIFIED = '__kw_update_notified';
+let updateAutoNotified = '';
+try { updateAutoNotified = localStorage.getItem(LS_UPD_NOTIFIED) || ''; } catch (e) {}
+function autoUpdateCheck() {
+  if (updateChecking) return;
+  let last = 0;
+  try { last = parseInt(localStorage.getItem(LS_UPD_LAST), 10) || 0; } catch (e) {}
+  if (Date.now() - last < 3600000) return;
+  updateChecking = true;
+  fetchRemoteVersion()
+    .then((remote) => {
+      if (remote && isNewer(remote, SCRIPT_VERSION) && updateAutoNotified !== remote) {
+        updateAutoNotified = remote;
+        try { localStorage.setItem(LS_UPD_NOTIFIED, remote); } catch (e) {}
+        try { if (typeof showCallToast === 'function') showCallToast('업데이트', '새 버전 ' + remote + ' — 설정 > 앱 정보에서 업데이트하세요.'); } catch (e) {}
+        try { armUpdateGo(remote); } catch (e) {}
+        dlog('update-auto-avail', remote);
+      }
+    })
+    .catch(() => {})
+    .then(() => {
+      try { localStorage.setItem(LS_UPD_LAST, String(Date.now())); } catch (e) {}
+      updateChecking = false;
+    });
 }
 // 플러그인 옵션 입력칸 (type: bool | number | multi)
 // (?) 도움말: 옵션 정의의 help { title, text } 를 ? 버튼 바로 위 작은 창으로 보여준다.

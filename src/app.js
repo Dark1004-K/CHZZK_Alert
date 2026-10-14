@@ -58,6 +58,7 @@ function gapCheck() { // 타이머가 150초 넘게 멈췄다 풀렸으면 탭�
 }
 function checkRoute() {
   gapCheck();
+  try { if (typeof autoUpdateCheck === 'function') autoUpdateCheck(); } catch (e) {} // 앱 자체 업데이트 1시간마다 조용히 확인
   if (location.pathname !== lastPath) {
     lastPath = location.pathname;
     const cid = pageChannelId();
