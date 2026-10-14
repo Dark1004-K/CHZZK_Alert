@@ -10,7 +10,7 @@ const LS_HIST = '__kw_hist_on'; // 불린대화 알림 옵션 ('0'=끔, 그 외=
 const LS_SET = '__kw_set_open'; // 설정 화면 열림 상태
 const LS_TAB = '__kw_set_tab'; // 설정 탭 ('general' | 'words' | 'about')
 // 런타임에 보이는 버전/업데이트 주소 (@version 헤더와 함께 올릴 것)
-const SCRIPT_VERSION = '3.6.0-beta035';
+const SCRIPT_VERSION = '3.6.0-beta036';
 const UPDATE_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/beta/chzzk_alert.beta.user.js';
 const LS_W = '__kw_width'; // 스택 가로 (드래그 리사이즈, 기본 350)
 const HITS_MAX = 30;
@@ -503,6 +503,7 @@ function ensureStyle() {
 .__kw_sb_evt::-webkit-scrollbar-thumb:hover{background:rgb(45,212,191);background-clip:padding-box}
 .__kw_sb_evt::-webkit-scrollbar-corner{background:transparent}
 .__kw_sb_evt{scrollbar-width:thin;scrollbar-color:rgba(45,212,191,.7) rgba(45,212,191,.12)}
+div.__kw_sb_cpn::-webkit-scrollbar-button,div.__kw_sb_evt::-webkit-scrollbar-button,div.__kw_sb_pty::-webkit-scrollbar-button,div.__kw_sb_fam::-webkit-scrollbar-button,div.__kw_sb_rcp::-webkit-scrollbar-button{height:0!important;width:0!important;display:none!important}
 @supports not selector(::-webkit-scrollbar){
   #__kw_hits{scrollbar-width:thin;scrollbar-color:rgba(255,212,0,.7) rgba(255,212,0,.12)}
   #__kw_set_body{scrollbar-width:thin;scrollbar-color:rgba(170,170,185,.7) rgba(170,170,185,.12)}
