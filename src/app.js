@@ -323,7 +323,6 @@ function injectPlugin(p) {
       .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.text(); })
       .then((code) => {
         if (!code || code.length < 10) return;
-        try { console.log('[KW-BETA]', 'plugin-code', p.id || p.url, 'len=' + code.length); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
         const target = document.head || document.documentElement;
         if (!target) return;
         const mark = () => { pluginInjecting = p.id || ''; pluginLoaded[p.id] = true; };
@@ -344,13 +343,11 @@ function injectPlugin(p) {
             if (pluginDescribed(p.id)) { clearInterval(timer); return; }
             step++;
             if (step === 1) {
-              try { console.log('[KW-BETA]', 'plugin-fallback', p.id, 'src'); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
               const s2 = document.createElement('script');
               s2.src = p.url + (p.url.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
               mark();
               try { target.appendChild(s2); } finally { unmark(); }
             } else if (step === 2) {
-              try { console.log('[KW-BETA]', 'plugin-fallback', p.id, 'blob'); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
               const u = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
               const s3 = document.createElement('script');
               const done = () => { try { URL.revokeObjectURL(u); } catch (e) {} try { s3.remove(); } catch (e) {} };
@@ -360,7 +357,6 @@ function injectPlugin(p) {
               try { target.appendChild(s3); } finally { unmark(); }
             } else {
               clearInterval(timer);
-              try { console.log('[KW-BETA]', 'plugin-blocked', p.id); } catch (e) {} // [BETA-ONLY-LINE] 진단용 (원인 파악 후 삭제)
             }
           } catch (e) {}
         }, 3000);
