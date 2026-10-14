@@ -592,7 +592,7 @@ function renderPanel() {
   panel.className = 'show' + (running ? '' : ' off');
 
   panel.innerHTML = `
-    <div id="__kw_row"><div style="flex:1;min-width:0"><div id="__kw_ch"><span style="display:inline-flex;align-items:center;gap:5px;min-width:0"><span class="__kw_ti" style="color:#00ffa3">${IC.house}</span><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(chDisplayName())}</b></span><span id="__kw_links">${chLinksHtml()}<button class="__kw_ic" id="__kw_gear" title="설정" style="color:#00ffa3">${IC.sliders}</button></span></div><div id="__kw_titlerow"><div id="__kw_title" style="flex:1;min-width:0"><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b><span id="__kw_dot"></span> · 단어 ${keywords.length}개</div><span style="display:inline-flex;gap:0;flex:none"><button class="__kw_ic${window.__KW_UI.histAlarmBlink ? ' __kw_urg' : ''}" id="__kw_histbtn" title="불린 대화${window.__KW_UI.histAlarmBlink ? ' (새 알림)' : ''}" style="color:${window.__KW_UI.histAlarmBlink || (histOn() && window.__KW_UI.histShown) ? '#ffd400' : '#555'}">${IC.bell}</button><button class="__kw_ic" id="__kw_btn" title="${running ? '정지' : '시작'}" style="color:#00ffa3">${running ? IC.pause : IC.play}</button></span></div></div></div>
+    <div id="__kw_row"><div style="flex:1;min-width:0"><div id="__kw_ch"><span style="display:inline-flex;align-items:center;gap:5px;min-width:0"><span class="__kw_ti" style="color:#00ffa3">${IC.house}</span><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(chDisplayName())}</b></span><span id="__kw_links">${chLinksHtml()}<button class="__kw_ic" id="__kw_gear" title="설정" style="color:#00ffa3">${IC.sliders}</button></span></div><div id="__kw_titlerow"><div id="__kw_title" style="flex:1;min-width:0"><b style="color:${running ? '#00ffa3' : '#ff4d4d'}">${running ? '감시중' : '중지됨'}</b><span id="__kw_dot"></span> · 단어 ${keywords.length}개</div><span style="display:inline-flex;gap:0;flex:none"><button class="__kw_ic${window.__KW_UI.histAlarmBlink ? ' __kw_urg' : ''}" id="__kw_histbtn" title="불린 대화${window.__KW_UI.histAlarmBlink ? ' (새 알림)' : ''}" style="color:${window.__KW_UI.histAlarmBlink || (histOn() && window.__KW_UI.histShown) ? '#ffd400' : '#ccc'}">${IC.bell}</button><button class="__kw_ic" id="__kw_btn" title="${running ? '정지' : '시작'}" style="color:#00ffa3">${running ? IC.pause : IC.play}</button></span></div></div></div>
     <div id="__kw_expwarn" style="display:${allowExpiry ? 'block' : 'none'};font-size:11px;color:#ff9f1a;margin-top:4px">⚠ 만료 경고 · ${allowExpiry ? escapeHtml(allowExpiry.date) : ''} 만료, ${allowExpiry ? allowExpiry.stopDays : ''}일 뒤 동작 중지</div>
     <div id="__kw_plugwarn" style="display:${pluginHealthText() ? 'block' : 'none'};font-size:11px;color:#ff7b7b;margin-top:4px">⚠ ${escapeHtml(pluginHealthText())}</div>
     <div id="__kw_warn" style="display:${limitedMode ? 'block' : 'none'};font-size:11px;color:#ffd400;margin-top:4px">⚠ 사용자 스크립트 허용 꺼짐: WS 감시 불가, DOM 감시만 동작. chrome://extensions → Tampermonkey 상세에서 허용 후 새로고침</div>`;
@@ -655,12 +655,26 @@ function fetchRemoteVersion() {
 let updateChecking = false; // 수동·자동 확인 중이면 중복 실행 방지
 function armUpdateGo(remote, stamp) {
   const msg = setPanel ? setPanel.querySelector('#__kw_update_msg') : null;
-  const go = setPanel ? setPanel.querySelector('#__kw_update_go') : null;
-  if (!msg || !go) return;
+  if (!msg) return;
   msg.textContent = '새버전 : ' + remote + (stamp ? ' + ' + stamp : '');
   msg.classList.add('hot');
+  const chk = setPanel ? setPanel.querySelector('#__kw_update_check') : null;
+  let go = setPanel ? setPanel.querySelector('#__kw_update_go') : null;
+  if (!go || !go.isConnected) { // 이전에 msg 안으로 옮겨졌다 say()로 떨어져나간 경우: 원래 자리(확인 버튼 옆)에 재생성
+    try {
+      go = document.createElement('button');
+      go.id = '__kw_update_go';
+      go.className = '__kw_ic';
+      go.title = '업데이트';
+      go.style.color = '#00ffa3';
+      go.innerHTML = IC.down;
+      go.onclick = () => showReloadPopup(() => window.open(UPDATE_URL, '_blank'));
+      if (chk && chk.parentNode) chk.parentNode.insertBefore(go, chk.nextSibling);
+      else if (msg.parentNode) msg.parentNode.insertBefore(go, msg.nextSibling);
+      else return;
+    } catch (e) { return; }
+  }
   go.disabled = false;
-  try { msg.appendChild(go); } catch (e) {}
   go.style.display = '';
 }
 function checkUpdate() {

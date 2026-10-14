@@ -250,7 +250,7 @@
     return null;
   }
   function mainBtn(act, title, svg, color, on, blink) {
-    return '<button class="__kw_ic' + (blink ? ' __kw_urg' : '') + '" data-bdo-act="' + act + '" title="' + title + '" style="color:' + (on ? color : '#555') + ';padding:4px">' + svg + '</button>';
+    return '<button class="__kw_ic' + (blink ? ' __kw_urg' : '') + '" data-bdo-act="' + act + '" title="' + title + '" style="color:' + (on ? color : '#ccc') + ';padding:4px">' + svg + '</button>';
   }
   function renderMain(nc) {
     if (!mainEl) return;
@@ -272,6 +272,44 @@
         : '<div style="flex:1;font-size:12px;color:#888">다음 우두머리 없음 (확장 옵션에서 선택)</div>') +
       '</div>';
   }
+  // 메인 버튼용 요약 알람: 창을 직접 열지 않고 토스트로 알리고, 토스트를 누르면 창을 연다.
+  // 새 알림이 있을 때의 버튼 반짝임(cpnAlarmBlink·evtAlarmBlink)은 그대로 두고, 창을 열면 해제된다.
+  function cpnSummaryToast() {
+    const now = Date.now();
+    if (!cpnData || !Array.isArray(cpnData.coupons)) {
+      try { if (cpnState === 'idle') loadCoupons(); } catch (e) {}
+      try { if (typeof KW.toast === 'function') KW.toast('쿠폰 모아보기', '쿠폰 목록을 가져오는 중입니다. 잠시 후 다시 눌러주세요.'); } catch (e2) {}
+      return;
+    }
+    const list = cpnVisible(now);
+    const urgN = list.filter((c) => { const end = c.expiresAt || urgEndMs(c.expires); return urgIs(end, now); }).length;
+    const body = '사용 가능 ' + list.length + '개' + (urgN ? '\n마감 임박 ' + urgN + '개' : '');
+    try {
+      if (typeof KW.toast === 'function') KW.toast('쿠폰 모아보기', body, () => {
+        setShow(LS_SHOW_CPN, true); mainSig = null;
+        try { updateCoupons(Date.now()); } catch (e) {}
+        try { updateMain(Date.now()); } catch (e2) {}
+      });
+    } catch (e) {}
+  }
+  function evtSummaryToast() {
+    const now = Date.now();
+    if (!evtData || !Array.isArray(evtData.events)) {
+      try { if (evtState === 'idle') loadEvents(); } catch (e) {}
+      try { if (typeof KW.toast === 'function') KW.toast('이벤트 모아보기', '이벤트 목록을 가져오는 중입니다. 잠시 후 다시 눌러주세요.'); } catch (e2) {}
+      return;
+    }
+    const list = evtList();
+    const urgN = list.filter((c) => urgIs(urgEndMs(c.period), now)).length;
+    const body = '진행 중 ' + list.length + '개' + (urgN ? '\n마감 임박 ' + urgN + '개' : '');
+    try {
+      if (typeof KW.toast === 'function') KW.toast('이벤트 모아보기', body, () => {
+        setShow(LS_SHOW_EVT, true); mainSig = null;
+        try { updateEvents(Date.now()); } catch (e) {}
+        try { updateMain(Date.now()); } catch (e2) {}
+      });
+    } catch (e) {}
+  }
   function updateMain(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
@@ -285,8 +323,8 @@
         if (!b) return;
         const act = b.getAttribute('data-bdo-act');
         if (act === 'opt') { try { if (KW && typeof KW.openOpts === 'function') KW.openOpts(ID); } catch (er) {} return; }
-        if (act === 'evt') { setShow(LS_SHOW_EVT, !showEvt()); try { updateEvents(Date.now()); } catch (er) {} }
-        else if (act === 'cpn') { setShow(LS_SHOW_CPN, !showCpn()); try { updateCoupons(Date.now()); } catch (er) {} }
+        if (act === 'evt') { try { evtSummaryToast(); } catch (er) {} }
+        else if (act === 'cpn') { try { cpnSummaryToast(); } catch (er) {} }
         else if (act === 'fam') { setShow(LS_SHOW_FAM, !showFam()); try { updateFamily(Date.now()); } catch (er) {} }
         else if (act === 'pty') {
           window.__KW_UI.partyAlarmBlink = false;
