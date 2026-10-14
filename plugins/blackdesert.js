@@ -533,17 +533,15 @@
       try { updateCoupons(Date.now()); } catch (e) {}
       return '쿠폰 테스트 알람: ' + code;
     };
-    // 테스트: __kwBdoCouponUrgTest() → 12시간 뒤 만료 가짜 쿠폰으로 마감 임박 깜빡임 즉시 시험 (새 쿠폰 등록과 동일하게 토스트+메인 깜빡임)
+    // 테스트: __kwBdoCouponUrgTest() → 12시간 뒤 만료 가짜 쿠폰 등록 (알람 없음, 창 열기 없음. 직접 쿠폰창을 열어 깜빡임 확인)
     window.__kwBdoCouponUrgTest = () => {
       const code = 'URGTEST-' + Date.now().toString(36).toUpperCase();
       if (!cpnData || !Array.isArray(cpnData.coupons)) cpnData = { updatedAt: Date.now(), coupons: [] };
-      const item = { name: '테스트 임박 쿠폰', code, expires: '테스트 마감 (약 12시간 남음)', expiresAt: Date.now() + 12 * 3600 * 1000 };
-      cpnData.coupons.push(item);
+      cpnData.coupons.push({ name: '테스트 임박 쿠폰', code, expires: '테스트 마감 (약 12시간 남음)', expiresAt: Date.now() + 12 * 3600 * 1000 });
       cpnState = 'ok'; cpnSig = '';
-      cpnAlarmNew([item]); // 새 쿠폰 등록과 동일: 토스트+알림음+TTS+숨김 시 메인 버튼 깜빡임 (토스트 클릭=쿠폰창 열기)
       try { const s = cpnSeenSet(); s.add(code); localStorage.setItem(LS_CPNSEEN, JSON.stringify([...s].slice(-200))); } catch (e) {}
-      try { updateCoupons(Date.now()); } catch (e) {}
-      return '쿠폰 임박 깜빡임 테스트: ' + code;
+      try { updateCoupons(Date.now()); } catch (e) {} // 열려 있으면 목록에 바로 표시
+      return '쿠폰 임박 데이터 등록: ' + code;
     };
     // 테스트: __kwBdoEventTest() → 가짜 새 이벤트로 알람 경로 즉시 시험 (옵션 무시)
     window.__kwBdoEventTest = () => {
@@ -556,7 +554,7 @@
       try { updateEvents(Date.now()); } catch (e) {}
       return '이벤트 테스트 알람: ' + link;
     };
-    // 테스트: __kwBdoEventUrgTest() → 12시간 뒤 종료 가짜 이벤트로 마감 임박 깜빡임 즉시 시험 (새 이벤트 등록과 동일하게 토스트+메인 깜빡임)
+    // 테스트: __kwBdoEventUrgTest() → 12시간 뒤 종료 가짜 이벤트 등록 (알람 없음, 창 열기 없음. 직접 이벤트창을 열어 깜빡임 확인)
     window.__kwBdoEventUrgTest = () => {
       const t = Date.now() + 12 * 3600 * 1000;
       const d = new Date(t + KST);
@@ -567,10 +565,9 @@
       if (!evtData || !Array.isArray(evtData.events)) evtData = { updatedAt: Date.now(), events: [] };
       evtData.events.unshift({ category: 'NEW 이벤트', title: '테스트 임박 이벤트', period, summary: '마감 임박 깜빡임 시험용', link });
       evtState = 'ok'; evtSig = '';
-      evtAlarmNew([{ title: '테스트 임박 이벤트', link }]); // 새 이벤트 등록과 동일: 토스트+알림음+TTS+숨김 시 메인 버튼 깜빡임 (토스트 클릭=이벤트창 열기)
       try { const s = evtSeenSet(); s.add(link); localStorage.setItem(LS_EVTSEEN, JSON.stringify([...s].slice(-200))); } catch (e) {}
-      try { updateEvents(Date.now()); } catch (e) {}
-      return '이벤트 임박 깜빡임 테스트: ' + period;
+      try { updateEvents(Date.now()); } catch (e) {} // 열려 있으면 목록에 바로 표시
+      return '이벤트 임박 데이터 등록: ' + period;
     };
   }
   // [BETA-TEST-ONLY:end]
