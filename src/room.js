@@ -1,6 +1,6 @@
 // 1:1 대화방 (코어) — 페어링은 공개 채팅 1줄 + 릴레이 내부 교환, 내용은 E2E 암호화 후 릴레이.
 // 비밀(개인키·방키)은 어디에도 올리지 않는다. 공개키 자체는 공개돼도 무해.
-//   1. A: "#채팅 X" (초대. 패널 [초대복사] 클릭 시 복사 → 채팅에 붙여넣고 Enter. X는 공백 없는 한 토큰, 5분 유효)
+//   1. A: "#채팅 X" (초대. 채팅에 직접 입력. X는 공백 없는 한 토큰, 5분 유효)
 //   2. X: 패널 [참가] 클릭 → X공개키를 릴레이로 내부 전송 (채팅에 안 씀)
 //   3. A가 폴링으로 X공개키를 받으면 A공개키를 릴레이로 자동 답신 → 양쪽이 ECDH(X25519)로 같은 방키 유도
 //   4. 이후 릴레이에 AES-GCM 암호문만. X의 [참가] 한 번이면 양쪽 🔒.
@@ -670,11 +670,12 @@
     const panel = document.getElementById('__kw_panel');
     if (sessionHidden || !stack || !panel || !panel.classList.contains('show')) { removeRoom(); removeInviteCard(); return; }
     const me = myNick();
+    for (const k of Object.keys(rooms)) { if (k.indexOf('솔로상대') === 0) { try { delete rooms[k]; } catch (e) {} } }
     const names = Object.keys(rooms).sort((a, b) => (rooms[b].last || 0) - (rooms[a].last || 0));
     if (selPeer && !rooms[selPeer]) selPeer = names[0] || '';
     const inv = myInvite();
     renderInviteCard(stack, me, inv);
-    const panelActive = names.length > 0 || !!selfTestResult || selfTestBusy;
+    const panelActive = names.length > 0;
     if (!panelActive) { removeRoom(); return; }
     if (!roomEl || !roomEl.isConnected) {
       roomEl = document.createElement('div');
@@ -683,11 +684,7 @@
         if (e.target && e.target.closest && e.target.closest('#__kw_chatroom_x')) { sessionHidden = true; removeRoom(); return; }
         if (e.target && e.target.closest && e.target.closest('[data-cr-accept]')) { acceptInvite(); return; }
         if (e.target && e.target.closest && e.target.closest('[data-cr-key]')) { sendMyKey(selPeer); return; }
-        if (e.target && e.target.closest && e.target.closest('[data-cr-invite]')) { invitePeer(); return; }
         if (e.target && e.target.closest && e.target.closest('[data-cr-send]')) { const r = rooms[selPeer]; if (r && r.aesKey) sendSecure(); else copyDraft(); return; }
-        // [BETA-TEST-ONLY:start]
-        if (e.target && e.target.closest && e.target.closest('[data-cr-selftest]')) { runSelfTest(); return; }
-        // [BETA-TEST-ONLY:end]
         const rb = e.target && e.target.closest ? e.target.closest('[data-cr-room]') : null;
         if (rb) { selPeer = rb.getAttribute('data-cr-room'); roomSig = null; render(Date.now()); return; }
         const mj = e.target && e.target.closest ? e.target.closest('[data-cr-msg]') : null;
@@ -705,32 +702,20 @@
       : 'position:relative;width:100%;height:auto;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px solid ' + COLOR + ';display:flex;flex-direction:column;overflow:visible';
     if (roomEl.style.position !== 'fixed' && roomEl.getAttribute('data-css') !== css) { roomEl.style.cssText = css; roomEl.setAttribute('data-css', css); }
 
-    const sig = [me, selPeer, inv ? inv.from + inv.t : '', selfTestResult, selfTestBusy ? '1' : '0', names.map((n) => n + ':' + (rooms[n].msgs.length ? rooms[n].msgs[rooms[n].msgs.length - 1].t : 0) + (rooms[n].aesKey ? '1' : '0')).join(',')].join('|');
+    const sig = [me, selPeer, inv ? inv.from + inv.t : '', names.map((n) => n + ':' + (rooms[n].msgs.length ? rooms[n].msgs[rooms[n].msgs.length - 1].t : 0) + (rooms[n].aesKey ? '1' : '0')).join(',')].join('|');
     if (sig !== roomSig) {
       roomSig = sig;
-      let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center"><span style="display:inline-flex;align-items:center;color:' + COLOR + ';margin-right:5px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + TI_CHAT + '</svg></span>1:1 대화&nbsp;<span style="color:' + COLOR + '">(' + names.length + ')</span></b>' +
-        // [BETA-TEST-ONLY:start]
-        '<button data-cr-selftest title="혼자서 전체 플로우 진단 (초대·암호·릴레이)" style="border:1px solid #555;background:transparent;color:#aaa;border-radius:8px;padding:2px 8px;font-size:11px;cursor:pointer;margin-left:6px">자가진단</button>' +
-        // [BETA-TEST-ONLY:end]
-        '</div>' +
+      let h = '<div style="display:flex;align-items:center;min-height:26px;padding-right:28px;flex:none"><b style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center"><span style="display:inline-flex;align-items:center;color:' + COLOR + ';margin-right:5px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + TI_CHAT + '</svg></span>1:1 대화&nbsp;<span style="color:' + COLOR + '">(' + names.length + ')</span></b></div>' +
         xBtn('__kw_chatroom_x', COLOR, 'position:absolute;top:2px;right:3px;z-index:2');
       // 상용 표시이지만 아직 테스트 중임을 알림 (베타·정식 공통)
       if (panelActive) h += '<div style="flex:none;font-size:10px;color:#888;margin-top:1px;padding-left:19px">베타 버전 테스트 중입니다</div>';
-      // [BETA-TEST-ONLY:start]
-      if (selfTestResult) {
-        h += '<div style="margin-top:6px;flex:none;font-size:11px;line-height:1.5;color:#ccc;background:rgba(255,255,255,.05);border-radius:8px;padding:6px 8px;white-space:pre-wrap;max-height:120px;overflow-y:auto">' + esc(selfTestResult) + '</div>';
-      }
-      // [BETA-TEST-ONLY:end]
       if (inv) {
         h += '<div style="margin-top:6px;flex:none;display:flex;align-items:center;gap:6px;font-size:12px;color:#ffd400"><span><b>' + esc(inv.from) + '</b>님이 초대했습니다</span><button data-cr-accept style="border:1px solid ' + COLOR + ';background:rgba(63,213,152,.15);color:' + COLOR + ';border-radius:8px;padding:3px 10px;font-size:12px;cursor:pointer;flex:none">참가</button></div>';
       }
       if (!me) {
         h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">내 닉네임을 먼저 입력하세요.<br>설정 ⚙ → 단어설정 → 내 닉네임</div>';
-      } else {
-        h += '<div style="display:flex;gap:4px;margin-top:6px;flex:none"><input data-cr-invite-peer placeholder="상대 이름" style="flex:1;min-width:0;background:rgba(255,255,255,.07);border:1px solid #555;border-radius:8px;color:#fff;font-size:12px;padding:5px 8px;outline:none"><button data-cr-invite title="초대 한 줄 복사 (붙여넣고 Enter)" style="border:1px solid ' + COLOR + ';background:transparent;color:' + COLOR + ';border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;flex:none">초대복사</button></div>';
-        if (!names.length && !inv) {
-          h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">위 칸에 상대 이름을 쓰고 [초대복사] → 채팅에 붙여넣고 Enter.<br>채팅에 직접 <b>#채팅 상대이름</b> 을 쳐도 방이 바로 열립니다.</div>';
-        }
+      } else if (!names.length && !inv) {
+        h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">채팅에 <b>#채팅 상대이름</b> 을 치면 방이 열립니다.</div>';
       }
       if (me && (names.length || inv)) {
         if (names.length) {
@@ -774,11 +759,6 @@
       const inp = roomEl.querySelector('[data-cr-inp]');
       if (inp) inp.addEventListener('keydown', (ev) => {
         if (ev.key === 'Enter') { const rr = rooms[selPeer]; if (rr && rr.aesKey) sendSecure(); else copyDraft(); }
-        if (ev.stopPropagation) ev.stopPropagation();
-      });
-      const invInp = roomEl.querySelector('[data-cr-invite-peer]');
-      if (invInp) invInp.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') invitePeer();
         if (ev.stopPropagation) ev.stopPropagation();
       });
     }
