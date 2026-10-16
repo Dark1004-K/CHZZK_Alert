@@ -461,6 +461,152 @@
     selfTestBusy = false;
     roomSig = null;
   }
+
+  // #채팅 테스터 (고정값, 베타 전용). 상대=테스트상대 고정, 내 닉네임은 설정값.
+  // B 역할을 이 브라우저가 대행: B 키쌍 생성 → hello/암호문 릴레이 전송 → 내 폴링이 수신.
+  // 단계 버튼 그대로 실제 방·릴레이·암호 경로를 타서, 결과는 아래 1:1 대화 패널에 실제 말풍선으로 남는다.
+  const CT_PEER = '테스트상대';
+  const CT_MSG_B2A = '안녕하세요! 여기는 테스트상대입니다';
+  const CT_MSG_A2B = '반갑습니다! 연결됐어요';
+  let ctLog = [], ctBusy = false, ctBkp = null, testEl = null, testSig = null;
+  function ctPush(who, msg) {
+    ctLog.push('[' + who + '] ' + msg);
+    if (ctLog.length > 60) ctLog.splice(0, ctLog.length - 60);
+    testSig = null;
+  }
+  async function ctInvite() {
+    if (ctBusy) return;
+    ctBusy = true; testSig = null;
+    try {
+      const me = myNick();
+      if (!me) { ctPush('안내', '실패: 내 닉네임 먼저 입력 (설정 > 단어설정 → 내 닉네임)'); return; }
+      try { await myKeypair(); } catch (e) {}
+      pruneInvites(Date.now());
+      invites.push({ from: me, peer: CT_PEER, pub: '', t: Date.now() });
+      const r = touchRoom(CT_PEER, false);
+      if (selPeer !== CT_PEER) selPeer = CT_PEER;
+      r.helloSent = false; r.openNotified = false; r.aesKey = null; r.peerPub = ''; r.lastRelayId = '';
+      ctPush('A(' + me + ')', '#채팅 ' + CT_PEER + ' 발송 → 초대 기록 (방 준비 중)');
+      ctPush('B(' + CT_PEER + ')', '공개 채팅에서 초대 확인 → [2. 참가 응답]을 눌러 [참가] 대행');
+      roomSig = null;
+    } finally { ctBusy = false; testSig = null; }
+  }
+  async function ctAccept() {
+    if (ctBusy) return;
+    ctBusy = true; testSig = null;
+    try {
+      const me = myNick();
+      if (!me) { ctPush('안내', '실패: 내 닉네임 먼저 입력'); return; }
+      const r = rooms[CT_PEER];
+      if (!r) { ctPush('안내', '방이 없음 → [1. 초대]부터 실행'); return; }
+      try { await myKeypair(); } catch (e) {}
+      if (!ctBkp) {
+        ctBkp = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
+        ctPush('B(' + CT_PEER + ')', 'B 키쌍 생성 OK (B 브라우저 역할 대행)');
+      }
+      const pubB64 = b64e(await crypto.subtle.exportKey('raw', ctBkp.publicKey));
+      const url = await topicUrl(r.tag);
+      let hpr = null;
+      try { hpr = await fetch(url, { method: 'POST', body: JSON.stringify({ v: 1, type: 'hello', from: CT_PEER, pub: pubB64, t: Date.now() }) }); } catch (e) { hpr = null; }
+      ctPush('B(' + CT_PEER + ')', '[참가] 클릭 대행 → hello 전송: ' + (hpr && hpr.ok ? 'OK' : 'FAIL'));
+      if (!hpr || !hpr.ok) return;
+      await pollRooms();
+      const ok = !!(r.aesKey && r.helloSent);
+      ctPush('A(' + me + ')', 'hello 수신 → 방키 유도·자동 답신: ' + (ok ? 'OK (🔒 암호방 열림)' : 'FAIL (잠시 후 [2] 재실행)'));
+      roomSig = null;
+    } catch (e) { ctPush('안내', '예외: ' + e); }
+    finally { ctBusy = false; testSig = null; }
+  }
+  async function ctChat() {
+    if (ctBusy) return;
+    ctBusy = true; testSig = null;
+    try {
+      const me = myNick();
+      const r = rooms[CT_PEER];
+      if (!r) { ctPush('안내', '방이 없음 → [1. 초대]부터 실행'); return; }
+      if (!r.aesKey) { ctPush('안내', '암호방 미완성 → [2. 참가 응답]부터 실행'); return; }
+      if (!ctBkp) { ctPush('안내', 'B 키 없음 → [2. 참가 응답]부터 실행'); return; }
+      const myPub = await crypto.subtle.importKey('raw', b64d(idkPubB64), { name: 'X25519' }, false, []);
+      const shared = await crypto.subtle.deriveBits({ name: 'X25519', public: myPub }, ctBkp.privateKey, 256);
+      const seed = new Uint8Array([...new Uint8Array(shared), ...te('kwr1|' + r.tag)]);
+      const bKey = await crypto.subtle.importKey('raw', await crypto.subtle.digest('SHA-256', seed), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, bKey, te(CT_MSG_B2A));
+      const url = await topicUrl(r.tag);
+      let pr = null;
+      try { pr = await fetch(url, { method: 'POST', body: JSON.stringify({ v: 1, from: CT_PEER, iv: b64e(iv), ct: b64e(ct), t: Date.now() }) }); } catch (e) { pr = null; }
+      ctPush('B(' + CT_PEER + '→A)', '암호문 발송: ' + (pr && pr.ok ? 'OK' : 'FAIL') + ' — "' + CT_MSG_B2A + '"');
+      if (pr && pr.ok) {
+        const before = r.msgs.length;
+        await pollRooms();
+        const got = r.msgs.slice(before).some((m) => !m.mine && m.text === CT_MSG_B2A);
+        ctPush('A(' + me + ')', '수신·복호화: ' + (got ? 'OK (회색 말풍선 확인)' : 'FAIL (5초 후 폴링 대기)'));
+      }
+      const s = await seal(r.aesKey, CT_MSG_A2B);
+      let ar = null;
+      try {
+        const u2 = await topicUrl(r.tag);
+        ar = await fetch(u2, { method: 'POST', body: JSON.stringify({ v: 1, from: me, iv: s.iv, ct: s.ct, t: Date.now() }) });
+      } catch (e) { ar = null; }
+      if (ar && ar.ok) {
+        r.msgs.push({ t: Date.now(), from: me, mine: true, text: CT_MSG_A2B });
+        if (r.msgs.length > MSG_MAX) r.msgs.splice(0, r.msgs.length - MSG_MAX);
+        ctPush('A(' + me + '→B)', '전송 OK (노랑 말풍선 확인) — "' + CT_MSG_A2B + '"');
+      } else ctPush('A(' + me + '→B)', '전송 FAIL');
+      roomSig = null;
+    } catch (e) { ctPush('안내', '예외: ' + e); }
+    finally { ctBusy = false; testSig = null; }
+  }
+  async function ctAll() {
+    if (ctBusy) return;
+    await ctInvite();
+    await ctAccept();
+    const r = rooms[CT_PEER];
+    if (r && r.aesKey) await ctChat();
+  }
+  function ctReset() {
+    try { delete rooms[CT_PEER]; } catch (e) {}
+    if (selPeer === CT_PEER) selPeer = '';
+    ctBkp = null; ctLog = [];
+    ctPush('안내', '초기화됨. [1. 초대]부터 다시 실행하세요.');
+    roomSig = null; testSig = null;
+  }
+  function renderChatTester(stack, me) {
+    const sig = [me, ctBusy ? '1' : '0', ctLog.length, ctLog.length ? ctLog[ctLog.length - 1] : ''].join('|');
+    if (sig === testSig && testEl && testEl.isConnected) return;
+    testSig = sig;
+    if (!testEl || !testEl.isConnected) {
+      if (testEl) { try { testEl.remove(); } catch (e) {} }
+      testEl = document.createElement('div');
+      testEl.id = '__kw_chattest';
+      testEl.onclick = (e) => {
+        const b = e.target && e.target.closest ? e.target.closest('[data-ct]') : null;
+        if (!b) return;
+        const k = b.getAttribute('data-ct');
+        if (k === 'invite') ctInvite();
+        else if (k === 'accept') ctAccept();
+        else if (k === 'chat') ctChat();
+        else if (k === 'all') ctAll();
+        else if (k === 'reset') ctReset();
+      };
+      try {
+        const hist = document.getElementById('__kw_histp');
+        if (hist && hist.parentNode === stack) stack.insertBefore(testEl, hist);
+        else stack.appendChild(testEl);
+      } catch (er) { try { stack.appendChild(testEl); } catch (er2) { return; } }
+    }
+    const btn = (k, label, hl) => '<button data-ct="' + k + '"' + (ctBusy ? ' disabled' : '') + ' style="border:1px solid ' + (hl ? COLOR : '#555') + ';background:' + (hl ? 'rgba(63,213,152,.15)' : 'transparent') + ';color:' + (hl ? COLOR : '#ccc') + ';border-radius:8px;padding:3px 8px;font-size:11px;cursor:pointer;flex:none">' + label + '</button>';
+    testEl.style.cssText = 'position:relative;width:100%;box-sizing:border-box;background:rgb(20,20,24);color:#fff;font:12px sans-serif;padding:8px 10px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);border:1px dashed ' + COLOR + ';display:flex;flex-direction:column;gap:6px';
+    testEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;font-size:12px"><b>#채팅 테스터</b><span style="color:#888">고정값·베타 전용</span></div>' +
+      '<div style="font-size:11px;color:#aaa">A(나): <b style="color:#fff">' + esc(me || '(미설정)') + '</b> · B(상대): <b style="color:#fff">' + CT_PEER + '</b></div>' +
+      '<div style="display:flex;gap:4px;flex-wrap:wrap">' + btn('invite', '1. 초대', true) + btn('accept', '2. 참가 응답', true) + btn('chat', '3. 대화 왕복', true) + btn('all', '전체 실행', false) + btn('reset', '초기화', false) + '</div>' +
+      (ctLog.length ? '<div style="font-size:11px;line-height:1.6;color:#ccc;background:rgba(255,255,255,.05);border-radius:8px;padding:6px 8px;max-height:140px;overflow-y:auto;white-space:pre-wrap">' + esc(ctLog.join('\n')) + '</div>'
+        : '<div style="font-size:11px;color:#666">버튼을 순서대로 눌러 진행. 결과 방은 아래 1:1 대화 패널에 실제 말풍선으로 표시됨.</div>');
+  }
+  if (KW.beta) {
+    window.__kwChatTest = () => { ctAll(); return '테스터 실행 중 (패널 로그 확인)'; };
+    window.__kwChatTestReset = () => { ctReset(); return '초기화됨'; };
+  }
   // [BETA-TEST-ONLY:end]
 
   const collapse = (t) => String(t || '').replace(/\s+/g, '');
@@ -668,13 +814,23 @@
   function render(now) {
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
-    if (sessionHidden || !stack || !panel || !panel.classList.contains('show')) { removeRoom(); removeInviteCard(); return; }
+    if (sessionHidden || !stack || !panel || !panel.classList.contains('show')) {
+      removeRoom(); removeInviteCard();
+      // [BETA-TEST-ONLY:start]
+      try { if (testEl) testEl.remove(); } catch (e) {}
+      testEl = null; testSig = null;
+      // [BETA-TEST-ONLY:end]
+      return;
+    }
     const me = myNick();
     for (const k of Object.keys(rooms)) { if (k.indexOf('솔로상대') === 0) { try { delete rooms[k]; } catch (e) {} } }
     const names = Object.keys(rooms).sort((a, b) => (rooms[b].last || 0) - (rooms[a].last || 0));
     if (selPeer && !rooms[selPeer]) selPeer = names[0] || '';
     const inv = myInvite();
     renderInviteCard(stack, me, inv);
+    // [BETA-TEST-ONLY:start]
+    try { renderChatTester(stack, me); } catch (e) {}
+    // [BETA-TEST-ONLY:end]
     const panelActive = names.length > 0;
     if (!panelActive) { removeRoom(); return; }
     if (!roomEl || !roomEl.isConnected) {
