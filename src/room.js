@@ -1,6 +1,9 @@
 // 1:1 대화방 (코어) — 페어링은 공개 채팅 1줄 + 릴레이 내부 교환, 내용은 E2E 암호화 후 릴레이.
 // 비밀(개인키·방키)은 어디에도 올리지 않는다. 공개키 자체는 공개돼도 무해.
-//   1. A: "#채팅 X" (초대. 채팅에 직접 입력. X는 공백 없는 한 토큰, 5분 유효)
+//   1. A: "#채팅 X" (초대. 채팅에 직접 입력. 5분 유효)
+//      - 공백 닉: #채팅 "홍 길동" / #채팅 [홍 길동] (따옴표 필수)
+//      - 여러 명: #채팅 "홍 길동", 김철수 (쉼표 구분, 각각 1:1방. 그룹방 아님)
+//      - 대화겸: #채팅 "홍 길동" 안녕 (초대+평문 1줄 동시 기록)
 //   2. X: 패널 [참가] 클릭 → X공개키를 릴레이로 내부 전송 (채팅에 안 씀)
 //   3. A가 폴링으로 X공개키를 받으면 A공개키를 릴레이로 자동 답신 → 양쪽이 ECDH(X25519)로 같은 방키 유도
 //   4. 이후 릴레이에 AES-GCM 암호문만. X의 [참가] 한 번이면 양쪽 🔒.
@@ -60,16 +63,151 @@
   }
 
   // ---------- 규격 파싱 ----------
+  // 공백 닉네임 지원: 띄어쓰기가 있으면 따옴표/대괄호로 묶는다.
+  //   1인: #채팅 "홍 길동" / #채팅 "홍 길동" 안녕 / #채팅 [홍 길동]
+  //   다인(각각 1:1방): #채팅 "홍 길동", 김철수 / #채팅 홍길동, 김철수
+  // 따옴표 없는 "홍 길동" (미등록)은 첫 토큰만 닉으로 보고 나머지는 내용으로 처리하므로,
+  // 공백 닉은 첫 초대부터 꼭 따옴표를 쓴다. 이미 아는 이름(내 닉·방·초대기록)은 따옴표 없이도 최장일치로 복원.
   const isPubkey = (s) => /^[A-Za-z0-9+/]{40,60}={0,2}$/.test(String(s || ''));
-  function parseInvite(text) { // "#채팅 X [A공개키]" (옛날 "#채팅 X"도 허용 → #키로 폴백)
+  function unquotePeer(s) {
+    const t = String(s || '').trim();
+    if (t.length >= 2) {
+      const a = t[0], b = t[t.length - 1];
+      if ((a === '"' && b === '"') || (a === "'" && b === "'") || (a === '[' && b === ']')) return t.slice(1, -1).trim();
+    }
+    return t;
+  }
+  function quotePeer(s) {
+    const t = String(s || '').trim();
+    if (!t) return t;
+    if (/[\s,;"'\[\]]/.test(t)) {
+      if (!t.includes('"')) return '"' + t + '"';
+      if (!t.includes("'")) return "'" + t + "'";
+      return '"' + t.replace(/"/g, '') + '"';
+    }
+    return t;
+  }
+  // 따옴표/대괄호 안의 쉼표는 나누지 않는다.
+  function splitPeerList(s) {
+    const out = [];
+    let cur = '', q = '', depth = 0;
+    const str = String(s || '');
+    for (let i = 0; i < str.length; i++) {
+      const c = str[i];
+      if (q) {
+        cur += c;
+        if (c === q) q = '';
+      } else if (c === '"' || c === "'") {
+        q = c;
+        cur += c;
+      } else if (c === '[') {
+        depth++;
+        cur += c;
+      } else if (c === ']') {
+        depth = Math.max(0, depth - 1);
+        cur += c;
+      } else if ((c === ',' || c === ';') && depth === 0) {
+        out.push(cur);
+        cur = '';
+      } else {
+        cur += c;
+      }
+    }
+    out.push(cur);
+    return out.map((x) => unquotePeer(x)).map((x) => String(x || '').trim()).filter(Boolean);
+  }
+  function extractQuotedHead(rest) { // rest 선두의 "A B" / 'A B' / [A B] 1개를 떼어낸다
+    const s = String(rest || '');
+    if (!s) return null;
+    const a = s[0];
+    if (a !== '"' && a !== "'" && a !== '[') return null;
+    const close = a === '[' ? ']' : a;
+    const j = s.indexOf(close, 1);
+    if (j < 0) return null;
+    return { peer: s.slice(1, j).trim(), after: s.slice(j + 1).trim() };
+  }
+  function knownCandidates() {
+    const set = [];
+    const push = (v) => { v = String(v || '').trim(); if (v && !set.includes(v)) set.push(v); };
+    try { push(myNick()); } catch (e) {}
+    try { Object.keys(rooms || {}).forEach(push); } catch (e) {}
+    try { (invites || []).forEach((x) => { push(x.from); push(x.peer); }); } catch (e) {}
+    return set.sort((a, b) => b.length - a.length); // 최장일치 우선
+  }
+  function parseChatLine(text, candidates) { // "#채팅 ..." → { peers, peer, key, content } | { err } | null
     const m = /^\s*#\s*채팅([\s\S]*)$/.exec(String(text || ''));
     if (!m) return null;
-    if (!m[1] || !/^\s/.test(m[1])) return { err: "'#채팅' 다음에 띄어쓰기를 하고 상대 이름을 적어 주세요. 예) #채팅 미리내" };
-    const toks = m[1].trim().split(/\s+/).filter(Boolean);
+    if (!m[1] || !/^\s/.test(m[1])) return { err: "'#채팅' 다음에 띄어쓰기를 하고 상대 이름을 적어 주세요. 예) #채팅 미리내 / #채팅 \"홍 길동\"" };
+    let rest = m[1].trim();
+    if (!rest) return { err: "상대 이름을 적어 주세요. 예) #채팅 미리내 / #채팅 \"홍 길동\"" };
+    // 끝 토큰이 공개키면 분리 (구방식 "#채팅 X <공개키>" 호환, X에 공백이 있어도 됨)
+    let key = '';
+    const lastSp = rest.search(/\s+(\S+)\s*$/);
+    if (lastSp >= 0) {
+      const lastTok = rest.slice(lastSp).trim();
+      if (isPubkey(lastTok)) {
+        key = lastTok;
+        rest = rest.slice(0, lastSp).trim();
+        if (!rest) return { err: "상대 이름을 적어 주세요. 예) #채팅 미리내 / #채팅 \"홍 길동\"" };
+      }
+    } else if (isPubkey(rest)) {
+      return { err: "상대 이름을 적어 주세요. 예) #채팅 미리내 / #채팅 \"홍 길동\"" };
+    }
+    // 1) 선두가 따옴표/대괄호 → ("A B", "C D" 내용) 형태. 쉼표로 여러 명 가능.
+    if (rest[0] === '"' || rest[0] === "'" || rest[0] === '[') {
+      const peers = [];
+      let cur = rest;
+      for (;;) {
+        const h = extractQuotedHead(cur);
+        if (!h || !h.peer) return { err: '따옴표가 닫히지 않았습니다. 예) #채팅 "홍 길동"' };
+        peers.push(h.peer);
+        cur = h.after;
+        if (!cur) break;
+        if (cur[0] === ',' || cur[0] === ';') {
+          cur = cur.slice(1).trim();
+          if (!cur) break;
+          const nh = extractQuotedHead(cur);
+          if (nh && nh.peer) continue; // 다음도 따옴표
+          // "A B", 김철수 — 쉼표 뒤 맨 앞 토큰 1개가 다음 상대
+          const mm = /^([^\s,;]+)\s*(.*)$/.exec(cur);
+          if (mm && mm[1]) {
+            peers.push(unquotePeer(mm[1]));
+            cur = (mm[2] || '').trim();
+            if (cur && (cur[0] === ',' || cur[0] === ';')) { cur = cur.slice(1).trim(); continue; }
+            break;
+          }
+          break;
+        }
+        break; // 쉼표가 없으면 나머지는 내용
+      }
+      return { peers, peer: peers[0] || '', key, content: cur || '' };
+    }
+    // 2) 쉼표/세미콜론이 있으면 다인 초대 (각각 1:1방). 내용은 없음.
+    if (/[,;]/.test(rest)) {
+      const peers = splitPeerList(rest);
+      if (!peers.length) return { err: "상대 이름을 적어 주세요. 예) #채팅 \"홍 길동\", 김철수" };
+      return { peers, peer: peers[0] || '', key, content: '' };
+    }
+    // 3) 따옴표 없는 단일 표기. 아는 이름은 공백 포함 최장일치로 복원.
+    const cands = candidates || knownCandidates();
+    for (const c of cands) {
+      if (!c) continue;
+      if (rest === c) return { peers: [c], peer: c, key, content: '' };
+      if (rest.startsWith(c + ' ') || rest.startsWith(c + '\t')) {
+        return { peers: [c], peer: c, key, content: rest.slice(c.length).trim() };
+      }
+    }
+    // 4) 구방식 폴백: 첫 토큰이 닉, 나머지는 내용
+    const toks = rest.split(/\s+/).filter(Boolean);
     const peer = toks[0] || '';
-    if (!peer) return { err: "상대 이름을 적어 주세요. 예) #채팅 미리내" };
-    const key = toks[1] && isPubkey(toks[1]) ? toks[1] : '';
-    return { peer, key };
+    if (!peer) return { err: "상대 이름을 적어 주세요. 예) #채팅 미리내 / #채팅 \"홍 길동\"" };
+    const afterFirst = rest.slice(rest.indexOf(toks[0]) + toks[0].length).trim();
+    return { peers: [peer], peer, key, content: afterFirst || '' };
+  }
+  function parseInvite(text) { // "#채팅 X [A공개키]" (X에 공백 가능, 여러 명은 쉼표)
+    const r = parseChatLine(text);
+    if (!r || r.err) return r;
+    return { peers: r.peers, peer: r.peer, key: r.key, content: r.content };
   }
   function parseAccept(text) { // "#참가" 또는 "#참가 <공개키>"
     const m = /^\s*#\s*참가([\s\S]*)$/.exec(String(text || ''));
@@ -246,12 +384,15 @@
       const nick = String(d.nick || '익명');
       const now = Date.now();
       pruneInvites(now);
-      // 1) 초대
+      // 1) 초대 (+ 같은 줄에 내용이 있으면 평문 메시지로도 기록)
       const inv = parseInvite(d.text);
       if (inv && !inv.err) {
-        invites.push({ from: nick, peer: inv.peer, pub: inv.key || '', t: now });
-        rlog('invite', nick + '->' + inv.peer, 'key=' + (inv.key ? shortKey(inv.key) : '(일반)'), 'me=' + (me || '(미설정)'));
-        if (me && nick === me && inv.peer === me) {
+        const peerList = (inv.peers && inv.peers.length ? inv.peers : [inv.peer]).filter(Boolean);
+        for (const onePeer of peerList) {
+          invites.push({ from: nick, peer: onePeer, pub: inv.key || '', t: now });
+        }
+        rlog('invite', nick + '->' + peerList.join(','), 'key=' + (inv.key ? shortKey(inv.key) : '(일반)'), 'me=' + (me || '(미설정)') + (inv.content ? ' msg=' + String(inv.content).slice(0, 20) : ''));
+        if (me && nick === me && peerList.includes(me)) {
           // 셀프 호출 = 자가진단. 가상 상대를 상대로 초대·암호·릴레이 왕복 전체를 시험 (베타만).
           rlog('selftest-trigger', '내가 나를 부름');
           try {
@@ -263,12 +404,20 @@
           roomSig = null;
           return;
         }
-        if (me && nick === me && inv.peer !== me) {
+        if (me && nick === me) {
           // 내가 직접 친 초대: 수락 전이라도 내 방 바로 열기 (준비 중 상태, 여러 개 가능)
-          touchRoom(inv.peer, !!inv.key);
-          if (!selPeer) selPeer = inv.peer;
-          rlog('invite-mine', 'room=' + inv.peer);
-        } else if (me && inv.peer === me && nick !== me) {
+          for (const onePeer of peerList) {
+            if (onePeer === me) continue;
+            touchRoom(onePeer, !!inv.key);
+            if (!selPeer) selPeer = onePeer;
+            if (inv.content) {
+              const rr = touchRoom(onePeer, false);
+              rr.msgs.push({ t: now, from: me, mine: true, text: inv.content });
+              if (rr.msgs.length > MSG_MAX) rr.msgs.splice(0, rr.msgs.length - MSG_MAX);
+            }
+            rlog('invite-mine', 'room=' + onePeer);
+          }
+        } else if (me && peerList.includes(me) && nick !== me) {
           try { KW.toast('💬 1:1 대화 초대', nick + '님이 초대했습니다. 알림 카드에서 [참가]를 누르세요.'); } catch (er) {}
           // 수신측은 방을 미리 만들지 않음. 알림 카드의 [참가]를 눌러야 방이 열림.
           if (inv.key) {
@@ -278,6 +427,9 @@
             try { await myKeypair(); } catch (e) {}
             await trySecure(r);
           }
+          if (inv.content) pushMsg(nick, nick, false, inv.content);
+        } else if (me && inv.content && peerList.includes(me)) {
+          pushMsg(nick, nick, false, inv.content);
         }
         roomSig = null;
         return;
@@ -368,10 +520,12 @@
       }
     } catch (e) {}
   }
-  function parseRoomMsg(text) { // "#채팅 X 내용" (X 뒤에 내용이 있을 때만 대화)
-    const m = /^\s*#\s*채팅\s+(\S+)\s+([\s\S]+)$/.exec(String(text || ''));
-    if (!m) return null;
-    return { peer: m[1], content: m[2].trim() };
+  function parseRoomMsg(text) { // "#채팅 X 내용" (X는 공백 가능, 따옴표 권장. 내용이 있을 때만 대화)
+    const r = parseChatLine(text);
+    if (!r || r.err || !r.peer) return null;
+    if (!r.content || (r.key && r.content === '')) return null;
+    if (r.key && r.content === r.key) return null;
+    return { peers: r.peers, peer: r.peer, content: r.content };
   }
   try { KW.on('chat', onChat); } catch (e) {}
 
@@ -714,15 +868,20 @@
   async function invitePeer() {
     try {
       const inp = roomEl && roomEl.querySelector('[data-cr-invite-peer]');
-      const peer = String((inp && inp.value) || '').trim().split(/\s+/)[0] || '';
-      if (!peer) { notice('상대 이름을 입력하세요.'); return; }
-      if (peer === myNick()) { notice('자기 자신은 초대할 수 없습니다.'); return; }
+      const raw = String((inp && inp.value) || '').trim();
+      if (!raw) { notice('상대 이름을 입력하세요.'); return; }
+      // 여러 명이면 쉼표로 구분. 공백 닉은 따옴표 그대로 두면 자동 인식.
+      const peers = /[,;]/.test(raw) ? splitPeerList(raw) : [unquotePeer(raw)].filter(Boolean);
+      if (!peers.length) { notice('상대 이름을 입력하세요.'); return; }
+      if (peers.includes(myNick())) { notice('자기 자신은 초대할 수 없습니다.'); return; }
       pruneInvites(Date.now());
-      invites.push({ from: myNick(), peer, pub: '', t: Date.now() });
-      touchRoom(peer, false);
-      if (!selPeer) selPeer = peer;
-      rlog('invite-click', 'to=' + peer);
-      copyText('#채팅 ' + peer, '복사됨. 채팅창에 붙여넣고 Enter를 누르세요. 상대가 [참가]를 누르면 자동으로 연결됩니다.');
+      for (const peer of peers) {
+        invites.push({ from: myNick(), peer, pub: '', t: Date.now() });
+        touchRoom(peer, false);
+        if (!selPeer) selPeer = peer;
+      }
+      rlog('invite-click', 'to=' + peers.join(','));
+      copyText('#채팅 ' + peers.map(quotePeer).join(', '), '복사됨. 채팅창에 붙여넣고 Enter를 누르세요. 상대가 [참가]를 누르면 자동으로 연결됩니다.');
       roomSig = null;
     } catch (e) { notice('초대에 실패했습니다.'); }
   }
@@ -750,7 +909,7 @@
       const text = inp ? String(inp.value || '').trim() : '';
       if (!selPeer) { notice('먼저 대화 상대를 선택하세요.'); return; }
       if (!text) return;
-      copyText('#채팅 ' + selPeer + ' ' + text, '복사됨. 채팅창에 붙여넣고 Enter를 누르세요.');
+      copyText('#채팅 ' + quotePeer(selPeer) + ' ' + text, '복사됨. 채팅창에 붙여넣고 Enter를 누르세요.');
       if (inp) inp.value = '';
     } catch (e) {}
   }
@@ -871,7 +1030,7 @@
       if (!me) {
         h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">내 닉네임을 먼저 입력하세요.<br>설정 ⚙ → 단어설정 → 내 닉네임</div>';
       } else if (!names.length && !inv) {
-        h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">채팅에 <b>#채팅 상대이름</b> 을 치면 방이 열립니다.</div>';
+        h += '<div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.5">채팅에 <b>#채팅 상대이름</b> 을 치면 방이 열립니다.<br>띄어쓰기 닉네임은 <b>#채팅 "홍 길동"</b> (여러 명은 쉼표로).</div>';
       }
       if (me && (names.length || inv)) {
         if (names.length) {
