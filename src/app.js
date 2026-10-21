@@ -144,6 +144,38 @@ function pluginOptSet(id, key, v) {
   (m[id] = m[id] || {})[key] = v;
   try { localStorage.setItem(LS_PLUGOPT, JSON.stringify(m)); } catch (e) {}
 }
+// 플러그인이 옵션의 선택 항목 목록(checkbox 후보)을 런타임에 갱신한다.
+// - 목록에서 빠진 항목: 저장된 선택값에서 제거 (그린 체크박스도 사라진다)
+// - 새로 생긴 항목: 저장된 선택값에 추가 = 기본 체크 상태
+// - 정의(def)의 choices·default·groups도 함께 갱신하고, 옵션 창이 열려 있으면 다시 그린다.
+// 목록이 그대로면 아무것도 하지 않는다 (반복 저장·재렌더 방지).
+function pluginOptSetChoices(id, key, choices) {
+  const p = (pluginList || []).find((x) => x && x.id === id);
+  const def = p && Array.isArray(p.options) ? p.options.find((o) => o && o.key === key) : null;
+  if (!def || !Array.isArray(choices) || !choices.length) return false;
+  const next = [...new Set(choices.map(String))];
+  const old = Array.isArray(def.choices) ? def.choices.map(String) : [];
+  const setN = new Set(next), setO = new Set(old);
+  if (setN.size === setO.size && [...setN].every((c) => setO.has(c))) return false; // 변경 없음 (순서 무관)
+  def.choices = next;
+  def.default = next.slice(); // 새로 생긴 항목이 기본 체크되도록 기본값도 현재 목록으로
+  if (Array.isArray(def.groups) && def.groups.length) { // 묶음 유지: 사라진 항목 제거, 새 항목은 마지막 묶음에 추가
+    const g = def.groups.map((x) => (Array.isArray(x) ? x.filter((c) => next.includes(String(c))) : [])).filter((x) => x.length);
+    const fresh = next.filter((c) => !old.includes(c));
+    if (fresh.length) { if (g.length) g[g.length - 1] = g[g.length - 1].concat(fresh); else g.push(fresh); }
+    def.groups = g;
+  }
+  const m = pluginOptMap();
+  if (m[id] && Array.isArray(m[id][key])) { // 사용자가 한 번이라면 만진 값이 있으면: 유지 선택 + 새 항목 체크, 사라진 항목 제거
+    const cur = m[id][key].map(String);
+    const kept = cur.filter((c) => next.includes(c));
+    const fresh = next.filter((c) => !old.includes(c) && !kept.includes(c));
+    m[id][key] = kept.concat(fresh);
+    try { localStorage.setItem(LS_PLUGOPT, JSON.stringify(m)); } catch (e) {}
+  }
+  try { if (typeof optWinId !== 'undefined' && optWinId === id) renderOptWin(); } catch (e) {} // 옵션 창이 열려 있으면 즉시 반영
+  return true;
+}
 // 켜져 있는데 아직 안 불러온 확장을 불러온다 (채널 이동으로 방장 여부가 바뀐 경우 등)
 function syncPlugins() {
   if (limitedMode || !pluginList) return;
@@ -188,6 +220,7 @@ try {
     option(id, key) { return pluginOptGet(id, key); }, // 설정 > 확장에서 사용자가 고른 옵션 값
     enabled(id) { return pluginIdIsOn(id); }, // 설정 > 확장에서 켜져 있는지
     setOption(id, key, v) { pluginOptSet(id, key, v); try { if (setPanel && setPanel.isConnected) renderSettings(); } catch (e) {} }, // 플러그인 창의 X 버튼이 옵션을 끌 때 (설정 화면도 갱신)
+    setOptChoices(id, key, choices) { try { return pluginOptSetChoices(id, key, choices); } catch (e) { return false; } }, // 플러그인: 옵션의 선택 항목 목록을 런타임에 갱신 (우두머리 추가/삭제 등)
     openOpts(id) { try { optWinId = id; renderOptWin(); } catch (e) {} }, // 메인창 설정 버튼: 해당 확장의 옵션 창 열기
     toggleOpts(id) { try { if (typeof toggleOptWin === 'function') toggleOptWin(id); else { optWinId = id; renderOptWin(); } } catch (e) {} }, // 파란 메인창 옵션 버튼: 토글 (녹색 설정 버튼처럼)
     closeOpts() { try { closeOptWin(); } catch (e) {} },

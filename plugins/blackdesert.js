@@ -8,7 +8,7 @@
   if (!KW || typeof KW.option !== 'function' || typeof KW.enabled !== 'function') return;
   if (window.__kwBdoLoaded) return;
   window.__kwBdoLoaded = true;
-  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.1.1' }); } catch (e) {}
+  try { if (KW && typeof KW.describe === 'function') KW.describe({ name: 'blackdesert', version: '1.2.0' }); } catch (e) {}
   const ID = 'blackdesert';
   // 설정 > 일반설정의 창 투명도를 결과창(fixed, 스택 밖)에도 적용. 본체 KW.opacity() 우선, 없으면 저장값 직접 읽기.
   function bdoOpacity() {
@@ -79,9 +79,24 @@
     bossFetchedAt = Date.now(); // 실패해도 6시간 뒤에 다시 시도
     fetch(BOSS_URL + '?t=' + Date.now(), { cache: 'no-store' })
       .then((r) => { if (!r.ok) throw new Error('http'); return r.json(); })
-      .then((j) => { const s = parseSchedule(j); if (s) schedule = s; })
+      .then((j) => { const s = parseSchedule(j); if (s) { schedule = s; syncBossList(); } })
       .catch(() => {}); // 실패하면 현재 시간표(처음엔 코드 기본값)를 유지
   }
+  // 시간표의 우두머리 이름 전체를 "알림받을 우두머리" 옵션 목록에 동기화한다.
+  // 새로 생긴 우두머리는 기본 체크 상태로 추가되고, 빠진 우두머리는 목록에서 사라진다.
+  function syncBossList() {
+    try {
+      if (!KW || typeof KW.setOptChoices !== 'function') return; // 구 코어: plugins.json 목록 그대로
+      const names = [];
+      for (const [, byDay] of schedule) {
+        for (const k of Object.keys(byDay)) {
+          for (const n of byDay[k]) if (n && names.indexOf(n) < 0) names.push(n);
+        }
+      }
+      if (names.length) KW.setOptChoices(ID, 'bosses', names);
+    } catch (e) {}
+  }
+  try { syncBossList(); } catch (e) {} // 시작 시: 코드 기본값 기준으로도 한 번 맞춰 둔다 (첫 갱신 전 오프라인 대비)
   const DAY = 86400000;
   const LS_BOSSLOT = '__kw_boss_slot'; // 마지막으로 받은 수요일 슬롯 시각
   function bossSlotTime(now) { // 가장 최근 수요일 12:27 (한국시간, 액션 17분 뒤) ms
