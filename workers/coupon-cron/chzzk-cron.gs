@@ -10,8 +10,8 @@
 //   5. eventsCrawl() 1회 실행 → 로그에 변경 없음 또는 갱신 확인
 //   6. 트리거 추가 3개:
 //      - couponsCrawl / 시간 기반 / 시간 타이머 / 매시간 (매시 00분 무렵)
-//      - bossCheck / 시간 기반 / 주 타이머 / 수요일 / 12시~13시
-//      - eventsCrawl / 시간 기반 / 주 타이머 / 수요일 / 12시~13시 (보스와 동일)
+//      - bossCheck / 시간 기반 / 일 타이머 / 오전 11시~12시
+//      - eventsCrawl / 시간 기반 / 일 타이머 / 오전 11시~12시 (보스와 동일)
 //   7. 프로젝트 시간대 확인: 왼쪽 톱니 → (GMT+09:00) 서울
 
 const GITHUB_TOKEN = ''; // ← 여기에 토큰 붙여넣기
@@ -199,7 +199,7 @@ function bossCheck() {
         + '- 위키: https://www.kr.playblackdesert.com/ko-kr/Wiki?wikiNo=167\n'
         + '- 새 이미지(공식 사이트): ' + imageUrl + '\n'
         + '- 수정 일시: ' + modified + '\n\n'
-        + '이미지를 보고 `bosses.json`의 시간표를 고쳐 주세요. (앱은 6시간마다 + 매주 수요일 12:27에 이 파일을 다시 받습니다)',
+        + '이미지를 보고 `bosses.json`의 시간표를 고쳐 주세요. (앱은 6시간마다 + 매일 오전 11시~12시 사이에 이 파일을 다시 받습니다)',
     }),
   });
   if (issue.getResponseCode() !== 201) throw new Error('Issue 생성 실패 HTTP ' + issue.getResponseCode());
