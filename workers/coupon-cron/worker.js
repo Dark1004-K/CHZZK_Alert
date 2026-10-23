@@ -1,11 +1,12 @@
-// Cloudflare Workers Cron — 검은사막 쿠폰 크롤러 (GitHub Actions 스케줄 대체).
-// GitHub 예약 실행은 몇 시간씩 밀리므로, 정확한 시각에는 이 워커가 직접 돌고 GitHub API로 커밋한다.
-// Actions 워크플로우(crawl-coupons.yml)는 수동 백업용으로만 남김.
+// Cloudflare Workers Cron — 검은사막 쿠폰 감지기 (GAS couponsCrawl과 같은 역할).
+// 역할: "정확한 시각"에 공식 페이지를 확인하고, 쿠폰이 실제로 바뀌었을 때만
+//       GitHub Actions(crawl-coupons.yml)를 디스패처한다. 파싱 확정·커밋·이슈는 Actions가 맡는다.
+//       (GAS를 쓰면 이 워커는 불필요 — 둘 중 하나만 켜 두면 된다)
 //
 // 배포: Cloudflare 대시보드 → Workers → Create → 아래 코드 전체 붙여넣기.
-// Secrets: GITHUB_TOKEN (repo Contents 읽기/쓰기 PAT) 1개.
+// Secrets: GITHUB_TOKEN (Contents 읽기 + Actions 읽기/쓰기 PAT) 1개.
 // Triggers → Cron: 7,27,47 * * * * (20분 간격)
-// 테스트: 대시보드에서 Cron 수동 실행, 또는 coupons.json updatedAt 확인.
+// 테스트: 대시보드에서 Cron 수동 실행 → 로그에 "디스패치" 또는 "변경 없음" 확인.
 
 const SOURCE = 'https://www.kr.playblackdesert.com/ko-KR/News/Detail?groupContentNo=10748';
 const OWNER = 'Dark1004-K';
@@ -25,7 +26,7 @@ function decode(s) {
 function parseExpire(text) {
   const m = /(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일(?:\([^)]*\))?\s*(\d{1,2}):(\d{2})/.exec(text);
   if (!m) return null;
-  const [, y, mo, d, h, mi] = m.map(Number);
+  const y = +m[1], mo = +m[2], d = +m[3], h = +m[4], mi = +m[5];
   return Date.UTC(y, mo - 1, d, h, mi) - 9 * 3600 * 1000;
 }
 function parse(html) {
@@ -58,12 +59,6 @@ function parse(html) {
   }
   return coupons.filter((c) => c.code);
 }
-function b64encodeUnicode(s) {
-  const b = new TextEncoder().encode(s);
-  let t = '';
-  for (let i = 0; i < b.length; i++) t += String.fromCharCode(b[i]);
-  return btoa(t);
-}
 function b64decodeUnicode(b64) {
   const bin = atob(String(b64 || '').replace(/\s+/g, ''));
   const b = new Uint8Array(bin.length);
@@ -71,7 +66,7 @@ function b64decodeUnicode(b64) {
   return new TextDecoder().decode(b);
 }
 
-async function crawl(env) {
+async function checkAndDispatch(env) {
   if (!env.GITHUB_TOKEN) throw new Error('GITHUB_TOKEN 시크릿이 없음');
   const gh = { 'Authorization': 'Bearer ' + env.GITHUB_TOKEN, 'Accept': 'application/vnd.github+json', 'User-Agent': 'ChzzkAlertCouponWorker' };
   // 1) 공식 페이지 읽기 (최대 3회 재시도)
@@ -91,7 +86,7 @@ async function crawl(env) {
   if (lastErr) throw lastErr;
   const coupons = parse(html);
   if (!coupons.length) throw new Error('쿠폰을 하나도 읽지 못함 (페이지 구조가 바뀌었을 수 있음)');
-  // 2) 현재 파일과 비교 (다를 때만 커밋)
+  // 2) 저장소의 coupons.json과 비교 (다를 때만 디스패치)
   const cur = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=main`, { headers: gh });
   if (!cur.ok) throw new Error('GitHub API ' + cur.status);
   const curJson = await cur.json();
@@ -101,33 +96,28 @@ async function crawl(env) {
     same = JSON.stringify(prev.coupons) === JSON.stringify(coupons);
   } catch (e) {}
   if (same) return { changed: false, count: coupons.length };
-  // 3) 커밋
-  const out = { source: SOURCE, updatedAt: Date.now(), coupons };
-  const put = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`, {
-    method: 'PUT',
+  // 3) 바뀌었으면 Actions를 실행시킨다 (workflow_dispatch API, 성공 코드는 204)
+  const dis = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/actions/workflows/crawl-coupons.yml/dispatches`, {
+    method: 'POST',
     headers: { ...gh, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message: 'chore: update coupons.json',
-      content: b64encodeUnicode(JSON.stringify(out, null, 2) + '\n'),
-      sha: curJson.sha,
-    }),
+    body: JSON.stringify({ ref: 'main' }),
   });
-  if (!put.ok) throw new Error('커밋 실패 HTTP ' + put.status + ': ' + (await put.text()).slice(0, 200));
+  if (dis.status !== 204) throw new Error('디스패치 실패 HTTP ' + dis.status + ': ' + (await dis.text()).slice(0, 200));
   return { changed: true, count: coupons.length };
 }
 
 export default {
   async scheduled(event, env, ctx) {
     try {
-      const r = await crawl(env);
-      console.log('coupons ' + (r.changed ? '갱신' : '변경 없음') + ' (' + r.count + '개)');
+      const r = await checkAndDispatch(env);
+      console.log('coupons ' + (r.changed ? '변경 감지 → Actions 디스패치' : '변경 없음') + ' (' + r.count + '개)');
     } catch (e) {
-      console.error('쿠폰 가져오기 실패:', e && e.message ? e.message : e);
+      console.error('쿠폰 확인 실패:', e && e.message ? e.message : e);
       throw e; // 실패로 기록 (대시보드에서 확인)
     }
   },
   async fetch() {
-    return new Response('coupon-cron worker. Cron: 7,27,47 * * * * (20분 간격). 수동 실행은 대시보드의 Cron 테스트.', {
+    return new Response('coupon-cron worker (dispatcher). Cron: 7,27,47 * * * * (20분 간격). 수동 실행은 대시보드의 Cron 테스트.', {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     });
   },

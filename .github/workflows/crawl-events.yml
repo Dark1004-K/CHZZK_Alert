@@ -4,8 +4,8 @@ name: crawl-events
 # (브라우저에서는 CORS 때문에 직접 읽을 수 없어서, 앱은 이 파일을 받아간다)
 #
 # 정기 실행은 Google Apps Script(workers/coupon-cron/chzzk-cron.gs의 eventsCrawl,
-# 보스와 동일한 수요일 주 1회)가 맡는다.
-# 이 워크플로우는 수동 백업용으로만 남긴다.
+# 매일 오전 11시대)가 맡는다. GitHub 예약 실행(schedule)은 몇 시간씩 밀려서 시각 보장이 안 되기 때문이다.
+# GAS가 변경을 감지하면 이 워크플로우를 디스패치하고, 여기서 파싱·커밋·실패 이슈를 처리한다.
 on:
   workflow_dispatch: {}
 
