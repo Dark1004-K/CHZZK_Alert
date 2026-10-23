@@ -88,19 +88,30 @@ async function askGemini(imageUrl, known) {
     known.join('·'),
     '- 표에 없는 시각이나 보스를 만들지 않는다. 확실히 읽지 못한 칸은 생략한다.',
   ].join('\n');
-  const res = await fetch(API_BASE + '/models/' + MODEL + ':generateContent', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-    body: JSON.stringify({
-      contents: [{
-        parts: [
-          { text: prompt },
-          { inline_data: { mime_type: 'image/png', data: buf.toString('base64') } },
-        ],
-      }],
-      generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 0 },
-    }),
-  });
+  let res = null;
+  // 무료 티어는 수요 과다로 429/503이 잦으니 지수 백오프로 재시도 (최대 4회)
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    res = await fetch(API_BASE + '/models/' + MODEL + ':generateContent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: 'image/png', data: buf.toString('base64') } },
+          ],
+        }],
+        generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 0 },
+      }),
+    });
+    if (res.status === 429 || res.status === 503) {
+      const wait = 10000 * attempt;
+      console.log('Gemini HTTP ' + res.status + ' (시도 ' + attempt + '/4) — ' + wait + 'ms 후 재시도...');
+      await new Promise((r) => setTimeout(r, wait));
+      continue;
+    }
+    break;
+  }
   if (!res.ok) throw new Error('Gemini HTTP ' + res.status + ': ' + (await res.text()).slice(0, 300));
   const data = await res.json();
   const text = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text;
