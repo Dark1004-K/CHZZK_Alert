@@ -74,7 +74,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for n in $(gh issue list --state open --search "[우두머리 시간표] 워크플로우 실패 in:title" --limit 5 --json number --jq '.[].number'); do
+          for n in $(gh issue list --state open --search "[우두머리 시간표] 워크플로우 실패 in:title" --limit 5 --json number --jq '.[].number' | grep -E '^[0-9]+$'); do
             gh issue close "$n" --comment "워크플로우가 다시 성공했습니다. 자동 종료합니다." || true
           done
       - name: Notify on failure
@@ -82,7 +82,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh issue list --state open --search "[우두머리 시간표] 워크플로우 실패 in:title" --limit 1 --json number --jq -e '.[0].number' >/dev/null; then
+          if gh issue list --state open --search "[우두머리 시간표] 워크플로우 실패 in:title" --limit 1 --json number --jq '.[].number' | grep -qE '^[0-9]+$'; then
             echo "already reported"
           else
             gh issue create \

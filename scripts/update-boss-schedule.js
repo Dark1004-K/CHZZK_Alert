@@ -5,7 +5,7 @@
 //
 // 흐름:
 //   1) 위키에서 이미지 주소 + "최근 수정 일시"를 긁어 data/boss-schedule-state.json과 비교
-//   2) 바뀌었으면 이미지를 Gemini(gemini-2.5-flash 기본)에 보내 표를 JSON으로 읽게 함
+//   2) 바뀌었으면 이미지를 Gemini(gemini-3.8-flash 기본, GEMINI_MODEL로 교체 가능)에 보내 표를 JSON으로 읽게 함
 //   3) 검증: 시각(HH:MM), 요일(월~일), 보스명은 plugins.json의 choices와 정확히 일치해야 함
 //   4) 통과하면 bosses.json을 갱신하고 변경 내역을 GITHUB_OUTPUT으로 알림
 //   5) 판독이 실패하면 자동 커밋하지 않고 needsReview=true로 사람을 부른다
@@ -19,7 +19,8 @@ const STATE = path.join(ROOT, 'data', 'boss-schedule-state.json');
 const BOSSES = path.join(ROOT, 'bosses.json');
 const PLUGINS = path.join(ROOT, 'plugins.json');
 const UA = 'Mozilla/5.0 (compatible; ChzzkAlertBossScheduleBot)';
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+// gemini-2.5-flash는 새 API 키에 대해 404로 거부됨 (Gemini가 3.8-flash 사용 안내, 2026-10-23 확인)
+const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 const API_BASE = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta'; // 테스트용 오버라이드 가능
 
 // 이미지의 요일 순서(월~일) → bosses.json의 day 번호(0=일 1=월 … 6=토)

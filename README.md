@@ -1,4 +1,4 @@
-# 치지직 채팅 호출 알림 (CHZZK Alert)
+﻿# 치지직 채팅 호출 알림 (CHZZK Alert)
 
 ## ⚡ 무지성 설치하기
 
@@ -458,7 +458,7 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
   * **난독화**: `javascript-obfuscator`(개발용 의존성). 먼저 `npm install`이 필요합니다. 모듈들이 최상위 함수·변수 이름을 서로 공유하므로 최상위 이름은 바꾸지 않고(`renameGlobals: false`),
     문자열(RC4)·지역 이름·제어 흐름·죽은 코드 삽입 등을 적용합니다. 결과는 원본보다 훨씬 커집니다(약 100KB → 1.2MB). 디버깅용으로 `--no-obfuscate`를 줄 수 있지만 그 결과는 배포하지 않습니다.
 * **쿠폰 크롤러**: `node scripts/crawl-coupons.js`가 검은사막 쿠폰 글을 읽어 `coupons.json`을 만듭니다. 정기 실행은 Google Apps Script(`workers/coupon-cron/chzzk-cron.gs`의 `couponsCrawl`, 매시간 정각 무렵 트리거)가 페이지를 확인해 쿠폰이 바뀌었을 때만 GitHub Actions(`crawl-coupons`)를 디스패치합니다(GitHub 예약 실행은 시각 보장이 안 되기 때문). 파싱·커밋·실패 이슈는 Actions가 맡습니다. (Cloudflare 워커 `worker.js`도 같은 역할을 할 수 있어 둘 중 하나만 켜 두면 됩니다.) 읽기에 실패하거나 쿠폰이 하나도 없으면 기존 파일을 그대로 둡니다.
-* **시간표 자동 갱신**: `node scripts/update-boss-schedule.js`가 위키 시간표 이미지의 주소와 "최근 수정 일시"를 이전 기록(`data/boss-schedule-state.json`)과 비교하고, 바뀌었으면 Gemini(`gemini-2.5-flash`, 시크릿 `GEMINI_API_KEY`)로 표를 읽어 `bosses.json`을 갱신합니다. 판독 결과는 형식(HH:MM·요일)과 보스명(`plugins.json`의 choices 목록)으로 검증하고, 통과해야만 커밋 + 변경 내역 Issue를 남깁니다. 검증에 실패하면 파일을 건드리지 않고 사람이 확인하는 Issue만 만듭니다(상태를 갱신하지 않아 다음 실행에서 다시 시도). `GEMINI_API_KEY`가 없으면(`--no-ai` 포함) 예전처럼 "이미지가 바뀌었습니다" 알림만 보냅니다. 정기 실행은 Google Apps Script(`workers/coupon-cron/chzzk-cron.gs`의 `bossCheck`, 매일 오전 11시대)가 위키 변경을 감지해 이 워크플로우를 디스패치합니다(GitHub 예약 실행은 몇 시간씩 밀려서 시각을 못 지키기 때문).
+* **시간표 자동 갱신**: `node scripts/update-boss-schedule.js`가 위키 시간표 이미지의 주소와 "최근 수정 일시"를 이전 기록(`data/boss-schedule-state.json`)과 비교하고, 바뀌었으면 Gemini(`gemini-3.8-flash`, 시크릿 `GEMINI_API_KEY`)로 표를 읽어 `bosses.json`을 갱신합니다. 판독 결과는 형식(HH:MM·요일)과 보스명(`plugins.json`의 choices 목록)으로 검증하고, 통과해야만 커밋 + 변경 내역 Issue를 남깁니다. 검증에 실패하면 파일을 건드리지 않고 사람이 확인하는 Issue만 만듭니다(상태를 갱신하지 않아 다음 실행에서 다시 시도). `GEMINI_API_KEY`가 없으면(`--no-ai` 포함) 예전처럼 "이미지가 바뀌었습니다" 알림만 보냅니다. 정기 실행은 Google Apps Script(`workers/coupon-cron/chzzk-cron.gs`의 `bossCheck`, 매일 오전 11시대)가 위키 변경을 감지해 이 워크플로우를 디스패치합니다(GitHub 예약 실행은 몇 시간씩 밀려서 시각을 못 지키기 때문).
 * **이벤트 크롤러**: `node scripts/crawl-events.js`가 "진행중인 이벤트 모아보기" 글을 읽어 `events.json`을 만듭니다. 정기 실행은 Google Apps Script(`workers/coupon-cron/chzzk-cron.gs`의 `eventsCrawl`, 보스와 같은 매일 오전 11시대)가 페이지를 확인해 내용이 바뀌었을 때만 GitHub Actions(`crawl-events`)를 디스패치합니다. 파싱·커밋·실패 이슈는 Actions가 맡습니다. 읽기에 실패하거나 이벤트가 하나도 없으면 기존 파일을 그대로 둡니다.
 * 콘솔 로그(`[KW-BETA]`) 등 진단 정보는 베타에만 있습니다.
 
