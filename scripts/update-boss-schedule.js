@@ -135,7 +135,12 @@ function buildSchedule(cells, known) {
     for (const b of bosses) {
       if (!known.includes(b)) {
         const near = known.filter((k) => levenshtein(k, b) <= 1);
-        errors.push('목록에 없는 보스명 "' + b + '"' + (near.length ? ' (비슷한 이름: ' + near.join(', ') + ')' : ''));
+        if (near.length) {
+          errors.push('목록에 없는 보스명 "' + b + '" (비슷한 이름: ' + near.join(', ') + ') — 오탈자로 보임');
+        } else if (!/^[가-힣A-Za-z0-9 ]{2,15}$/.test(b)) {
+          errors.push('새 보스명 형식 이상: ' + JSON.stringify(b));
+        }
+        // 근사 이름이 없는 완전히 새 이름(예: 동심 12호)은 통과 — 체크 목록은 아래에서 자동 동기화된다
       }
     }
     if (bosses.length > 2) errors.push(c.time + ' ' + c.day + ': 칸당 보스가 2명을 넘음 ' + JSON.stringify(bosses));
@@ -161,6 +166,42 @@ function describe(schedule) {
     .sort((a, b) => a - b)
     .map((d) => ['일', '월', '화', '수', '목', '금', '토'][d] + ':' + s.days[d].join('+'))
     .join('  ')).join('\n');
+}
+
+// 시간표 기준으로 plugins.json(베타)과 release/plugins.json(정식)의 우두머리 체크 목록을 맞춘다.
+// 배포된 앱은 plugins.json을 원격으로 받으므로, 플러그인 코드는 건드리지 않고 이 파일만 맞추면
+// 앱 업데이트 없이 "알림받을 우두머리" 체크 항목이 바뀐다. 새 보스는 마지막 그룹에 추가된다.
+function syncBossChoices(schedule) {
+  const names = [];
+  for (const s of schedule) for (const k of Object.keys(s.days)) for (const n of s.days[k]) if (n && !names.includes(n)) names.push(n);
+  if (!names.length) return false;
+  let changedAny = false;
+  for (const mp of [PLUGINS, path.join(ROOT, 'release', 'plugins.json')]) {
+    let man;
+    try { man = JSON.parse(fs.readFileSync(mp, 'utf8')); } catch (e) { continue; }
+    const opt = (man.plugins || []).flatMap((p) => p.options || [])
+      .find((o) => Array.isArray(o.choices) && o.choices.includes('크자카'));
+    if (!opt) continue;
+    const before = JSON.stringify({ c: opt.choices, d: opt.default, g: opt.groups });
+    // choices: 기존 순서 유지 + 새 이름 추가 + 시간표에서 빠진 이름 제거
+    const kept = (opt.choices || []).filter((c) => names.includes(c));
+    const added = names.filter((n) => !kept.includes(n));
+    const next = kept.concat(added);
+    // groups: 빠진 이름 제거(빈 그룹 삭제), 새 이름은 마지막 그룹에 추가
+    let groups = (Array.isArray(opt.groups) ? opt.groups : []).map((g) => g.filter((c) => next.includes(c))).filter((g) => g.length);
+    if (added.length) {
+      if (!groups.length) groups = [added.slice()];
+      else added.forEach((n) => groups[groups.length - 1].push(n));
+    }
+    opt.choices = next;
+    opt.default = next.slice();
+    opt.groups = groups;
+    if (before === JSON.stringify({ c: opt.choices, d: opt.default, g: opt.groups })) continue;
+    fs.writeFileSync(mp, JSON.stringify(man, null, 2) + '\n');
+    changedAny = true;
+    console.log('체크 목록 동기화: ' + path.relative(ROOT, mp) + ' → ' + next.join(', '));
+  }
+  return changedAny;
 }
 
 async function main() {
@@ -194,15 +235,30 @@ async function main() {
     return;
   }
 
-  const known = JSON.parse(fs.readFileSync(PLUGINS, 'utf8')).plugins
-    .flatMap((p) => p.options || [])
-    .find((o) => Array.isArray(o.choices) && o.choices.includes('크자카'));
-  if (!known || !known.choices.length) throw new Error('plugins.json에서 보스 목록을 찾지 못함');
-  const bosses = known.choices;
+  // 허용 목록: plugins.json(베타) + release/plugins.json(정식) + 기존 bosses.json의 보스명 합집합
+  // (이미 검증된 데이터에 실린 이름은 목록이 어긋나 있어도 판독·갱신 가능하게)
+  const knownSet = new Set();
+  for (const mp of [PLUGINS, path.join(ROOT, 'release', 'plugins.json')]) {
+    try {
+      JSON.parse(fs.readFileSync(mp, 'utf8')).plugins
+        .flatMap((p) => p.options || [])
+        .filter((o) => Array.isArray(o.choices) && o.choices.includes('크자카'))
+        .forEach((o) => o.choices.forEach((c) => knownSet.add(c)));
+    } catch (e) {}
+  }
+  try {
+    JSON.parse(fs.readFileSync(BOSSES, 'utf8')).schedule
+      .forEach((s) => Object.keys(s.days).forEach((k) => s.days[k].forEach((n) => knownSet.add(n))));
+  } catch (e) {}
+  const bosses = [...knownSet];
+  if (!bosses.length) throw new Error('plugins.json에서 보스 목록을 찾지 못함');
 
   console.log('Gemini(' + MODEL + ')로 판독 중...');
   const cells = await askGemini(imageUrl, bosses);
   console.log('판독 칸 수: ' + cells.length);
+  const newBosses = [...new Set(cells.flatMap((c) => (c.bosses || []).map((s) => String(s).trim()).filter(Boolean)))]
+    .filter((b) => !bosses.includes(b));
+  if (newBosses.length) console.log('목록에 없던 새 보스: ' + newBosses.join(', ') + ' (체크 목록에 자동 추가)');
   const { schedule, errors } = buildSchedule(cells, bosses);
   if (errors.length) {
     // 판독 실패 — 자동 커밋하지 않고 상태도 갱신하지 않아 다음 실행에서 재시도한다
@@ -228,25 +284,36 @@ async function main() {
   setOutput('changed', 'true');
   setOutput('aiUsed', 'true');
 
-  if (oldText === newText) {
+  // 체크 목록도 함께 맞춘다 (배포된 앱이 plugins.json을 원격으로 받으므로 플러그인 코드 불필요)
+  const pluginsChanged = syncBossChoices(schedule);
+
+  if (oldText === newText && !pluginsChanged) {
     console.log('판독 결과가 기존 bosses.json과 동일 — 파일 변경 없음');
     setOutput('updated', 'false');
     return;
   }
-  old.schedule = schedule;
-  old.updatedAt = Date.now();
-  old.source = SOURCE;
-  fs.writeFileSync(BOSSES, JSON.stringify(old, null, 2) + '\n');
-  console.log('bosses.json 갱신 완료');
-  setOutput('updated', 'true');
+  if (oldText !== newText) {
+    old.schedule = schedule;
+    old.updatedAt = Date.now();
+    old.source = SOURCE;
+    fs.writeFileSync(BOSSES, JSON.stringify(old, null, 2) + '\n');
+    console.log('bosses.json 갱신 완료');
+    setOutput('updated', 'true');
+  } else {
+    setOutput('updated', 'false');
+    console.log('bosses.json 동일 — plugins.json 체크 목록만 동기화');
+  }
   setOutput('modified', modified);
   setOutput('imageUrl', imageUrl);
   const removed = oldText.split('\n').filter((l) => !newText.includes(l.trim()));
   const added = newText.split('\n').filter((l) => !oldText.includes(l.trim()));
   const diff = [...removed.map((l) => '-' + l), ...added.map((l) => '+' + l)].join('\n') || '(내부 순서만 바뀜)';
   setOutput('diff', diff);
+  const newNote = newBosses.length ? '- 새 우두머리(체크 목록에 자동 추가): **' + newBosses.join(', ') + '**\n' : '';
+  const syncNote = pluginsChanged ? '- `plugins.json` / `release/plugins.json`의 체크 목록도 함께 동기화했습니다 (앱 업데이트 없이 반영)\n' : '';
   setOutput('body', 'AI(Gemini)가 위키 시간표 이미지를 판독해 `bosses.json`을 자동 갱신했습니다.\n\n'
     + '- 새 이미지(공식 사이트): ' + imageUrl + '\n- 수정 일시: ' + modified + '\n\n'
+    + (newNote || syncNote ? newNote + syncNote + '\n' : '')
     + '변경 내역:\n```\n' + diff + '\n```\n\n'
     + '시간대별 전체 시간표:\n```\n' + newText + '\n```\n\n'
     + '앱은 이 파일을 6시간마다 다시 받습니다. 값이 잘못됐다면 `bosses.json`을 고치고 이 Issue를 닫아 주세요.');

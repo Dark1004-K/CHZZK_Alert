@@ -53,9 +53,10 @@ function gapCheck() { // 타이머가 150초 넘게 멈췄다 풀렸으면 탭�
   if (now - lastTickAt > 150000) markResume('gap');
   lastTickAt = now;
 }
+let updateBootChecked = false; // 앱 시작(첫 라우트 체크)에 1회만 true → 업데이트 확인 팝업용
 function checkRoute() {
   gapCheck();
-  try { if (typeof autoUpdateCheck === 'function') autoUpdateCheck(); } catch (e) {} // 앱 자체 업데이트 1시간마다 조용히 확인
+  try { if (typeof autoUpdateCheck === 'function') { autoUpdateCheck(!updateBootChecked); updateBootChecked = true; } } catch (e) {} // 시작 시 1회 강제 확인(팝업), 이후 1시간마다 조용히 확인
   if (location.pathname !== lastPath) {
     lastPath = location.pathname;
     const cid = pageChannelId();

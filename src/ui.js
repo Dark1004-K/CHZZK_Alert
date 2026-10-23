@@ -799,20 +799,38 @@ function checkUpdate() {
     done();
   }
 }
-// 자동 업데이트 확인: 1시간마다 조용히 확인하고, 새 버전이면 버전당 1회 토스트 (수동 확인과 같은 UPDATE_URL)
+// 자동 업데이트 확인: 앱 시작 시 1회는 반드시 확인해 새 버전이면 확인 팝업을 띄우고,
+// 그 후는 1시간마다 조용히 확인해 토스트 1회 (수동 확인과 같은 UPDATE_URL)
 const LS_UPD_LAST = '__kw_update_last';
 const LS_UPD_NOTIFIED = '__kw_update_notified';
 let updateAutoNotified = '';
 try { updateAutoNotified = localStorage.getItem(LS_UPD_NOTIFIED) || ''; } catch (e) {}
-function autoUpdateCheck() {
+let updatePopupShown = false; // 이번 세션에서 시작 팝업을 이미 띄웠으면 중복 방지
+function autoUpdateCheck(force) {
   if (updateChecking) return;
-  let last = 0;
-  try { last = parseInt(localStorage.getItem(LS_UPD_LAST), 10) || 0; } catch (e) {}
-  if (Date.now() - last < 3600000) return;
+  if (!force) {
+    let last = 0;
+    try { last = parseInt(localStorage.getItem(LS_UPD_LAST), 10) || 0; } catch (e) {}
+    if (Date.now() - last < 3600000) return;
+  }
   updateChecking = true;
   fetchRemoteVersion()
     .then((remote) => {
-      if (remote && isNewer(remote, SCRIPT_VERSION) && updateAutoNotified !== remote) {
+      if (!remote || !isNewer(remote, SCRIPT_VERSION)) return;
+      if (force && !updatePopupShown) {
+        // 재시작 시: 확인 팝업 → [확인] 누르면 Tampermonkey 설치 창으로 진행 (showReloadPopup 흐름 재사용)
+        updatePopupShown = true;
+        try {
+          showReloadPopup(() => window.open(UPDATE_URL, '_blank'), {
+            confirmTitle: '🔄 새 버전 ' + remote + ' 업데이트',
+            confirmDesc: '현재 ' + SCRIPT_VERSION + ' → <b>' + remote + '</b> 입니다. <b>확인</b>을 누르면 Tampermonkey 설치 창이 열립니다.',
+          });
+        } catch (e) {}
+        try { armUpdateGo(remote); } catch (e) {}
+        dlog('update-boot-popup', remote);
+        return;
+      }
+      if (updateAutoNotified !== remote) {
         updateAutoNotified = remote;
         try { localStorage.setItem(LS_UPD_NOTIFIED, remote); } catch (e) {}
         try { if (typeof showCallToast === 'function') showCallToast('업데이트', '새 버전 ' + remote + ' — 설정 > 앱 정보에서 업데이트하세요.'); } catch (e) {}
