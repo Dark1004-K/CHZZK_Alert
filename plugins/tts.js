@@ -4,13 +4,15 @@
   if (!window.__KW || typeof window.__KW.on !== 'function') return;
   if (window.__kwTtsLoaded) return;
   window.__kwTtsLoaded = true;
-  try { if (typeof window.__KW.describe === 'function') window.__KW.describe({ name: 'tts', version: '1.0.0' }); } catch (e) {}
+  try { if (typeof window.__KW.describe === 'function') window.__KW.describe({ name: 'tts', version: '1.0.1' }); } catch (e) {}
   let ttsQ = []; // 대기 중인 음성 (알람 큐가 순서를 정하므로 항상 순서대로 읽는다)
   let ttsSpeaking = false;
   function ttsSetBusy(v) { ttsSpeaking = !!v; try { window.__kwTtsBusy = ttsSpeaking; } catch (e) {} }
   function speak(text, queue) { // queue 인자는 호환용 (항상 큐잉)
     try {
       if (!('speechSynthesis' in window)) return;
+      // 다른 탭이 이미 같은 알람을 낸 경우 스킵 (코어가 window.__kwXQuietUntil로 알려줌)
+      try { if (Date.now() < (Number(window.__kwXQuietUntil) || 0)) return; } catch (e) {}
       ttsQ.push(String(text || ''));
       if (ttsQ.length > 6) ttsQ.splice(0, ttsQ.length - 6); // 밀리면 오래된 것부터 버림
       ttsNext();

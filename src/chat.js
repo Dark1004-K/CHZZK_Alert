@@ -52,6 +52,7 @@ function playCustomSound() {
 }
 function playAlertSound() {
   try {
+    if (isXQuiet()) return; // 다른 탭이 방금 같은 알람을 냈으면 소리 스킵 (탭 간 중복 방지)
     const nowMs = Date.now();
     if (volPct() === 0) return;
     if (nowMs - lastSoundAt < 800) return; // 도배 시 사운드 스킵 (CPU/컨텍스트 보호)
@@ -61,6 +62,38 @@ function playAlertSound() {
   } catch (e) {}
 }
 
+// ---------- 탭 간 알람 중복 방지 (같은 브라우저에서 인가 채널 두 개를 동시에 띄웠을 때) ----------
+// 소리·TTS·시스템알림은 "알람을 먼저 낸 탭" 1곳에서만 나온다. 각 탭의 기록·토스트는 그대로 유지.
+const LS_XALARM = '__kw_xalarm';
+const XALARM_WIN = 4000; // 이 시간 안에 다른 탭이 알람을 냈으면 이번은 스킵
+const KW_TAB_ID = Math.random().toString(36).slice(2);
+let xAlarmMem = null; // 다른 탭이 BroadcastChannel로 알린 기록 (localStorage보다 빠른 갱신용)
+let xAlarmCh = null;
+try {
+  if (typeof BroadcastChannel === 'function') {
+    xAlarmCh = new BroadcastChannel('kw-xalarm');
+    xAlarmCh.onmessage = (ev) => { const d = ev && ev.data; if (d && d.id && d.id !== KW_TAB_ID) xAlarmMem = { id: String(d.id), t: Number(d.t) || 0 }; };
+  }
+} catch (e) {}
+// 이번 알람을 이 탭에서 낼지 정한다. true면 이 탭이 소리·TTS·시스템알림을 담당.
+function xAlarmClaim() {
+  const now = Date.now();
+  try {
+    let cur = null;
+    try { const p = JSON.parse(localStorage.getItem(LS_XALARM) || 'null'); if (p && p.id) cur = { id: String(p.id), t: Number(p.t) || 0 }; } catch (e) {}
+    if (xAlarmMem && (!cur || xAlarmMem.t > cur.t)) cur = xAlarmMem;
+    if (cur && cur.id !== KW_TAB_ID && now - cur.t < XALARM_WIN) return false;
+  } catch (e) {}
+  const rec = { id: KW_TAB_ID, t: now };
+  xAlarmMem = rec;
+  try { localStorage.setItem(LS_XALARM, JSON.stringify(rec)); } catch (e) {}
+  try { if (xAlarmCh) xAlarmCh.postMessage(rec); } catch (e) {}
+  return true;
+}
+// 소리·TTS는 짧은 조용 구간으로 묶는다 (window.__kwXQuietUntil을 TTS 확장도 함께 읽음)
+function markXQuiet(ms) { try { window.__kwXQuietUntil = Date.now() + (ms || 2600); } catch (e) {} }
+function isXQuiet() { try { return Date.now() < (Number(window.__kwXQuietUntil) || 0); } catch (e) { return false; } }
+
 // ---------- 알람 큐 (토스트+소리+TTS 묶음을 순서대로, 보스 1순위) ----------
 // 겹치는 알람이 오면 큐에 쌓고 하나씩 알린다. prio 1(보스)은 맨 앞, 나머지는 FIFO.
 // 음성 길이는 TTS 플러그인이 window.__kwTtsBusy로 알리고, 끝을 못 잡으면 15초 failsafe.
@@ -68,6 +101,7 @@ let kwAlarmQ = []; // {prio, run, gap}
 let kwAlarmCur = null; // {run, gap, t0}
 const KW_ALARM_MAX = 8; // 일반 대기 상한 (넘치면 가장 오래된 일반부터 버림, 보스는 유지)
 function kwAlarmPush(prio, run, gap) {
+  if (allowState !== 'ok') return; // 인가되지 않은 채널에서는 어떤 알람도 내지 않는다 (플러그인이 미리 주입된 경우 포함)
   const job = { prio: prio === 1 ? 1 : 0, run, gap: gap || 1200, t0: 0 };
   if (job.prio === 1) {
     kwAlarmQ.unshift(job);
@@ -89,6 +123,8 @@ function kwAlarmPump() {
   if (kwAlarmCur || !kwAlarmQ.length) return;
   kwAlarmCur = kwAlarmQ.shift();
   kwAlarmCur.t0 = Date.now();
+  // 탭 간 중복 방지: 4초 안에 다른 탭이 이미 알람을 냈으면 이 탭은 소리·TTS·시스템알림만 스킵 (토스트는 유지)
+  if (!xAlarmClaim()) markXQuiet(2600);
   try { kwAlarmCur.run(); } catch (e) { kwAlarmCur = null; setTimeout(kwAlarmPump, 150); return; }
   setTimeout(kwAlarmTick, 250);
 }
@@ -130,7 +166,7 @@ function fireAlert(nick, text, el, kw) {
     kwAlarmPush(0, () => { // 알람(토스트+소리+TTS)은 큐로 순서대로
       kwEmit('hit', { nick: n2, text: b2, kw: k2, el: el2 });
       if (!alarming) return;
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && !isXQuiet()) {
         try {
           // 다른 탭을 보고 있어도 놓치지 않도록: 겹치지 않는 태그 + 직접 닫을 때까지 유지 + 클릭 시 창 포커스
           const n = new Notification(title, { body: b2.slice(0, 120), tag: 'kw-' + Date.now() + '-' + Math.floor(Math.random() * 1e6), requireInteraction: true, silent: true });
@@ -670,7 +706,10 @@ function judgeAllow(entries, cid, silent, tag) {
   if (ok) noteExpiryWarn(ex); else allowExpiry = null;
   if (!silent) dlog(tag + ':' + why, cid);
   if (!ok) noteDenied(cid, denyMsg);
-  try { if (typeof syncPlugins === 'function') syncPlugins(); } catch (e2) {} // 채널별 플러그인 구성 반영
+  if (ok) {
+    allowState = 'ok'; // 채널별 플러그인 구성 반영을 위해 확장 게이트를 미리 연다 (거부면 닫힌 채로)
+    try { if (typeof syncPlugins === 'function') syncPlugins(); } catch (e2) {}
+  }
   try { if (typeof refreshSettingsIfOpen === 'function') refreshSettingsIfOpen(); } catch (e3) {}
   return ok;
 }

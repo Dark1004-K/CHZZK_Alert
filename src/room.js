@@ -339,6 +339,7 @@
     let r = rooms[peer];
     if (!r) {
       r = rooms[peer] = { peer, tag, secure: !!secure, aesKey: null, peerPub: '', msgs: [], last: Date.now(), lastRelayId: '', awaitingKey: false };
+      sessionHidden = false; // 대화창을 닫아둔 상태에서 #채팅을 치면 새 방이 만들어지므로 다시 표시 (재실행 안 되던 문제)
       const keys = Object.keys(rooms);
       if (keys.length > ROOM_MAX) {
         keys.sort((a, b) => (rooms[a].last || 0) - (rooms[b].last || 0));
@@ -418,7 +419,8 @@
             rlog('invite-mine', 'room=' + onePeer);
           }
         } else if (me && peerList.includes(me) && nick !== me) {
-          try { KW.toast('💬 1:1 대화 초대', nick + '님이 초대했습니다. 알림 카드에서 [참가]를 누르세요.'); } catch (er) {}
+          sessionHidden = false; // 닫아둔 대화창이 있어도 새 초대는 반드시 보이도록 (#채팅 재실행 대비)
+          try { KW.toast('💬 1:1 대화 초대', nick + '님이 초대했습니다. 뜬 팝업에서 [참가] 또는 [거부]를 누르세요.'); } catch (er) {}
           // 수신측은 방을 미리 만들지 않음. 알림 카드의 [참가]를 눌러야 방이 열림.
           if (inv.key) {
             // 구방식 호환: 초대에 공개키가 실려 오면 바로 방키 유도
@@ -638,6 +640,8 @@
 
   let roomEl = null, roomSig = null;
   let invCard = null, invSig = null;
+  let invPop = null, invPopSig = null; // 사라지지 않는 중앙 초대 팝업 ([참가]/[거부])
+  const answered = new Set(); // 이미 참가/거부를 누른 초대 (from|t) — 팝업을 다시 띄우지 않음
   const dismissed = new Set(); // 이번 세션에 닫은 초대 (from|t). 만료되면 함께 비움.
   const LS_ROOMH = '__kw_chatroom_h';
   const ROOM_H_DEF = 220, ROOM_H_MIN = 120;
@@ -668,9 +672,56 @@
     invCard = null;
     invSig = null;
   }
+  function removeInvitePopup() {
+    if (invPop) { try { invPop.remove(); } catch (e) {} }
+    invPop = null;
+    invPopSig = null;
+  }
+  // 거부: 릴레이로 거부 표시를 보내 요청자가 바로 알 수 있게 한다 (공개 채팅에는 아무것도 쓰지 않음)
+  async function declineInvite(inv) {
+    try {
+      if (!inv) return;
+      try { dismissed.add(inv.from + '|' + inv.t); } catch (e) {}
+      rlog('decline-click', 'invite-from=' + inv.from);
+      removeInviteCard();
+      const ok = await relayPost({ tag: pairTag(myNick(), inv.from) }, { v: 1, type: 'decline', from: myNick(), t: Date.now() });
+      rlog('decline-post', ok ? 'ok' : 'fail');
+      try { KW.toast('💬 1:1 대화', ok ? inv.from + '님에게 거부를 보냈습니다.' : '거부 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.'); } catch (er) {}
+    } catch (e) {}
+  }
+  // 유효 초대가 오면 화면 중앙에 뜨고, [참가]/[거부]를 누르기 전에는 사라지지 않는다.
+  // (짧은 토스트만으로는 수락 버튼을 누를 시간이 부족했던 문제 보완 — 토스트는 그대로 함께 뜬다)
+  function showInvitePopup(inv) {
+    const me = myNick();
+    if (!inv || !me) { removeInvitePopup(); return; }
+    const taken = !!(rooms[inv.from] && (rooms[inv.from].aesKey || rooms[inv.from].helloSent)); // 이미 참가한 초대
+    const sig = (taken || dismissed.has(inv.from + '|' + inv.t) || answered.has(inv.from + '|' + inv.t)) ? '' : inv.from + '|' + inv.t;
+    if (sig === invPopSig) return;
+    removeInvitePopup();
+    invPopSig = sig;
+    if (!sig) return;
+    const box = document.createElement('div');
+    box.id = '__kw_invpop';
+    box.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2147483647;background:rgb(20,20,24);color:#fff;font:13px sans-serif;padding:14px 16px;border-radius:14px;border:2px solid ' + COLOR + ';box-shadow:0 8px 28px rgba(0,0,0,.6);min-width:260px;max-width:min(340px,92vw);box-sizing:border-box';
+    box.innerHTML = '<div style="font-size:14px;line-height:1.5">💬 <b>' + esc(inv.from) + '</b>님이<br>1:1 대화를 요청했습니다.</div>' +
+      '<div style="display:flex;gap:8px;margin-top:12px">' +
+      '<button data-ip-yes style="flex:1;border:1px solid ' + COLOR + ';background:rgba(63,213,152,.18);color:' + COLOR + ';border-radius:10px;padding:8px 0;font:bold 13px sans-serif;cursor:pointer">참가</button>' +
+      '<button data-ip-no style="flex:1;border:1px solid #666;background:transparent;color:#bbb;border-radius:10px;padding:8px 0;font:bold 13px sans-serif;cursor:pointer">거부</button></div>' +
+      '<div style="font-size:11px;color:#888;margin-top:8px">거부하면 요청자에게 거부로 전달됩니다</div>';
+    box.onclick = (e) => {
+      try {
+        const t = e && e.target;
+        if (!t || !t.closest) return;
+        if (t.closest('[data-ip-yes]')) { try { answered.add(inv.from + '|' + inv.t); } catch (er0) {} removeInvitePopup(); acceptInvite(); return; }
+        if (t.closest('[data-ip-no]')) { try { answered.add(inv.from + '|' + inv.t); } catch (er1) {} removeInvitePopup(); declineInvite(inv); return; }
+      } catch (er) {}
+    };
+    document.body.appendChild(box);
+    invPop = box;
+  }
   // 유효 초대를 끈적이는 알림 카드로 (토스트처럼 사라지지 않음). [참가]를 눌러야 방이 열림.
   function renderInviteCard(stack, me, inv) {
-    const show = !!(inv && me && !(rooms[inv.from] && (rooms[inv.from].aesKey || rooms[inv.from].helloSent)));
+    const show = !!(inv && me && !(rooms[inv.from] && (rooms[inv.from].aesKey || rooms[inv.from].helloSent)) && !answered.has(inv.from + '|' + inv.t));
     const sig = show ? inv.from + '|' + inv.t : '';
     if (sig === invSig) return;
     invSig = sig;
@@ -679,7 +730,7 @@
     invCard = document.createElement('div');
     invCard.id = '__kw_invite';
     invCard.onclick = (e) => {
-      if (e.target && e.target.closest && e.target.closest('[data-qi-accept]')) { acceptInvite(); return; }
+      if (e.target && e.target.closest && e.target.closest('[data-qi-accept]')) { try { answered.add(inv.from + '|' + inv.t); } catch (er0) {} removeInvitePopup(); acceptInvite(); return; }
       if (e.target && e.target.closest && e.target.closest('[data-qi-dismiss]')) {
         try { dismissed.add(inv.from + '|' + inv.t); } catch (er) {}
         rlog('invite-dismiss', inv.from);
@@ -809,6 +860,19 @@
             }
             continue;
           }
+          if (o.type === 'decline') {
+            // 내가 보낸 초대를 상대가 거부: 방과 초대 기록을 정리하고 요청자에게 알린다
+            const meNow = myNick();
+            if (from && from !== meNow && peer !== meNow) {
+              rlog('decline-recv', 'room=' + peer, 'from=' + from);
+              invites = invites.filter((x) => !(x.from === meNow && x.peer === peer));
+              try { delete rooms[peer]; } catch (e) {}
+              if (selPeer === peer) selPeer = '';
+              roomSig = null;
+              try { KW.toast('💬 1:1 대화', peer + '님이 대화 요청을 거부했습니다.'); } catch (er) {}
+            }
+            continue;
+          }
           if (!r.aesKey || !o.iv || !o.ct) continue;
           let body = null;
           try { body = await open(r.aesKey, o.iv, o.ct); } catch (e) {}
@@ -829,7 +893,7 @@
     const stack = document.getElementById('__kw_stack');
     const panel = document.getElementById('__kw_panel');
     if (sessionHidden || !stack || !panel || !panel.classList.contains('show')) {
-      removeRoom(); removeInviteCard();
+      removeRoom(); removeInviteCard(); removeInvitePopup();
       return;
     }
     const me = myNick();
@@ -838,6 +902,7 @@
     if (selPeer && !rooms[selPeer]) selPeer = names[0] || '';
     const inv = myInvite();
     renderInviteCard(stack, me, inv);
+    if (inv) showInvitePopup(inv); else removeInvitePopup();
     const panelActive = names.length > 0;
     if (!panelActive) { removeRoom(); return; }
     if (!roomEl || !roomEl.isConnected) {
@@ -845,7 +910,7 @@
       roomEl.id = '__kw_chatroom';
       roomEl.onclick = (e) => {
         if (e.target && e.target.closest && e.target.closest('#__kw_chatroom_x')) { sessionHidden = true; removeRoom(); return; }
-        if (e.target && e.target.closest && e.target.closest('[data-cr-accept]')) { acceptInvite(); return; }
+        if (e.target && e.target.closest && e.target.closest('[data-cr-accept]')) { const iv = myInvite(); if (iv) { try { answered.add(iv.from + '|' + iv.t); } catch (er0) {} } removeInvitePopup(); acceptInvite(); return; }
         if (e.target && e.target.closest && e.target.closest('[data-cr-key]')) { sendMyKey(selPeer); return; }
         if (e.target && e.target.closest && e.target.closest('[data-cr-send]')) { const r = rooms[selPeer]; if (r && r.aesKey) sendSecure(); else copyDraft(); return; }
         const rb = e.target && e.target.closest ? e.target.closest('[data-cr-room]') : null;
@@ -894,21 +959,20 @@
             h += '<div style="margin-top:6px;flex:none;font-size:12px;color:#ffd400">상대가 수락했습니다. <button data-cr-key style="border:1px solid ' + COLOR + ';background:rgba(63,213,152,.15);color:' + COLOR + ';border-radius:8px;padding:3px 10px;font-size:12px;cursor:pointer">키 보내기</button></div>';
           }
           h += '<div class="__kw_sb_cr" style="flex:1;min-height:0;overflow-y:auto;margin-top:6px;display:flex;flex-direction:column;gap:8px;padding:2px">' + r.msgs.map((m, i, arr) => {
-            const key = m.mine ? 'me' : ('t:' + m.from);
-            const prevSame = i > 0 && (arr[i - 1].mine ? 'me' : ('t:' + arr[i - 1].from)) === key;
-            const nextSame = i + 1 < arr.length && (arr[i + 1].mine ? 'me' : ('t:' + arr[i + 1].from)) === key;
             const time = '<span style="font-size:10px;color:#888;flex:none">' + fmtT(m.t) + '</span>';
             if (m.mine) {
-              // 내 말풍선 (카톡 노랑)
+              // 내 말풍선 (카톡 노랑) — 바로 위에 발신자를 적어 누구 말인지 바로 알 수 있게
               return '<div data-cr-msg="' + i + '" data-cr-peer="' + esc(selPeer) + '" title="누르면 원본 채팅으로 이동" style="display:flex;flex-direction:column;align-items:flex-end;cursor:pointer">' +
-                '<div style="display:flex;align-items:flex-end;gap:4px;max-width:100%;justify-content:flex-end">' + (nextSame ? '' : time) +
-                '<div style="max-width:78%;background:#FEE500;color:#191919;font-size:12px;line-height:1.5;padding:6px 10px;border-radius:14px 14px 4px 14px;word-break:break-word;white-space:pre-wrap">' + esc(m.text) + '</div></div></div>';
+                '<div style="font-size:11px;color:#c9b458;margin:0 4px 2px 0;text-align:right">나</div>' +
+                '<div style="display:flex;align-items:flex-end;gap:4px;max-width:100%;justify-content:flex-end">' +
+                '<div style="max-width:78%;background:#FEE500;color:#191919;font-size:12px;line-height:1.5;padding:6px 10px;border-radius:14px 14px 4px 14px;word-break:break-word;white-space:pre-wrap">' + esc(m.text) + '</div>' + (i + 1 < arr.length && arr[i + 1].mine ? '' : time) + '</div></div>';
             }
-            // 상대 말풍선 (짙은 회색) + 연속이 아닐 때만 닉네임·시간
+            // 상대 말풍선 (짙은 회색) — 연속 여부와 상관없이 매 말풍선 바로 위에 발신자 닉네임
             return '<div data-cr-msg="' + i + '" data-cr-peer="' + esc(selPeer) + '" title="누르면 원본 채팅으로 이동" style="display:flex;flex-direction:column;align-items:flex-start;cursor:pointer">' +
-              (prevSame ? '' : '<div style="font-size:11px;color:#aaa;margin:0 0 2px 4px">' + esc(m.from) + '</div>') +
+              '<div style="font-size:11px;color:#aaa;margin:0 0 2px 4px">' + esc(m.from || '익명') + '</div>' +
               '<div style="display:flex;align-items:flex-end;gap:4px;max-width:100%">' +
-              '<div style="max-width:78%;background:#2F2F35;color:#fff;font-size:12px;line-height:1.5;padding:6px 10px;border-radius:4px 14px 14px 14px;word-break:break-word;white-space:pre-wrap">' + esc(m.text) + '</div>' + (nextSame ? '' : time) + '</div></div>';
+              '<div style="max-width:78%;background:#2F2F35;color:#fff;font-size:12px;line-height:1.5;padding:6px 10px;border-radius:4px 14px 14px 14px;word-break:break-word;white-space:pre-wrap">' + esc(m.text) + '</div>' +
+              (i + 1 < arr.length && !arr[i + 1].mine ? '' : time) + '</div></div>';
           }).join('') + '</div>';
           const ready = !!r.aesKey;
           h += '<div style="display:flex;gap:4px;margin-top:6px;flex:none"><input data-cr-inp placeholder="' + (ready ? esc(selPeer) + '에게 보낼 내용 (암호화 전송)' : '방 준비 중…') + '" style="flex:1;min-width:0;background:rgba(255,255,255,.07);border:1px solid #555;border-radius:8px;color:#fff;font-size:12px;padding:5px 8px;outline:none"><button data-cr-send title="' + (ready ? '암호화해서 전송' : '채팅용 한 줄로 복사 (붙여넣고 Enter)') + '" style="border:1px solid ' + COLOR + ';background:transparent;color:' + COLOR + ';border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;flex:none">' + (ready ? '전송' : '복사') + '</button></div>';
@@ -925,29 +989,31 @@
         if (ev.stopPropagation) ev.stopPropagation();
       });
     }
+    // 다른 창과 같은 통일 규격: 가로(도크=스택너비 공유 / 띄움=자기너비) + 세로(방 높이) 동시 조절
     try {
-      if (KW && typeof KW.float === 'function') KW.float(roomEl, { color: COLOR, key: LS_ROOMPOS });
-    } catch (e) {}
-    try {
-      if (panelActive && KW && typeof KW.rsz === 'function') KW.rsz(roomEl, {
-        dir: 'v',
-        color: COLOR,
-        getH: () => roomH,
-        setH: (v) => {
-          roomH = Math.max(ROOM_H_MIN, Math.min(roomHMax(), v));
-          roomEl.style.height = Math.min(roomH, roomHMax()) + 'px';
-          roomEl.setAttribute('data-css', roomEl.style.cssText);
-        },
-        save: () => { try { localStorage.setItem(LS_ROOMH, String(roomH)); } catch (er) {} },
-      });
+      if (KW && typeof KW.window === 'function') {
+        KW.window(roomEl, {
+          color: COLOR,
+          posKey: LS_ROOMPOS,
+          rsz: 'd',
+          getH: () => roomH,
+          setH: (v) => {
+            roomH = Math.max(ROOM_H_MIN, Math.min(roomHMax(), v));
+            roomEl.style.height = Math.min(roomH, roomHMax()) + 'px';
+            roomEl.setAttribute('data-css', roomEl.style.cssText);
+          },
+          saveH: () => { try { localStorage.setItem(LS_ROOMH, String(roomH)); } catch (er) {} },
+        });
+      }
     } catch (e) {}
   }
 
   let lastPoll = 0;
   function tick() {
     try {
-      if (sessionHidden) { removeRoom(); return; }
-      render(Date.now());
+      // 창을 닫아둔 상태에서도 릴레이 폴링은 계속한다 (그래야 다음 #채팅·수락·거부가 또 동작)
+      if (sessionHidden) removeRoom();
+      else render(Date.now());
       const now = Date.now();
       if (now - lastPoll >= POLL_MS) {
         lastPoll = now;

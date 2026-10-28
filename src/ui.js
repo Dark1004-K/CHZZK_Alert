@@ -1116,6 +1116,7 @@ function compReqSeen(cid) { try { const o = JSON.parse(localStorage.getItem(LS_C
 function compReqMark(cid) { try { const o = JSON.parse(localStorage.getItem(LS_COMPREQ)) || {}; if (cid) o[cid] = 1; localStorage.setItem(LS_COMPREQ, JSON.stringify(o)); } catch (e) {} }
 function maybeCompanionPrompt() {
   try {
+    if (allowState !== 'ok') return; // 인가 안 된 채널에서는 확장 설치 안내를 하지 않는다
     const cid = pageChannelId();
     if (__kwCompPromptCid !== cid) { __kwCompPromptCid = cid; __kwCompPromptDone = false; } // 채널 바뀌면 세션 가드 리셋
     if (!cid || __kwCompPromptDone || compReqSeen(cid)) return;

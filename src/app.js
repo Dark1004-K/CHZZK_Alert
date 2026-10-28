@@ -56,7 +56,7 @@ function gapCheck() { // 타이머가 150초 넘게 멈췄다 풀렸으면 탭�
 let updateBootChecked = false; // 앱 시작(첫 라우트 체크)에 1회만 true → 업데이트 확인 팝업용
 function checkRoute() {
   gapCheck();
-  try { if (typeof autoUpdateCheck === 'function') { autoUpdateCheck(!updateBootChecked); updateBootChecked = true; } } catch (e) {} // 시작 시 1회 강제 확인(팝업), 이후 1시간마다 조용히 확인
+  try { if (allowState === 'ok' && typeof autoUpdateCheck === 'function') { autoUpdateCheck(!updateBootChecked); updateBootChecked = true; } } catch (e) {} // 시작 시 1회 강제 확인(팝업), 이후 1시간마다 조용히 확인. 인가 안 된 채널에서는 아무 팝업도 띄우지 않음
   if (location.pathname !== lastPath) {
     lastPath = location.pathname;
     const cid = pageChannelId();
@@ -66,10 +66,12 @@ function checkRoute() {
         allowState = 'pending';
         allowEntry = null; allowExpiry = null;
         try { stop(); } catch (e) {}
+        try { teardownUi(); } catch (e) {} // 이전 채널 UI·확장 알림 흔적 걷어내기
         hitLog = []; hitTimes.clear(); clearSeen(); saveHits(); renderHitsList(); // 다른 채널: 불린 대화 초기화
-        try { syncPlugins(); } catch (e) {}
-      }
-      buildUi();
+        try { syncPlugins(); } catch (e) {} // 인가가 확인된 뒤에만 확장을 주입함 (내부에서 거부 채널은 스킵)
+        refreshAllowlist(false, () => { if (allowState === 'ok') startAllowed(); });
+      } else if (allowState === 'ok') buildUi();
+      // 'pending' = 인가 확인 중(결과가 오면 startAllowed가 UI를 띄움) / 'denied' = 인가 안 됨(아무것도 하지 않음)
     } else {
       lastCid = '';
       teardownUi();
@@ -180,6 +182,7 @@ function pluginOptSetChoices(id, key, choices) {
 // 켜져 있는데 아직 안 불러온 확장을 불러온다 (채널 이동으로 방장 여부가 바뀐 경우 등)
 function syncPlugins() {
   if (limitedMode || !pluginList) return;
+  if (allowState !== 'ok') { dlog('plugin-skip-not-allowed'); return; } // 인가 확인 전/거부 채널에서는 확장 주입 금지
   pluginList.forEach((p) => { if (pluginIsOn(p) && !pluginLoaded[p.id]) injectPlugin(p); });
 }
 function setPluginOn(p, on) {
@@ -217,7 +220,7 @@ try {
       fn.__kwPlugin = pluginInjecting;
       (__kwListeners[evt] = __kwListeners[evt] || []).push(fn);
     },
-    toast(nick, body, onClick) { showCallToast(nick, body, onClick); },
+    toast(nick, body, onClick) { if (allowState !== 'ok') return; showCallToast(nick, body, onClick); }, // 인가 안 된 채널에서는 플러그인 토스트도 차단
     option(id, key) { return pluginOptGet(id, key); }, // 설정 > 확장에서 사용자가 고른 옵션 값
     enabled(id) { return pluginIdIsOn(id); }, // 설정 > 확장에서 켜져 있는지
     setOption(id, key, v) { pluginOptSet(id, key, v); try { if (setPanel && setPanel.isConnected) renderSettings(); } catch (e) {} }, // 플러그인 창의 X 버튼이 옵션을 끌 때 (설정 화면도 갱신)
@@ -354,6 +357,7 @@ function refreshPluginsNow(done) {
   } catch (e) { finish('error'); }
 }
 function injectPlugin(p) {
+  if (allowState !== 'ok') { dlog('plugin-skip-denied', p.id || ''); return; } // 인가되지 않은 채널: 확장을 아예 주입하지 않음
   try {
     fetch(p.url + (p.url.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' })
       .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.text(); })
@@ -461,6 +465,16 @@ function init() {
     initApp();
   });
 }
+// 인가 확인이 끝나고 "허용"된 채널에서만 UI와 확장을 시작한다.
+let pluginsBootDone = false;
+function startAllowed() {
+  if (!pluginsBootDone) {
+    pluginsBootDone = true;
+    loadPlugins();
+    try { if (typeof watchPluginHealth === 'function') watchPluginHealth(); } catch (e) {}
+  }
+  try { buildUi(); } catch (e) {}
+}
 function initApp() {
   ensureStyle();
   startHeartbeat();
@@ -473,13 +487,13 @@ function initApp() {
     autoKeywordNick(myNick); // 내 닉네임은 호출 단어에 기본 등록 (중복 생략, ×삭제 후 재등록 안 함)
   } catch (e) {}
   if (isLivePage()) {
-    buildUi();
+    // 인가 확인 전에는 UI도 확장도 실행하지 않는다.
+    // (인가 안 된 채널에서도 보스 알람이 울리고 확장 설치 안내가 뜨던 문제의 원인)
+    refreshAllowlist(false, () => { if (allowState === 'ok') startAllowed(); });
   } else {
     dlog('init-notlive', location.pathname);
   }
   runWorldProbe();
-  loadPlugins();
-  try { if (typeof watchPluginHealth === 'function') watchPluginHealth(); } catch (e) {}
   try { if (typeof companionListen === 'function') companionListen(); } catch (e) {} // 설정을 열기 전에도 동반 감지되게 시작 시 수신 대기
   try { // 시작 후 동반 ping (로드 시점 ready를 놓친 경우 대비)
     setTimeout(() => {
