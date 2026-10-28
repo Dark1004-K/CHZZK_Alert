@@ -284,10 +284,24 @@
     }
     return topicCache[pairTag];
   }
+  // ntfy 응답 지연/중단 대비: 직접 fetch에는 타임아웃을 건다. 무한 대기하면
+  // 5초마다 새 폴링 인스턴스가 쌓여 브라우저 커넥션을 모두 점유, 사이트 전체(방송 포함)가 멈출 수 있음.
+  async function fetchTimeout(url, opt, ms) {
+    let ac = null, to = null;
+    try {
+      ac = new AbortController(); // 지원 안 되는 환경에서는 아래 catch에서 일반 fetch로 진행
+      to = setTimeout(() => { try { ac.abort(); } catch (e) {} }, ms || 12000);
+      return await fetch(url, Object.assign({}, opt || {}, { signal: ac.signal }));
+    } finally {
+      if (to) { try { clearTimeout(to); } catch (e) {} }
+    }
+  }
   async function relayFetch(url, opt) {
     // 직접 fetch 우선, 실패(CORS 등)하면 동반 브릿지 경유
     try {
-      const r = await fetch(url, opt);
+      let r;
+      try { r = await fetchTimeout(url, opt, 12000); }
+      catch (e) { if (e && e.name === 'AbortError') throw e; r = await fetch(url, opt); } // 타임아웃 외 예외(시그널 미지원 등)는 그대로 재시도
       if (!r.ok) throw new Error('http ' + r.status);
       return r;
     } catch (e) {
@@ -319,7 +333,9 @@
     const url = await topicUrl(room.tag);
     const body = JSON.stringify(obj);
     try {
-      const r = await fetch(url, { method: 'POST', body });
+      let r;
+      try { r = await fetchTimeout(url, { method: 'POST', body }, 10000); }
+      catch (e) { if (e && e.name === 'AbortError') throw e; r = await fetch(url, { method: 'POST', body }); }
       if (!r.ok) throw new Error('http ' + r.status);
       return true;
     } catch (e) {
@@ -724,8 +740,8 @@
     const show = !!(inv && me && !(rooms[inv.from] && (rooms[inv.from].aesKey || rooms[inv.from].helloSent)) && !answered.has(inv.from + '|' + inv.t));
     const sig = show ? inv.from + '|' + inv.t : '';
     if (sig === invSig) return;
+    removeInviteCard(); // 안에서 invSig를 비우므로 먼저 지우고 저장해야 매초 재생성되지 않는다
     invSig = sig;
-    removeInviteCard();
     if (!show) return;
     invCard = document.createElement('div');
     invCard.id = '__kw_invite';
@@ -988,24 +1004,26 @@
         if (ev.key === 'Enter') { const rr = rooms[selPeer]; if (rr && rr.aesKey) sendSecure(); else copyDraft(); }
         if (ev.stopPropagation) ev.stopPropagation();
       });
+      // 다른 창과 같은 통일 규격: 가로(도크=스택너비 공유 / 띄움=자기너비) + 세로(방 높이) 동시 조절
+      // innerHTML 교체로 리사이즈 핸들(.__kw_rsz)이 사라지므로 매 렌더마다 다시 건다.
+      // (매초 부르면 핸들 remove/append가 반복돼 DOM 부하가 커짐 — 렌더될 때만 호출)
+      try {
+        if (KW && typeof KW.window === 'function') {
+          KW.window(roomEl, {
+            color: COLOR,
+            posKey: LS_ROOMPOS,
+            rsz: 'd',
+            getH: () => roomH,
+            setH: (v) => {
+              roomH = Math.max(ROOM_H_MIN, Math.min(roomHMax(), v));
+              roomEl.style.height = Math.min(roomH, roomHMax()) + 'px';
+              roomEl.setAttribute('data-css', roomEl.style.cssText);
+            },
+            saveH: () => { try { localStorage.setItem(LS_ROOMH, String(roomH)); } catch (er) {} },
+          });
+        }
+      } catch (e) {}
     }
-    // 다른 창과 같은 통일 규격: 가로(도크=스택너비 공유 / 띄움=자기너비) + 세로(방 높이) 동시 조절
-    try {
-      if (KW && typeof KW.window === 'function') {
-        KW.window(roomEl, {
-          color: COLOR,
-          posKey: LS_ROOMPOS,
-          rsz: 'd',
-          getH: () => roomH,
-          setH: (v) => {
-            roomH = Math.max(ROOM_H_MIN, Math.min(roomHMax(), v));
-            roomEl.style.height = Math.min(roomH, roomHMax()) + 'px';
-            roomEl.setAttribute('data-css', roomEl.style.cssText);
-          },
-          saveH: () => { try { localStorage.setItem(LS_ROOMH, String(roomH)); } catch (er) {} },
-        });
-      }
-    } catch (e) {}
   }
 
   let lastPoll = 0;
