@@ -1,12 +1,12 @@
 name: check-boss-schedule
 
-# 검은사막 위키의 월드 우두머리 레이드 시간표를 확인하고, 바뀌었으면 AI(Gemini)로 표를 읽어
+# 검은사막 위키의 월드 우두머리 레이드 시간표를 확인하고, 바뀌었으면 AI(Groq)로 표를 읽어
 # bosses.json을 자동 갱신한다. 검증에 실패하면 자동 커밋하지 않고 사람이 확인하는 Issue를 만든다.
 #
 # 정기 실행은 Google Apps Script(workers/coupon-cron/chzzk-cron.gs의 bossCheck, 매일 오전 11시대)가 맡는다.
 # GitHub 예약 실행(schedule)은 몇 시간씩 밀려서 시각 보장이 안 되기 때문이다.
 # GAS가 위키 변경을 감지하면 이 워크플로우를 디스패치하고, 여기서 다시 확인한 뒤 판독한다.
-# AI는 시크릿 GEMINI_API_KEY(Google AI Studio에서 발급, 무료 티어)가 있어야 켜진다.
+# AI는 시크릿 GROQ_API_KEY(GroqCloud Console에서 발급, 무료 티어)가 있어야 켜진다.
 # 키가 없으면 "이미지가 바뀌었습니다" 알림만 보낸다.
 on:
   workflow_dispatch: {}
@@ -31,7 +31,7 @@ jobs:
       - name: Check and update boss schedule
         id: chk
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: node scripts/update-boss-schedule.js
       - name: Commit if changed
         run: |

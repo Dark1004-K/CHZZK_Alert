@@ -1,15 +1,15 @@
 // 검은사막 "시간표 > 월드 우두머리 레이드" 위키 페이지의 시간표 이미지가 바뀌었으면
-// Gemini로 읽어 bosses.json을 갱신한다.
-//   node scripts/update-boss-schedule.js        (GEMINI_API_KEY 필요)
+// AI(Groq)로 읽어 bosses.json을 갱신한다.
+//   node scripts/update-boss-schedule.js        (GROQ_API_KEY 필요)
 //   node scripts/update-boss-schedule.js --no-ai   (키 없이 이미지 비교만 — 기존 동작)
 //
 // 흐름:
 //   1) 위키에서 이미지 주소 + "최근 수정 일시"를 긁어 data/boss-schedule-state.json과 비교
-//   2) 바뀌었으면 이미지를 Gemini(gemini-3.8-flash 기본, GEMINI_MODEL로 교체 가능)에 보내 표를 JSON으로 읽게 함
+//   2) 바뀌었으면 이미지를 Groq(qwen/qwen3.8-27b 비전 기본, GROQ_MODEL로 교체 가능)에 보내 표를 JSON으로 읽게 함
 //   3) 검증: 시각(HH:MM), 요일(월~일), 보스명은 plugins.json의 choices와 정확히 일치해야 함
 //   4) 통과하면 bosses.json을 갱신하고 변경 내역을 GITHUB_OUTPUT으로 알림
 //   5) 판독이 실패하면 자동 커밋하지 않고 needsReview=true로 사람을 부른다
-//   6) GEMINI_API_KEY가 없으면 AI 없이(기존 방식) 이미지 변경 알림만 한다
+//   6) GROQ_API_KEY가 없으면 AI 없이(기존 방식) 이미지 변경 알림만 한다
 const fs = require('fs');
 const path = require('path');
 
@@ -19,31 +19,14 @@ const STATE = path.join(ROOT, 'data', 'boss-schedule-state.json');
 const BOSSES = path.join(ROOT, 'bosses.json');
 const PLUGINS = path.join(ROOT, 'plugins.json');
 const UA = 'Mozilla/5.0 (compatible; ChzzkAlertBossScheduleBot)';
-// gemini-2.5-flash는 새 API 키에 대해 404로 거부됨 (Gemini가 3.8-flash 사용 안내, 2026-10-23 확인)
-const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-const API_BASE = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta'; // 테스트용 오버라이드 가능
+// Gemini 무료 티어는 429/503이 잦고 응답이 멈춰 타임아웃으로 Job 전체가 죽는 일이 반복되어
+// Groq 무료 티어(qwen3.8-27b 비전, 한국어·JSON 모드 지원)로 교체 (2026-10-30).
+const MODEL = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b';
+const API_BASE = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1'; // 테스트용 오버라이드 가능
+const TIMEOUT_MS = 60000; // 응답이 멈춰도 무한 대기하지 않도록 요청당 소켓 타임아웃
 
 // 이미지의 요일 순서(월~일) → bosses.json의 day 번호(0=일 1=월 … 6=토)
 const DAY_NO = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 };
-
-const SCHEMA = {
-  type: 'OBJECT',
-  properties: {
-    schedule: {
-      type: 'ARRAY',
-      items: {
-        type: 'OBJECT',
-        properties: {
-          time: { type: 'STRING', description: 'HH:MM (24시간제, KST)' },
-          day: { type: 'STRING', enum: ['월', '화', '수', '목', '금', '토', '일'] },
-          bosses: { type: 'ARRAY', items: { type: 'STRING' }, description: '그 칸의 보스 이름 (위 목록의 철자 그대로)' },
-        },
-        required: ['time', 'day', 'bosses'],
-      },
-    },
-  },
-  required: ['schedule'],
-};
 
 function setOutput(k, v) {
   const f = process.env.GITHUB_OUTPUT;
@@ -63,7 +46,7 @@ function levenshtein(a, b) {
 }
 
 async function fetchWiki() {
-  const res = await fetch(SOURCE, { headers: { 'User-Agent': UA, 'Accept-Language': 'ko-KR' } });
+  const res = await fetch(SOURCE, { headers: { 'User-Agent': UA, 'Accept-Language': 'ko-KR' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
   if (!res.ok) throw new Error('HTTP ' + res.status);
   const html = await res.text();
   const area = html.indexOf('detail_wrap editor_area');
@@ -75,47 +58,65 @@ async function fetchWiki() {
   return { imageUrl: img[1], modified };
 }
 
-async function askGemini(imageUrl, known) {
-  const buf = Buffer.from(await (await fetch(imageUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } })).arrayBuffer());
+// Groq(OpenAI 호환 API)로 이미지를 보내 표를 JSON으로 읽는다.
+// qwen3.8-27b는 이미지+JSON 모드를 지원하며, 무료 티어도 속도 제한이 넉넉한 편이다.
+async function askAI(imageUrl, known) {
+  const buf = Buffer.from(await (await fetch(imageUrl, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(TIMEOUT_MS) })).arrayBuffer());
   const prompt = [
     '이 이미지는 검은사막 한국 서버 위키의 "월드 우두머리 레이드" 시간표 표다.',
     '세로 머리글은 시작 시각(KST), 가로 머리글은 요일이며 열 순서는 월, 화, 수, 목, 금, 토, 일이다.',
     '각 칸에는 그 시각·요일에 등장하는 우두머리 이름이 적혀 있다(칸당 1~2명, 비어 있으면 없음).',
     '표에서 보이는 모든 시각·요일 칸을 빠짐없이 나열한 JSON을 만들어라.',
+    'JSON 스키마: {"schedule":[{"time":"HH:MM","day":"월","bosses":["이름", ...]}, ...]}',
     '- time은 이미지에 적힌 시각을 HH:MM 24시간제로 고쳐 쓴다 (예: 오전 2:00 → "02:00").',
     '- day는 해당 칸의 요일 이름(월~일) 하나.',
     '- bosses는 그 칸의 보스 이름 배열. 다음 목록에 없는 이름을 쓰지 말고 철자를 그대로 복사한다:',
     known.join('·'),
     '- 표에 없는 시각이나 보스를 만들지 않는다. 확실히 읽지 못한 칸은 생략한다.',
+    '- JSON 객체만 출력하고 설명 텍스트는 붙이지 않는다.',
   ].join('\n');
   let res = null;
-  // 무료 티어는 수요 과다로 429/503이 잦으니 지수 백오프로 재시도 (최대 4회)
+  // 무료 티어는 429(속도 제한)·503이 잦으니 지수 백오프로 재시도 (최대 4회)
   for (let attempt = 1; attempt <= 4; attempt++) {
-    res = await fetch(API_BASE + '/models/' + MODEL + ':generateContent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: 'image/png', data: buf.toString('base64') } },
-          ],
-        }],
-        generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 0 },
-      }),
-    });
+    try {
+      res = await fetch(API_BASE + '/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + process.env.GROQ_API_KEY },
+        body: JSON.stringify({
+          model: MODEL,
+          temperature: 0,
+          max_completion_tokens: 4096,
+          response_format: { type: 'json_object' },
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: 'data:image/png;base64,' + buf.toString('base64') } },
+            ],
+          }],
+        }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch (e) {
+      // 타임아웃·네트워크 오류도 재시도 대상 (Gemini 시절 "멈춤"의 주원인)
+      if (attempt === 4) throw new Error('Groq 요청 실패(타임아웃/네트워크): ' + e.message);
+      const wait = 10000 * attempt;
+      console.log('Groq 요청 오류(' + e.message + ') (시도 ' + attempt + '/4) — ' + wait + 'ms 후 재시도...');
+      await new Promise((r) => setTimeout(r, wait));
+      continue;
+    }
     if (res.status === 429 || res.status === 503) {
       const wait = 10000 * attempt;
-      console.log('Gemini HTTP ' + res.status + ' (시도 ' + attempt + '/4) — ' + wait + 'ms 후 재시도...');
+      console.log('Groq HTTP ' + res.status + ' (시도 ' + attempt + '/4) — ' + wait + 'ms 후 재시도...');
       await new Promise((r) => setTimeout(r, wait));
       continue;
     }
     break;
   }
-  if (!res.ok) throw new Error('Gemini HTTP ' + res.status + ': ' + (await res.text()).slice(0, 300));
+  if (!res.ok) throw new Error('Groq HTTP ' + res.status + ': ' + (await res.text()).slice(0, 300));
   const data = await res.json();
-  const text = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text;
-  if (!text) throw new Error('Gemini 응답에 텍스트 없음: ' + JSON.stringify(data).slice(0, 300));
+  const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  if (!text) throw new Error('Groq 응답에 텍스트 없음: ' + JSON.stringify(data).slice(0, 300));
   return JSON.parse(text).schedule || [];
 }
 
@@ -206,7 +207,7 @@ function syncBossChoices(schedule) {
 
 async function main() {
   const noAi = process.argv.includes('--no-ai');
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   const { imageUrl, modified } = await fetchWiki();
 
   let prev = null;
@@ -225,7 +226,7 @@ async function main() {
 
   if (noAi || !apiKey) {
     // AI 없이도 기존 알림은 유지한다 (상태는 갱신하지 않아 다음 실행에서 다시 감지)
-    console.log(noAi ? '--no-ai 지정' : 'GEMINI_API_KEY 없음');
+    console.log(noAi ? '--no-ai 지정' : 'GROQ_API_KEY 없음');
     setOutput('changed', 'true');
     setOutput('needsReview', 'true');
     setOutput('aiUsed', 'false');
@@ -253,8 +254,8 @@ async function main() {
   const bosses = [...knownSet];
   if (!bosses.length) throw new Error('plugins.json에서 보스 목록을 찾지 못함');
 
-  console.log('Gemini(' + MODEL + ')로 판독 중...');
-  const cells = await askGemini(imageUrl, bosses);
+  console.log('Groq(' + MODEL + ')로 판독 중...');
+  const cells = await askAI(imageUrl, bosses);
   console.log('판독 칸 수: ' + cells.length);
   const newBosses = [...new Set(cells.flatMap((c) => (c.bosses || []).map((s) => String(s).trim()).filter(Boolean)))]
     .filter((b) => !bosses.includes(b));
@@ -311,7 +312,7 @@ async function main() {
   setOutput('diff', diff);
   const newNote = newBosses.length ? '- 새 우두머리(체크 목록에 자동 추가): **' + newBosses.join(', ') + '**\n' : '';
   const syncNote = pluginsChanged ? '- `plugins.json` / `release/plugins.json`의 체크 목록도 함께 동기화했습니다 (앱 업데이트 없이 반영)\n' : '';
-  setOutput('body', 'AI(Gemini)가 위키 시간표 이미지를 판독해 `bosses.json`을 자동 갱신했습니다.\n\n'
+  setOutput('body', 'AI(Groq)가 위키 시간표 이미지를 판독해 `bosses.json`을 자동 갱신했습니다.\n\n'
     + '- 새 이미지(공식 사이트): ' + imageUrl + '\n- 수정 일시: ' + modified + '\n\n'
     + (newNote || syncNote ? newNote + syncNote + '\n' : '')
     + '변경 내역:\n```\n' + diff + '\n```\n\n'

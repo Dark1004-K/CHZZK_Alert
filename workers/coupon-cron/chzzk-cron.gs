@@ -188,7 +188,7 @@ function bossCheck() {
     Logger.log('[보스] 변경 없음 (' + modified + ')');
     return;
   }
-  // 3) 바뀌었으면 Actions를 실행시킨다 (Gemini 판독·검증·커밋·이슈는 거기서)
+  // 3) 바뀌었으면 Actions를 실행시킨다 (AI 판독·검증·커밋·이슈는 거기서)
   dispatch_('check-boss-schedule.yml');
   Logger.log('[보스] 시간표 변경 감지 (' + prev.modified + ' → ' + modified + ') → check-boss-schedule Actions 디스패치');
 }
