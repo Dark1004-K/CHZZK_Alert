@@ -273,7 +273,7 @@ async function main() {
       + '- 새 이미지(공식 사이트): ' + imageUrl + '\n- 수정 일시: ' + modified + '\n\n'
       + '검증 오류:\n' + errors.map((e) => '- ' + e).join('\n') + '\n\n'
       + 'AI 판독 원본(JSON):\n```json\n' + JSON.stringify(schedule, null, 2) + '\n```\n\n'
-      + '확인 후 `data/boss-schedule-state.json`을 지우면 다음 실행에서 다시 판독합니다.');
+      + '확인 후 `data/boss-schedule-state.json`의 `modified` 값을 임의로 바꿔 저장하면 다음 실행에서 다시 판독합니다. (파일을 지우면 "처음 기록" 모드가 되어 판독하지 않음)');
     process.exit(0); // 실패해도 워크플로우는 Issue만 만들고 커밋하지 않음
   }
 
