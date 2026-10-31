@@ -6,7 +6,9 @@
 // 흐름:
 //   1) 위키에서 이미지 주소 + "최근 수정 일시"를 긁어 data/boss-schedule-state.json과 비교
 //   2) 바뀌었으면 이미지를 Groq(qwen/qwen3.8-27b 비전 기본, GROQ_MODEL로 교체 가능)에 보내 표를 JSON으로 읽게 함
+//      (OCR 오독·누락 방지를 위해 같은 이미지를 2회 읽어 결과가 같은지 교차 검증)
 //   3) 검증: 시각(HH:MM), 요일(월~일), 보스명은 plugins.json의 choices와 정확히 일치해야 함
+//      + 이전 판독에 있던 칸이 빠졌는지 비교(행·칸 누락 방지)
 //   4) 통과하면 bosses.json을 갱신하고 변경 내역을 GITHUB_OUTPUT으로 알림
 //   5) 판독이 실패하면 자동 커밋하지 않고 needsReview=true로 사람을 부른다
 //   6) GROQ_API_KEY가 없으면 AI 없이(기존 방식) 이미지 변경 알림만 한다
@@ -122,7 +124,9 @@ async function askAI(imageUrl, known) {
 }
 
 // 판독 결과 검증 + {time: {dayNo: [bosses]}} 로 조립. errors에 사유를 담는다.
-function buildSchedule(cells, known) {
+// prev(기존 bosses.json의 schedule)가 주어지면, 거기에 있었던 칸이 이번 판독에서 빠진 경우도 오류로 잡는다
+// (AI가 행·칸을 누락하는 사고 — 예: 일요일 11:00 누락으로 다음 보스가 14:00으로 뛰는 문제 — 방지).
+function buildSchedule(cells, known, prev) {
   const errors = [];
   const byTime = new Map();
   for (const c of cells || []) {
@@ -152,6 +156,20 @@ function buildSchedule(cells, known) {
     byTime.set(c.time, day);
   }
   if (byTime.size < 5) errors.push('시각이 너무 적음 (' + byTime.size + '개) — 표를 다 못 읽었을 수 있음');
+  // 기존에 있었던 칸이 이번 판독에서 통째로 빠졌는지 확인
+  if (Array.isArray(prev)) {
+    for (const ps of prev) {
+      for (const d of Object.keys(ps.days || {})) {
+        if (!(ps.days[d] || []).length) continue;
+        const now = byTime.get(ps.time);
+        if (!now || !now[d]) {
+          errors.push('이전 시간표에 있던 칸이 이번 판독에서 빠짐: ' + ps.time + ' '
+            + ['일', '월', '화', '수', '목', '금', '토'][+d] + ' (' + ps.days[d].join('+')
+            + ') — 위키에서 실제로 없어진 게 아니라면 판독 누락');
+        }
+      }
+    }
+  }
   const schedule = [...byTime.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([time, days]) => {
@@ -255,13 +273,35 @@ async function main() {
   const bosses = [...knownSet];
   if (!bosses.length) throw new Error('plugins.json에서 보스 목록을 찾지 못함');
 
-  console.log('Groq(' + MODEL + ')로 판독 중...');
-  const cells = await askAI(imageUrl, bosses);
-  console.log('판독 칸 수: ' + cells.length);
-  const newBosses = [...new Set(cells.flatMap((c) => (c.bosses || []).map((s) => String(s).trim()).filter(Boolean)))]
+  console.log('Groq(' + MODEL + ')로 판독 중... (신뢰도 검증용 2회 읽기)');
+  const cellsA = await askAI(imageUrl, bosses);
+  const cellsB = await askAI(imageUrl, bosses);
+  console.log('판독 칸 수: ' + cellsA.length + ' / ' + cellsB.length);
+  const old = JSON.parse(fs.readFileSync(BOSSES, 'utf8'));
+  const { schedule, errors } = buildSchedule(cellsA, bosses, old.schedule);
+  // 2회 판독 결과가 다르면 불안정한 판독으로 보고 자동 커밋하지 않는다 (오탈자 사고 방지)
+  const { schedule: scheduleB } = buildSchedule(cellsB, bosses, old.schedule);
+  const diffA = describe(schedule).split('\n');
+  const diffB = describe(scheduleB).split('\n');
+  const onlyA = diffA.filter((l) => !diffB.includes(l));
+  const onlyB = diffB.filter((l) => !diffA.includes(l));
+  if (onlyA.length || onlyB.length) {
+    console.error('2회 판독 결과가 불일치 — 자동 갱신하지 않음:\n- 1회: ' + onlyA.join(' | ') + '\n- 2회: ' + onlyB.join(' | '));
+    setOutput('changed', 'true');
+    setOutput('needsReview', 'true');
+    setOutput('aiUsed', 'true');
+    setOutput('modified', modified);
+    setOutput('imageUrl', imageUrl);
+    setOutput('body', 'AI가 같은 이미지를 2회 판독했으나 결과가 달라 자동 갱신하지 않았습니다. 아래 두 결과를 보고 `bosses.json`을 확인해 주세요.\n\n'
+      + '- 새 이미지(공식 사이트): ' + imageUrl + '\n- 수정 일시: ' + modified + '\n\n'
+      + '1회 판독:\n```\n' + describe(schedule) + '\n```\n\n'
+      + '2회 판독:\n```\n' + describe(scheduleB) + '\n```\n\n'
+      + '확인 후 `data/boss-schedule-state.json`의 `modified` 값을 임의로 바꿔 저장하면 다음 실행에서 다시 판독합니다. (파일을 지우면 "처음 기록" 모드가 되어 판독하지 않음)');
+    process.exit(0);
+  }
+  const newBosses = [...new Set(cellsA.flatMap((c) => (c.bosses || []).map((s) => String(s).trim()).filter(Boolean)))]
     .filter((b) => !bosses.includes(b));
   if (newBosses.length) console.log('목록에 없던 새 보스: ' + newBosses.join(', ') + ' (체크 목록에 자동 추가)');
-  const { schedule, errors } = buildSchedule(cells, bosses);
   if (errors.length) {
     // 판독 실패 — 자동 커밋하지 않고 상태도 갱신하지 않아 다음 실행에서 재시도한다
     console.error('판독 검증 실패:\n- ' + errors.join('\n- '));
@@ -278,7 +318,6 @@ async function main() {
     process.exit(0); // 실패해도 워크플로우는 Issue만 만들고 커밋하지 않음
   }
 
-  const old = JSON.parse(fs.readFileSync(BOSSES, 'utf8'));
   const oldText = describe(old.schedule);
   const newText = describe(schedule);
   fs.mkdirSync(path.dirname(STATE), { recursive: true });
