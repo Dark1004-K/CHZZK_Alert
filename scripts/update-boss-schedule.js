@@ -134,9 +134,12 @@ async function fetchImage(imageUrl) {
 // 429("Request too large ... output tokens per minute")로 거절될 수 있다.
 async function callGroq(buf, prompt, maxTokens) {
   if (!maxTokens) maxTokens = 4096;
-  let res = null;
+  let last = '응답 없음';
   // 무료 티어는 429(속도 제한)·503이 잦으니 재시도 (최대 4회)
+  // 본문은 수신 즉시 읽는다 — 재시도 대기 후에 읽으면 AbortSignal.timeout이 떨어져
+  // "Body is unusable" 오류가 난다 (Gemini 503 재시도 중 2026-11 실측).
   for (let attempt = 1; attempt <= 4; attempt++) {
+    let res;
     try {
       res = await fetch(API_BASE + '/chat/completions', {
         method: 'POST',
@@ -165,34 +168,43 @@ async function callGroq(buf, prompt, maxTokens) {
       await new Promise((r) => setTimeout(r, wait));
       continue;
     }
+    const retryAfter = res.headers.get('retry-after');
+    let raw = '';
+    try { raw = await res.text(); } catch (e) { raw = ''; } // 수신 즉시 소비 (지연 읽기 금지)
     if (res.status === 429) {
       // OTPM/TPM은 1분 단위 윈도우라 짧은 재시도로는 안 빠진다 → retry-after(초) 또는 62초 대기
-      const ra = parseInt(res.headers.get('retry-after') || '', 10);
+      const ra = parseInt(retryAfter || '', 10);
       const wait = (ra > 0 ? Math.min(ra, 90) : 62) * 1000;
-      if (attempt === 4) break; // 마지막 시도는 오류 본문을 그대로 흘려보냄
+      last = 'Groq HTTP 429' + (raw ? ': ' + raw.slice(0, 300) : '');
+      if (attempt === 4) break; // 마지막 시도는 대기 없이 바로 오류로 처리
       console.log('Groq HTTP 429 (시도 ' + attempt + '/4) — ' + (wait / 1000) + '초 대기 후 재시도...');
       await new Promise((r) => setTimeout(r, wait));
       continue;
     }
     if (res.status === 503) {
+      last = 'Groq HTTP 503' + (raw ? ': ' + raw.slice(0, 300) : '');
+      if (attempt === 4) break;
       const wait = 10000 * attempt;
       console.log('Groq HTTP 503 (시도 ' + attempt + '/4) — ' + wait + 'ms 후 재시도...');
       await new Promise((r) => setTimeout(r, wait));
       continue;
     }
-    break;
+    if (!res.ok) throw new Error('Groq HTTP ' + res.status + (raw ? ': ' + raw.slice(0, 300) : ''));
+    const data = JSON.parse(raw);
+    const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    if (!text) throw new Error('Groq 응답에 텍스트 없음: ' + raw.slice(0, 300));
+    return JSON.parse(text);
   }
-  if (!res.ok) throw new Error('Groq HTTP ' + res.status + ': ' + (await res.text()).slice(0, 300));
-  const data = await res.json();
-  const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-  if (!text) throw new Error('Groq 응답에 텍스트 없음: ' + JSON.stringify(data).slice(0, 300));
-  return JSON.parse(text);
+  throw new Error(last + ' (재시도 소진)');
 }
 
 // Gemini(2차 검증용) — 요청별 타임아웃 + 재시도. 예전 Gemini "멈춤"으로 Job이 죽던 것을 막는다.
+// 본문은 수신 즉시 읽는다 — 대기 후에 읽으면 그 사이 AbortSignal.timeout이 떨어져
+// "Body is unusable: Body has already been read" 오류가 난다 (2026-11 503 재시도 중 발생).
 async function callGemini(buf, prompt, schema) {
-  let res = null;
+  let last = '응답 없음';
   for (let attempt = 1; attempt <= 4; attempt++) {
+    let res;
     try {
       res = await fetch(GEMINI_API_BASE + '/models/' + GEMINI_MODEL + ':generateContent', {
         method: 'POST',
@@ -215,19 +227,36 @@ async function callGemini(buf, prompt, schema) {
       await new Promise((r) => setTimeout(r, wait));
       continue;
     }
+    let raw = '';
+    try { raw = await res.text(); } catch (e) { raw = ''; } // 수신 즉시 소비 (지연 읽기 금지)
     if (res.status === 429 || res.status === 503) {
+      last = 'Gemini HTTP ' + res.status + (raw ? ': ' + raw.slice(0, 300) : '');
+      if (attempt === 4) break; // 마지막 시도는 대기 없이 바로 오류로 처리
       const wait = 15000 * attempt;
       console.log('Gemini HTTP ' + res.status + ' (시도 ' + attempt + '/4) — ' + wait + 'ms 후 재시도...');
       await new Promise((r) => setTimeout(r, wait));
       continue;
     }
-    break;
+    if (!res.ok) throw new Error('Gemini HTTP ' + res.status + (raw ? ': ' + raw.slice(0, 300) : ''));
+    const data = JSON.parse(raw);
+    const text = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text;
+    if (!text) throw new Error('Gemini 응답에 텍스트 없음: ' + raw.slice(0, 300));
+    return JSON.parse(text);
   }
-  if (!res.ok) throw new Error('Gemini HTTP ' + res.status + ': ' + (await res.text()).slice(0, 300));
-  const data = await res.json();
-  const text = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text;
-  if (!text) throw new Error('Gemini 응답에 텍스트 없음: ' + JSON.stringify(data).slice(0, 300));
-  return JSON.parse(text);
+  throw new Error(last + ' (재시도 소진)');
+}
+
+// 2차·3판 판독용: 지정 제공사가 실패하면 다른 제공사로 대체한다 (Gemini 503 과부화 대응).
+// groq는 자체 재시도 + OTPM 대기가 send() 안에 있어 그대로 흘려보낸다.
+async function sendWithFallback(via, run) {
+  try {
+    return await run(via);
+  } catch (e) {
+    const alt = via === 'gemini' ? 'groq' : null;
+    if (!alt) throw e;
+    console.log(via + ' 판독 실패(' + e.message + ') — ' + alt + ' 재확인으로 대체');
+    return await run(alt);
+  }
 }
 
 // 제공사 선택: 2차 검증은 기본적으로 Gemini(다른 모델 → 오류 상관 없음), 키가 없으면 Groq.
@@ -540,7 +569,7 @@ async function main() {
     console.log('기존과 달라진 칸 ' + changedCells.length + '개 — 2차 판독(' + via + '): '
       + changedCells.map((c) => c.time + ' ' + c.day).join(', '));
     try {
-      const second = await askCells(buf, bosses, changedCells, via);
+      const second = await sendWithFallback(via, (v) => askCells(buf, bosses, changedCells, v));
       const resolutions = new Map();
       const unresolved = [];
       for (const c of changedCells) {
@@ -552,7 +581,7 @@ async function main() {
       if (unresolved.length) {
         console.log('2차 판독으로도 확정 못한 칸 ' + unresolved.length + '개 — 3판(행 열거): '
           + unresolved.map((u) => u.c.time + ' ' + u.c.day).join(', '));
-        const third = await askRows(buf, bosses, [...new Set(unresolved.map((u) => u.c.time))], via);
+        const third = await sendWithFallback(via, (v) => askRows(buf, bosses, [...new Set(unresolved.map((u) => u.c.time))], v));
         const fmt = (v) => (Array.isArray(v) ? (v.length ? v.join('+') : '(없음)') : '(응답 누락)');
         for (const u of unresolved) {
           const k = u.c.time + '|' + u.c.dayNo;
