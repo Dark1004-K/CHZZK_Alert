@@ -63,6 +63,19 @@ async function fetchWiki() {
 }
 
 // 시간표 이미지를 내려받는다 (전체 판독 + 변경 칸 재확인에서 한 번만 받아 재사용)
+// Groq 응답 시각 (OTPM = 분당 출력 토큰 윈도우 관리용)
+let lastGroqAt = 0;
+
+// 전체 판독 직후엔 방금 생성한 출력 토큰이 OTPM 윈도우를 채우고 있어 재확인 요청이
+// 429("Request too large ... output tokens per minute")로 거절된다. 마지막 Groq 응답부터
+// 61초가 지나도록 기다려 윈도우를 비운 뒤 요청한다.
+async function waitOtpmWindow() {
+  const need = lastGroqAt ? lastGroqAt + 61000 - Date.now() : 0;
+  if (need <= 0) return;
+  console.log('OTPM 윈도우 대기 ' + Math.ceil(need / 1000) + '초 (직전 판독 출력이 분당 한도를 채운 상태)...');
+  await new Promise((r) => setTimeout(r, need));
+}
+
 async function fetchImage(imageUrl) {
   const res = await fetch(imageUrl, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
   if (!res.ok) throw new Error('이미지 다운로드 HTTP ' + res.status);
@@ -70,9 +83,12 @@ async function fetchImage(imageUrl) {
 }
 
 // Groq(OpenAI 호환 API)로 이미지+프롬프트를 보내 JSON 객체를 돌려준다.
-async function callGroq(buf, prompt) {
+// maxTokens: 응답 상한. 이 오가는 OTPM(분당 출력 토큰) 한도가 낮아(예: 1000) 상한이 크면
+// 429("Request too large ... output tokens per minute")로 거절될 수 있다.
+async function callGroq(buf, prompt, maxTokens) {
+  if (!maxTokens) maxTokens = 4096;
   let res = null;
-  // 무료 티어는 429(속도 제한)·503이 잦으니 지수 백오프로 재시도 (최대 4회)
+  // 무료 티어는 429(속도 제한)·503이 잦으니 재시도 (최대 4회)
   for (let attempt = 1; attempt <= 4; attempt++) {
     try {
       res = await fetch(API_BASE + '/chat/completions', {
@@ -81,7 +97,7 @@ async function callGroq(buf, prompt) {
         body: JSON.stringify({
           model: MODEL,
           temperature: 0,
-          max_completion_tokens: 4096,
+          max_completion_tokens: maxTokens,
           response_format: { type: 'json_object' },
           messages: [{
             role: 'user',
@@ -93,6 +109,7 @@ async function callGroq(buf, prompt) {
         }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
+      lastGroqAt = Date.now();
     } catch (e) {
       // 타임아웃·네트워크 오류도 재시도 대상 (Gemini 시절 "멈춤"의 주원인)
       if (attempt === 4) throw new Error('Groq 요청 실패(타임아웃/네트워크): ' + e.message);
@@ -101,9 +118,18 @@ async function callGroq(buf, prompt) {
       await new Promise((r) => setTimeout(r, wait));
       continue;
     }
-    if (res.status === 429 || res.status === 503) {
+    if (res.status === 429) {
+      // OTPM/TPM은 1분 단위 윈도우라 짧은 재시도로는 안 빠진다 → retry-after(초) 또는 62초 대기
+      const ra = parseInt(res.headers.get('retry-after') || '', 10);
+      const wait = (ra > 0 ? Math.min(ra, 90) : 62) * 1000;
+      if (attempt === 4) break; // 마지막 시도는 오류 본문을 그대로 흘려보냄
+      console.log('Groq HTTP 429 (시도 ' + attempt + '/4) — ' + (wait / 1000) + '초 대기 후 재시도...');
+      await new Promise((r) => setTimeout(r, wait));
+      continue;
+    }
+    if (res.status === 503) {
       const wait = 10000 * attempt;
-      console.log('Groq HTTP ' + res.status + ' (시도 ' + attempt + '/4) — ' + wait + 'ms 후 재시도...');
+      console.log('Groq HTTP 503 (시도 ' + attempt + '/4) — ' + wait + 'ms 후 재시도...');
       await new Promise((r) => setTimeout(r, wait));
       continue;
     }
@@ -152,7 +178,7 @@ async function askCells(buf, known, changed) {
     '- 한글은 끝글자까지 정확히 읽는다. "우"/"유", "ㅓ"/"ㅜ"처럼 비슷한 낱간 글자나 마지막 글자를 틀리기 쉬우니 보스명 목록의 철자와 대조해 확인한다.',
     '- JSON 객체만 출력하고 설명 텍스트는 붙이지 않는다.',
   ].join('\n');
-  const data = await callGroq(buf, prompt);
+  const data = await callGroq(buf, prompt, Math.min(900, 200 + changed.length * 60));
   const out = new Map();
   for (const c of data.schedule || []) {
     if (!/^\d{2}:\d{2}$/.test(c.time || '')) continue;
@@ -345,6 +371,9 @@ async function main() {
   if (changedCells.length) {
     console.log('기존과 달라진 칸 ' + changedCells.length + '개 — 이미지 재확인: '
       + changedCells.map((c) => c.time + ' ' + c.day).join(', '));
+    // 직전 전체 판독이 OTPM(분당 출력 토큰) 윈도우를 채운 상태라 바로 보내면 429("Request too large")가 난다.
+    // 1분 이상 기다렸다가 윈도우가 비는 것을 확인하고 재확인 요청을 보낸다.
+    await waitOtpmWindow();
     try {
       const checked = await askCells(buf, bosses, changedCells);
       for (const c of changedCells) {
