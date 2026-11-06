@@ -1,7 +1,18 @@
 {
   "source": "https://www.kr.playblackdesert.com/ko-KR/News/Detail?groupContentNo=10748",
-  "updatedAt": 1793147761492,
+  "updatedAt": 1793928963634,
   "coupons": [
+    {
+      "name": "2026 마스터 클래스 결승 프리뷰 방송 쿠폰",
+      "code": "2026마스터클래스대망의결승전",
+      "rewards": [
+        "크론석 300개",
+        "[이벤트] 성장의 도약",
+        "[이벤트] 현명한 살림꾼"
+      ],
+      "expires": "2026년 11월 18일(수) 05:00",
+      "expiresAt": 1794945600000
+    },
     {
       "name": "2026 하이델 연회",
       "code": "BEYONDTHEJOURNEY",
