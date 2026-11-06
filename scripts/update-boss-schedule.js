@@ -201,9 +201,21 @@ async function callGroq(buf, prompt, maxTokens) {
 // Gemini(2차 검증용) — 요청별 타임아웃 + 재시도. 예전 Gemini "멈춤"으로 Job이 죽던 것을 막는다.
 // 본문은 수신 즉시 읽는다 — 대기 후에 읽으면 그 사이 AbortSignal.timeout이 떨어져
 // "Body is unusable: Body has already been read" 오류가 난다 (2026-11 503 재시도 중 발생).
+//
+// 503("high demand ... usually temporary") 스파이크는 수 분 단위로 지속되므로,
+// 기존(4회·15/30/45초 = 최대 2분) 대신 "예산" 동안 긴 간격으로 재시도한다:
+//   2차 검증: 4분 예산 (20/40/60/80초 간격, 최대 6회)
+//   3판(이미 1회 실패한 뒤): 2분 예산 — 스파이크가 이어질 가능성이 커 여유를 줄인다
+// 예산이 소진되면 Groq 재확인으로 대체된다(sendWithFallback).
+const GEMINI_BUDGET_MS = 240000;
+const GEMINI_SHORT_BUDGET_MS = 120000;
+let geminiFailed = false; // 한 번이라도 예산 소진되면 이후 호출의 예산을 줄인다
+
 async function callGemini(buf, prompt, schema) {
+  const budget = geminiFailed ? GEMINI_SHORT_BUDGET_MS : GEMINI_BUDGET_MS;
+  const start = Date.now();
   let last = '응답 없음';
-  for (let attempt = 1; attempt <= 4; attempt++) {
+  for (let attempt = 1; attempt <= 6; attempt++) {
     let res;
     try {
       res = await fetch(GEMINI_API_BASE + '/models/' + GEMINI_MODEL + ':generateContent', {
@@ -221,9 +233,10 @@ async function callGemini(buf, prompt, schema) {
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
     } catch (e) {
-      if (attempt === 4) throw new Error('Gemini 요청 실패(타임아웃/네트워크): ' + e.message);
+      last = 'Gemini 요청 실패(타임아웃/네트워크): ' + e.message;
       const wait = 10000 * attempt;
-      console.log('Gemini 요청 오류(' + e.message + ') (시도 ' + attempt + '/4) — ' + wait + 'ms 후 재시도...');
+      if (attempt === 6 || Date.now() + wait >= start + budget) break;
+      console.log('Gemini 요청 오류(' + e.message + ') (시도 ' + attempt + '/6) — ' + (wait / 1000) + '초 후 재시도...');
       await new Promise((r) => setTimeout(r, wait));
       continue;
     }
@@ -231,19 +244,26 @@ async function callGemini(buf, prompt, schema) {
     try { raw = await res.text(); } catch (e) { raw = ''; } // 수신 즉시 소비 (지연 읽기 금지)
     if (res.status === 429 || res.status === 503) {
       last = 'Gemini HTTP ' + res.status + (raw ? ': ' + raw.slice(0, 300) : '');
-      if (attempt === 4) break; // 마지막 시도는 대기 없이 바로 오류로 처리
-      const wait = 15000 * attempt;
-      console.log('Gemini HTTP ' + res.status + ' (시도 ' + attempt + '/4) — ' + wait + 'ms 후 재시도...');
+      const wait = 20000 * attempt; // 20/40/60/80/100초 — 잠깐의 스파이크를 기다린다
+      if (attempt === 6 || Date.now() + wait >= start + budget) break;
+      console.log('Gemini HTTP ' + res.status + ' (시도 ' + attempt + '/6) — ' + (wait / 1000) + '초 대기 후 재시도...');
       await new Promise((r) => setTimeout(r, wait));
       continue;
     }
-    if (!res.ok) throw new Error('Gemini HTTP ' + res.status + (raw ? ': ' + raw.slice(0, 300) : ''));
+    if (!res.ok) {
+      geminiFailed = true;
+      throw new Error('Gemini HTTP ' + res.status + (raw ? ': ' + raw.slice(0, 300) : ''));
+    }
     const data = JSON.parse(raw);
     const text = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text;
-    if (!text) throw new Error('Gemini 응답에 텍스트 없음: ' + raw.slice(0, 300));
+    if (!text) {
+      geminiFailed = true;
+      throw new Error('Gemini 응답에 텍스트 없음: ' + raw.slice(0, 300));
+    }
     return JSON.parse(text);
   }
-  throw new Error(last + ' (재시도 소진)');
+  geminiFailed = true;
+  throw new Error(last + ' (재시도 소진, 예산 ' + Math.round(budget / 1000) + '초)');
 }
 
 // 2차·3판 판독용: 지정 제공사가 실패하면 다른 제공사로 대체한다 (Gemini 503 과부화 대응).
