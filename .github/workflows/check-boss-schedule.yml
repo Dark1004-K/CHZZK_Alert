@@ -7,6 +7,7 @@ name: check-boss-schedule
 # GitHub 예약 실행(schedule)은 몇 시간씩 밀려서 시각 보장이 안 되기 때문이다.
 # GAS가 위키 변경을 감지하면 이 워크플로우를 디스패치하고, 여기서 다시 확인한 뒤 판독한다.
 # AI는 시크릿 GROQ_API_KEY(GroqCloud Console에서 발급, 무료 티어)가 있어야 켜진다.
+# 2차 교차 검증은 시크릿 GEMINI_API_KEY가 있으면 Gemini로 하고, 없으면 Groq 재확인으로 대체한다.
 # 키가 없으면 "이미지가 바뀌었습니다" 알림만 보낸다.
 on:
   workflow_dispatch: {}
@@ -32,6 +33,7 @@ jobs:
         id: chk
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node scripts/update-boss-schedule.js
       - name: Commit if changed
         run: |

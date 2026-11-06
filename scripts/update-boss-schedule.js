@@ -1,16 +1,16 @@
 // 검은사막 "시간표 > 월드 우두머리 레이드" 위키 페이지의 시간표 이미지가 바뀌었으면
-// AI(Groq)로 읽어 bosses.json을 갱신한다.
-//   node scripts/update-boss-schedule.js        (GROQ_API_KEY 필요)
+// AI로 읽어 bosses.json을 갱신한다. (1차 Groq 전체 판독 + 2차 Gemini 교차 검증)
+//   node scripts/update-boss-schedule.js        (GROQ_API_KEY 필요, GEMINI_API_KEY 있으면 교차 검증)
 //   node scripts/update-boss-schedule.js --no-ai   (키 없이 이미지 비교만 — 기존 동작)
 //
 // 흐름:
 //   1) 위키에서 이미지 주소 + "최근 수정 일시"를 긁어 data/boss-schedule-state.json과 비교
 //   2) 바뀌었으면 이미지를 Groq(qwen/qwen3.8-27b 비전 기본, GROQ_MODEL로 교체 가능)에 보내 표를 JSON으로 읽게 함
 //   3) 검증: 시각(HH:MM), 요일(월~일), 보스명은 plugins.json의 choices와 정확히 일치해야 함
-//      + 기존 시간표와 달라진 칸은 이미지에 "그 칸만" 다시 물어 재확인
-//        — AI가 행·칸을 통째로 누락한 사고는 잡고, 이벤트 종료로 칸이 사라진 정상 변경은 통과시킨다
-//        (2026-11 이전 방식: "이전에 있던 칸이 빠졌으면 무조건 오류" → 정상 삭제까지 모두 막아
-//         이벤트 보스(동심 12호) 종료 후 갱신이 영구히 중단되는 사고 발생 → 이 방식으로 교체)
+//      + 기존과 달라진 칸은 "다른 모델"(Gemini)로 2차 판독 → 확정 규칙 적용
+//        1차==2차 → 채택 / 2차==기존값 → 기존값 / 그 외 → 3판(행 열거) → 그래도 미확정이면 사람 확인
+//        — 같은 모델 2회 판독은 33%의 칸을 똑같이 틀려 교차 검증이 무의미했음(2026-11 실측)
+//        — 이벤트 종료로 칸이 사라진 정상 삭제는 1차·2차 모두 "없음"이라 자동 통과
 //   4) 통과하면 bosses.json을 갱신하고 변경 내역을 GITHUB_OUTPUT으로 알림
 //   5) 판독이 실패하면 자동 커밋하지 않고 needsReview=true로 사람을 부른다
 //   6) GROQ_API_KEY가 없으면 AI 없이(기존 방식) 이미지 변경 알림만 한다
@@ -23,11 +23,58 @@ const STATE = path.join(ROOT, 'data', 'boss-schedule-state.json');
 const BOSSES = path.join(ROOT, 'bosses.json');
 const PLUGINS = path.join(ROOT, 'plugins.json');
 const UA = 'Mozilla/5.0 (compatible; ChzzkAlertBossScheduleBot)';
-// Gemini 무료 티어는 429/503이 잦고 응답이 멈춰 타임아웃으로 Job 전체가 죽는 일이 반복되어
+// 1차 판독: Gemini 무료 티어는 429/503이 잦고 응답이 멈춰 타임아웃으로 Job 전체가 죽는 일이 반복되어
 // Groq 무료 티어(qwen3.8-27b 비전, 한국어·JSON 모드 지원)로 교체 (2026-10-30).
+// 2차 교차 검증: 2026-11부터 다시 Gemini를 쓴다 (같은 모델 재판독은 오류가 상관되어 무의미 → 다른 모델 필요.
+// 멈춤 우려는 요청별 AbortSignal 타임아웃 + 재시도로 막는다). 키가 없으면 Groq 재확인으로 대체.
 const MODEL = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b';
 const API_BASE = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1'; // 테스트용 오버라이드 가능
 const TIMEOUT_MS = 60000; // 응답이 멈춰도 무한 대기하지 않도록 요청당 소켓 타임아웃
+
+// 2차 검증(변경 칸 재확인)은 반드시 다른 모델로 한다 — 같은 모델을 2회 읽으면
+// 2026-11 실측에서 33%의 칸을 똑같이 틀렸기 때문이다(요일 열 밀림·빈칸에 이웃 내용 옮겨 쓰기).
+// gemini-2.5-flash는 새 API 키에 404라 Gemini가 3.8-flash를 안내함 (2026-10-23 확인).
+// GEMINI_API_KEY가 없으면 Groq 재확인으로 대체한다(신뢰도 낮아짐).
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+const GEMINI_API_BASE = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta'; // 테스트용 오버라이드 가능
+
+const DAY_ENUM = ['월', '화', '수', '목', '금', '토', '일'];
+// Gemini 응답 스키마: 요청 칸 단위 / 행 단위 열거
+const CELLS_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    schedule: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          time: { type: 'STRING', description: 'HH:MM (24시간제, KST)' },
+          day: { type: 'STRING', enum: DAY_ENUM },
+          bosses: { type: 'ARRAY', items: { type: 'STRING' }, description: '그 칸의 보스 이름 (목록의 철자 그대로, 비어 있으면 빈 배열)' },
+        },
+        required: ['time', 'day', 'bosses'],
+      },
+    },
+  },
+  required: ['schedule'],
+};
+const ROWS_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    rows: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          time: { type: 'STRING', description: 'HH:MM (24시간제, KST)' },
+          cells: { type: 'ARRAY', items: { type: 'ARRAY', items: { type: 'STRING' } }, description: '월~일 7칸 (빈칸은 빈 배열), 순서 고정' },
+        },
+        required: ['time', 'cells'],
+      },
+    },
+  },
+  required: ['rows'],
+};
 
 // 이미지의 요일 순서(월~일) → bosses.json의 day 번호(0=일 1=월 … 6=토)
 const DAY_NO = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 };
@@ -142,6 +189,59 @@ async function callGroq(buf, prompt, maxTokens) {
   return JSON.parse(text);
 }
 
+// Gemini(2차 검증용) — 요청별 타임아웃 + 재시도. 예전 Gemini "멈춤"으로 Job이 죽던 것을 막는다.
+async function callGemini(buf, prompt, schema) {
+  let res = null;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      res = await fetch(GEMINI_API_BASE + '/models/' + GEMINI_MODEL + ':generateContent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: 'image/png', data: buf.toString('base64') } },
+            ],
+          }],
+          generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0 },
+        }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch (e) {
+      if (attempt === 4) throw new Error('Gemini 요청 실패(타임아웃/네트워크): ' + e.message);
+      const wait = 10000 * attempt;
+      console.log('Gemini 요청 오류(' + e.message + ') (시도 ' + attempt + '/4) — ' + wait + 'ms 후 재시도...');
+      await new Promise((r) => setTimeout(r, wait));
+      continue;
+    }
+    if (res.status === 429 || res.status === 503) {
+      const wait = 15000 * attempt;
+      console.log('Gemini HTTP ' + res.status + ' (시도 ' + attempt + '/4) — ' + wait + 'ms 후 재시도...');
+      await new Promise((r) => setTimeout(r, wait));
+      continue;
+    }
+    break;
+  }
+  if (!res.ok) throw new Error('Gemini HTTP ' + res.status + ': ' + (await res.text()).slice(0, 300));
+  const data = await res.json();
+  const text = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text;
+  if (!text) throw new Error('Gemini 응답에 텍스트 없음: ' + JSON.stringify(data).slice(0, 300));
+  return JSON.parse(text);
+}
+
+// 제공사 선택: 2차 검증은 기본적으로 Gemini(다른 모델 → 오류 상관 없음), 키가 없으면 Groq.
+function pickVia() {
+  return process.env.GEMINI_API_KEY ? 'gemini' : 'groq';
+}
+
+// 2차 판독 전송. Groq면 직전 전체 판독의 출력이 OTPM(분당 출력 토큰) 윈도우를 채웠을 수 있어 대기한다.
+async function send(via, buf, prompt, schema, maxTokens) {
+  if (via === 'gemini') return callGemini(buf, prompt, schema);
+  await waitOtpmWindow();
+  return callGroq(buf, prompt, maxTokens);
+}
+
 // 시간표 전체를 한 번에 읽는다.
 async function askAI(buf, known) {
   const prompt = [
@@ -152,6 +252,8 @@ async function askAI(buf, known) {
     'JSON 스키마: {"schedule":[{"time":"HH:MM","day":"월","bosses":["이름", ...]}, ...]}',
     '- time은 이미지에 적힌 시각을 HH:MM 24시간제로 고쳐 쓴다 (예: 오전 2:00 → "02:00").',
     '- day는 해당 칸의 요일 이름(월~일) 하나.',
+    '- 각 칸의 보스는 그 칸이 속한 요일 열에만 적는다. 이웃 요일 칸의 내용을 옮겨 쓰지 않고,'
+    + ' 비어 있는 칸은 다른 칸의 내용으로 채우지 않으며 생략한다.',
     '- bosses는 그 칸의 보스 이름 배열. 다음 목록에 없는 이름을 쓰지 말고 철자를 그대로 복사한다:',
     known.join('·'),
     '- 표에 없는 시각이나 보스를 만들지 않는다. 확실히 읽지 못한 칸은 생략한다.',
@@ -162,29 +264,58 @@ async function askAI(buf, known) {
   return data.schedule || [];
 }
 
-// 기존과 달라진 칸만 이미지에 집중해서 다시 읽게 한다 (재확인용 2차 판독).
-// changed: [{time, dayNo, day, was, now}] — 요청한 모든 칸을 반드시 출력하게 하고,
-// 빈 칸이면 bosses=[] 로 오게 한다. 응답에 없는 칸은 undefined라 호출부에서 오류로 다룬다.
-async function askCells(buf, known, changed) {
+// 기존과 달라진 칸만 이미지에 집중해서 다시 읽게 한다 (2차 판독).
+// via: 'gemini' | 'groq' — 모든 요청 칸을 반드시 출력하게 하고, 빈 칸이면 bosses=[] 로 오게 한다.
+// 응답에 없는 칸은 undefined라 호출부에서 불일치로 다룬다.
+async function askCells(buf, known, changed, via) {
   const prompt = [
     '이 이미지는 검은사막 한국 서버 위키의 "월드 우두머리 레이드" 시간표 표다.',
-    '열 순서는 월, 화, 수, 목, 금, 토, 일이다.',
-    '아래 요청 칸만 집중해서 정확히 읽어라. 요청한 모든 칸을 반드시 출력하되, 그 칸이 비어 있거나'
-    + ' 표에 존재하지 않으면 bosses를 빈 배열로 출력한다 (생략하지 않는다).',
+    '열 순서는 월, 화, 수, 목, 금, 토, 일 이며 각 열의 폭은 같다.',
+    '아래 요청 칸만 집중해서 정확히 확인해 답하라. 요청한 모든 칸을 반드시 출력하고,'
+    + ' 그 칸이 비어 있으면 bosses를 빈 배열로 출력한다 (생략하지 않는다).',
     'JSON 스키마: {"schedule":[{"time":"HH:MM","day":"월","bosses":["이름", ...]}, ...]}',
     '요청 칸: ' + changed.map((c) => c.time + ' ' + c.day).join(' / '),
     '- bosses는 그 칸의 보스 이름 배열. 다음 목록에 없는 이름을 쓰지 말고 철자를 그대로 복사한다:',
     known.join('·'),
+    '- 반드시 칸의 세로선·가로선으로 경계를 확인할 것. 같은 시각 줄의 이웃 요일 칸 내용을 이 칸에'
+    + ' 옮겨 적지 않고, 비어 있는 칸에 이웃 내용을 채우지 않는다.',
     '- 한글은 끝글자까지 정확히 읽는다. "우"/"유", "ㅓ"/"ㅜ"처럼 비슷한 낱간 글자나 마지막 글자를 틀리기 쉬우니 보스명 목록의 철자와 대조해 확인한다.',
     '- JSON 객체만 출력하고 설명 텍스트는 붙이지 않는다.',
   ].join('\n');
-  const data = await callGroq(buf, prompt, Math.min(900, 200 + changed.length * 60));
+  const data = await send(via, buf, prompt, CELLS_SCHEMA, Math.min(900, 200 + changed.length * 60));
   const out = new Map();
   for (const c of data.schedule || []) {
     if (!/^\d{2}:\d{2}$/.test(c.time || '')) continue;
     const dayNo = DAY_NO[c.day];
     if (dayNo === undefined) continue;
     out.set(c.time + '|' + dayNo, (c.bosses || []).map((s) => String(s).trim()).filter(Boolean));
+  }
+  return out;
+}
+
+// 3판용: 해당 시각의 "행 전체 7칸"을 요일 순서로 열거하게 한다 (프롬프트 구조를 바꿔 오류 상관을 끊는다).
+// 빈칸을 []로 강제 출력하게 하므로 열 밀림·빈칸 오염을 잡아낸다. Map('time|dayNo' → bosses) 반환.
+async function askRows(buf, known, times, via) {
+  const prompt = [
+    '이 이미지는 검은사막 한국 서버 위키의 "월드 우두머리 레이드" 시간표 표다.',
+    '열 순서는 월, 화, 수, 목, 금, 토, 일 이며 각 열의 폭은 같다.',
+    '아래 시각의 행을 요일 7칸 전부에 대해 왼쪽부터 월, 화, 수, 목, 금, 토, 일 순서로 빠짐없이 적어라.',
+    '각 행의 cells 배열은 정확히 7개여야 하며, 비어 있는 칸은 빈 배열 []로 둔다 (건너뛰지 않는다).',
+    'JSON 스키마: {"rows":[{"time":"HH:MM","cells":[[], ["이름"], ... (7개)]}]}',
+    '확인할 시각: ' + times.join(', '),
+    '- 보스 이름은 이 목록에서만 고르고 철자를 그대로 복사한다:',
+    known.join('·'),
+    '- 반드시 칸의 세로선으로 경계를 확인하고 이웃 칸의 내용을 옮기지 않는다.',
+    '- JSON 객체만 출력하고 설명 텍스트는 붙이지 않는다.',
+  ].join('\n');
+  const data = await send(via, buf, prompt, ROWS_SCHEMA, Math.min(900, 200 + times.length * 90));
+  const out = new Map();
+  const ORDER = [1, 2, 3, 4, 5, 6, 0]; // cells[0]=월 … cells[6]=일
+  for (const r of data.rows || []) {
+    if (!/^\d{2}:\d{2}$/.test(r.time || '')) continue;
+    (r.cells || []).slice(0, 7).forEach((cell, i) => {
+      out.set(r.time + '|' + ORDER[i], (Array.isArray(cell) ? cell : []).map((s) => String(s).trim()).filter(Boolean));
+    });
   }
   return out;
 }
@@ -258,6 +389,44 @@ function diffCells(prevSchedule, schedule) {
   }
   out.sort((x, y) => x.time.localeCompare(y.time) || x.dayNo - y.dayNo);
   return out;
+}
+
+// 1차(A: Groq 전체 판독)와 2차(C: 재확인) 판독이 다를 때 최종값을 정한다.
+//   A == C        → 채택
+//   C == 기존값   → 기존값 유지 (1차 판독이 누락/오독한 경우 — 예: 20:00 일 누락 복구)
+//   그 외         → null (미확정 → 3판 행 열거로 해결, 그래도 없으면 사람 확인)
+// 빈 배열([])도 값으로 취급한다(삭제 확정).
+function resolveCell(aVal, cVal, prevVal) {
+  if (Array.isArray(cVal)) {
+    if (sameBosses(aVal, cVal)) return aVal;
+    if (sameBosses(cVal, prevVal)) return prevVal;
+  }
+  return null;
+}
+
+// 확정된 칸 값(Map 'time|dayNo' → bosses)을 schedule에 반영한다.
+// 빈 배열이면 칸 삭제, 내용이 있으면 교체/추가. 빈 행은 제거하고 시각 순으로 정렬한다.
+function applyResolutions(schedule, resolutions) {
+  const rows = new Map(schedule.map((s) => [s.time, { time: s.time, days: { ...s.days } }]));
+  for (const [key, val] of resolutions) {
+    const [time, d] = key.split('|');
+    let row = rows.get(time);
+    if (!row) {
+      if (!val.length) continue;
+      row = { time, days: {} };
+      rows.set(time, row);
+    }
+    if (val.length) row.days[d] = val;
+    else delete row.days[d];
+  }
+  return [...rows.values()]
+    .filter((r) => Object.keys(r.days).length)
+    .sort((a, b) => a.time.localeCompare(b.time))
+    .map((r) => {
+      const d = {};
+      for (const k of Object.keys(r.days).sort((a, b) => a - b)) d[k] = r.days[k];
+      return { time: r.time, days: d };
+    });
 }
 
 // bosses.json의 schedule 배열 → 사람이 읽는 비교용 텍스트
@@ -359,40 +528,61 @@ async function main() {
   console.log('판독 칸 수: ' + cells.length);
   const old = JSON.parse(fs.readFileSync(BOSSES, 'utf8'));
   const { schedule, errors } = buildSchedule(cells, bosses);
-  const newBosses = [...new Set(cells.flatMap((c) => (c.bosses || []).map((s) => String(s).trim()).filter(Boolean)))]
-    .filter((b) => !bosses.includes(b));
-  if (newBosses.length) console.log('목록에 없던 새 보스: ' + newBosses.join(', ') + ' (체크 목록에 자동 추가)');
-
-  // 기존과 달라진 칸은 이미지에 "그 칸만" 다시 물어 재확인한다.
-  // - AI가 행·칸을 통째로 누락한 사고(다음 보스가 멀리 뛰는 문제)는 재확인이 기존 값과 일치해 잡힌다.
-  // - 반대로 이벤트 종료로 칸이 실제로 사라진 경우에는 재확인도 "없음"이라 새 판독과 일치해 통과한다.
-  //   (2026-11 이전: 빠진 칸을 무조건 오류로 잡아 정상 삭제까지 막고 갱신이 영구 중단되는 사고 발생)
+  // 기존과 달라진 칸은 "다른 모델"로 2차 판독(교차 검증)한다.
+  // - 같은 모델 2회 판독은 33%의 칸을 똑같이 틀렸다(2026-11 실측: 요일 열 밀림·빈칸 오염) → 2차는 기본 Gemini.
+  // - 규칙: 1차==2차 → 채택 / 2차==기존값 → 기존값(1차 누락·오독 복구) / 그 외 → 3판(행 열거) → 그래도 미확정이면 사람 확인.
+  // - 이벤트 종료로 칸이 사라진 정상 삭제는 1차·2차가 모두 "없음"이라 자동 통과한다.
   const changedCells = diffCells(old.schedule, schedule);
+  let finalSchedule = schedule;
   if (changedCells.length) {
-    console.log('기존과 달라진 칸 ' + changedCells.length + '개 — 이미지 재확인: '
+    const via = pickVia();
+    if (via === 'groq') console.log('GEMINI_API_KEY 없음 — Groq로 2차 판독 (교차 검증 신뢰도 낮음)');
+    console.log('기존과 달라진 칸 ' + changedCells.length + '개 — 2차 판독(' + via + '): '
       + changedCells.map((c) => c.time + ' ' + c.day).join(', '));
-    // 직전 전체 판독이 OTPM(분당 출력 토큰) 윈도우를 채운 상태라 바로 보내면 429("Request too large")가 난다.
-    // 1분 이상 기다렸다가 윈도우가 비는 것을 확인하고 재확인 요청을 보낸다.
-    await waitOtpmWindow();
     try {
-      const checked = await askCells(buf, bosses, changedCells);
+      const second = await askCells(buf, bosses, changedCells, via);
+      const resolutions = new Map();
+      const unresolved = [];
       for (const c of changedCells) {
-        const v = checked.get(c.time + '|' + c.dayNo);
-        if (!v) {
-          errors.push('재확인 응답에 칸 누락: ' + c.time + ' ' + c.day);
-        } else if (!sameBosses(v, c.now)) {
-          errors.push('재확인 불일치: ' + c.time + ' ' + c.day
-            + ' — 전체 판독=' + (c.now.length ? c.now.join('+') : '(없음)')
-            + ' / 재확인=' + (v.length ? v.join('+') : '(없음)')
-            + ' / 기존값=' + (c.was.length ? c.was.join('+') : '(없음)'));
+        const r = resolveCell(c.now, second.get(c.time + '|' + c.dayNo), c.was);
+        if (r) resolutions.set(c.time + '|' + c.dayNo, r);
+        else unresolved.push({ c, got: second.get(c.time + '|' + c.dayNo) });
+      }
+      // 3판: 프롬프트 구조를 바꾼 "행 전체 7칸 열거"로 재질의해 오류 상관을 끊는다
+      if (unresolved.length) {
+        console.log('2차 판독으로도 확정 못한 칸 ' + unresolved.length + '개 — 3판(행 열거): '
+          + unresolved.map((u) => u.c.time + ' ' + u.c.day).join(', '));
+        const third = await askRows(buf, bosses, [...new Set(unresolved.map((u) => u.c.time))], via);
+        const fmt = (v) => (Array.isArray(v) ? (v.length ? v.join('+') : '(없음)') : '(응답 누락)');
+        for (const u of unresolved) {
+          const k = u.c.time + '|' + u.c.dayNo;
+          const d = third.get(k);
+          let r = null;
+          if (Array.isArray(d)) {
+            if (sameBosses(d, u.c.now)) r = u.c.now;
+            else if (sameBosses(d, u.c.was)) r = u.c.was;
+            else if (Array.isArray(u.got) && sameBosses(d, u.got)) r = u.got;
+          }
+          if (r) resolutions.set(k, r);
+          else errors.push('판독 불일치(미확정): ' + u.c.time + ' ' + u.c.day
+            + ' — 1차=' + fmt(u.c.now) + ' / 2차=' + fmt(u.got) + ' / 3판=' + fmt(d)
+            + ' / 기존값=' + fmt(u.c.was));
         }
       }
+      finalSchedule = applyResolutions(schedule, resolutions);
+      console.log('2차 교차 검증 반영: ' + resolutions.size + '칸 확정'
+        + (errors.length ? ', 미확정 ' + errors.filter((e) => e.startsWith('판독 불일치')).length + '칸' : ''));
     } catch (e) {
-      errors.push('변경 칸 재확인 실패: ' + e.message);
+      errors.push('2차 판독 실패(' + via + '): ' + e.message);
     }
   } else {
-    console.log('기존 시간표와 동일한 판독 — 재확인 생략');
+    console.log('기존 시간표와 동일한 판독 — 2차 판독 생략');
   }
+
+  // 최종 확정 시간표 기준으로 새 보스를 다시 계산한다 (2차 판독에서 되살아난/삭제된 칸 반영)
+  const finalNames = new Set(finalSchedule.flatMap((s) => Object.values(s.days).flat()));
+  const newBosses = [...finalNames].filter((b) => !bosses.includes(b));
+  if (newBosses.length) console.log('목록에 없던 새 보스: ' + newBosses.join(', ') + ' (체크 목록에 자동 추가)');
   if (errors.length) {
     // 판독 실패 — 자동 커밋하지 않고 상태도 갱신하지 않아 다음 실행에서 재시도한다
     console.error('판독 검증 실패:\n- ' + errors.join('\n- '));
@@ -410,14 +600,14 @@ async function main() {
   }
 
   const oldText = describe(old.schedule);
-  const newText = describe(schedule);
+  const newText = describe(finalSchedule);
   fs.mkdirSync(path.dirname(STATE), { recursive: true });
   fs.writeFileSync(STATE, JSON.stringify({ source: SOURCE, imageUrl, modified, checkedAt: Date.now() }, null, 2) + '\n');
   setOutput('changed', 'true');
   setOutput('aiUsed', 'true');
 
   // 체크 목록도 함께 맞춘다 (배포된 앱이 plugins.json을 원격으로 받으므로 플러그인 코드 불필요)
-  const pluginsChanged = syncBossChoices(schedule);
+  const pluginsChanged = syncBossChoices(finalSchedule);
 
   if (oldText === newText && !pluginsChanged) {
     console.log('판독 결과가 기존 bosses.json과 동일 — 파일 변경 없음');
@@ -425,7 +615,7 @@ async function main() {
     return;
   }
   if (oldText !== newText) {
-    old.schedule = schedule;
+    old.schedule = finalSchedule;
     old.updatedAt = Date.now();
     old.source = SOURCE;
     fs.writeFileSync(BOSSES, JSON.stringify(old, null, 2) + '\n');
@@ -443,7 +633,7 @@ async function main() {
   setOutput('diff', diff);
   const newNote = newBosses.length ? '- 새 우두머리(체크 목록에 자동 추가): **' + newBosses.join(', ') + '**\n' : '';
   const syncNote = pluginsChanged ? '- `plugins.json` / `release/plugins.json`의 체크 목록도 함께 동기화했습니다 (앱 업데이트 없이 반영)\n' : '';
-  setOutput('body', 'AI(Groq)가 위키 시간표 이미지를 판독해 `bosses.json`을 자동 갱신했습니다.\n\n'
+  setOutput('body', 'AI(Groq 전체 판독 + Gemini 교차 검증)가 위키 시간표 이미지를 판독해 `bosses.json`을 자동 갱신했습니다.\n\n'
     + '- 새 이미지(공식 사이트): ' + imageUrl + '\n- 수정 일시: ' + modified + '\n\n'
     + (newNote || syncNote ? newNote + syncNote + '\n' : '')
     + '변경 내역:\n```\n' + diff + '\n```\n\n'
