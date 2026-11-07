@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1793992218477,
+  "updatedAt": 1794076801356,
   "source": "https://www.kr.playblackdesert.com/ko-kr/Wiki?wikiNo=167",
   "note": "시간(KST) / days: 0=일 1=월 ... 6=토. 위키 시간표 이미지를 보고 옮겨 적은 값. 이미지가 바뀌면 이 파일을 고친다(앱은 6시간마다 다시 받음).",
   "schedule": [
@@ -148,11 +148,11 @@
       "time": "19:00",
       "days": {
         "3": [
-          "균트",
+          "귄트",
           "무라카"
         ],
         "6": [
-          "균트",
+          "귄트",
           "무라카"
         ]
       }
