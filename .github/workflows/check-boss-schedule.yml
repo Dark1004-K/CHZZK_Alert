@@ -81,10 +81,14 @@ jobs:
             gh issue create --title "$TITLE" --body "$BODY"
           fi
       - name: Close stale failure issues
-        if: success()
+        # 판독 실패(emitReview)로 만든 Issue는 이 단계가 다시 열지 않으므로 needsReview일 때는 건너뛴다
+        if: success() && steps.chk.outputs.needsReview != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          for n in $(gh issue list --state open --search "[우두머리 시간표] 자동 판독 실패 in:title" --limit 5 --json number --jq '.[].number' | grep -E '^[0-9]+$'); do
+            gh issue close "$n" --comment "이후 판독이 성공해 자동 갱신했습니다. 자동 종료합니다." || true
+          done
           for n in $(gh issue list --state open --search "[우두머리 시간표] 워크플로우 실패 in:title" --limit 5 --json number --jq '.[].number' | grep -E '^[0-9]+$'); do
             gh issue close "$n" --comment "워크플로우가 다시 성공했습니다. 자동 종료합니다." || true
           done
