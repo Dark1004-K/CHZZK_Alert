@@ -474,10 +474,23 @@ async function main() {
   }
 
   let prev = null;
-  try { prev = JSON.parse(fs.readFileSync(STATE, 'utf8')); } catch (e) {}
+  let stateBroken = false;
+  try {
+    // BOM이 붙어도 파싱되도록 정리한다 (일부 편집기·PowerShell이 BOM을 쓴다)
+    prev = JSON.parse(fs.readFileSync(STATE, 'utf8').replace(/^\uFEFF/, ''));
+  } catch (e) {
+    if (fs.existsSync(STATE)) {
+      // 파일은 있는데 깨진 경우 "처음 기록"으로 넘기면 새 modified를 그대로 적어넣어
+      // 그 뒤로 영구히 "변경 없음"이 되어 판독이 멈춘다 → 반드시 판독해 다시 기록한다.
+      stateBroken = true;
+      console.log('상태 파일 파싱 실패(' + e.message + ') — 판독을 강제로 진행해 다시 기록한다');
+    }
+  }
   const changed = !!prev && (prev.imageUrl !== imageUrl || prev.modified !== modified);
   if (localImage || force) {
     console.log(force ? '--force: 상태와 무관하게 판독 진행' : '');
+  } else if (stateBroken) {
+    note('상태 파일 파싱 실패 → 판독 강제 진행(자가치유)');
   } else if (!prev) {
     // 처음 기록 (판독하지 않음 — 이미지가 실제로 바뀐 것이 아닐 수 있음)
     if (!dryRun) {
