@@ -1,0 +1,5 @@
+# check-boss-schedule 워크플로우용 OCR 판독 의존성 (scripts/parse-timetable.py)
+rapidocr==3.10.0
+onnxruntime==1.31.1
+pillow>=10
+numpy>=1.26

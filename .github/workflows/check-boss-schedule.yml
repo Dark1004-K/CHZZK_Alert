@@ -1,14 +1,17 @@
 name: check-boss-schedule
 
-# 검은사막 위키의 월드 우두머리 레이드 시간표를 확인하고, 바뀌었으면 AI(Groq)로 표를 읽어
-# bosses.json을 자동 갱신한다. 검증에 실패하면 자동 커밋하지 않고 사람이 확인하는 Issue를 만든다.
+# 검은사막 위키의 월드 우두머리 레이드 시간표를 확인하고, 바뀌었으면 로컬 OCR(Python RapidOCR)로
+# 표를 읽어 bosses.json을 자동 갱신한다. 검증에 실패하면 자동 커밋하지 않고 사람이 확인하는 Issue를 만든다.
 #
 # 정기 실행은 Google Apps Script(workers/coupon-cron/chzzk-cron.gs의 bossCheck, 매일 오전 11시대)가 맡는다.
 # GitHub 예약 실행(schedule)은 몇 시간씩 밀려서 시각 보장이 안 되기 때문이다.
 # GAS가 위키 변경을 감지하면 이 워크플로우를 디스패치하고, 여기서 다시 확인한 뒤 판독한다.
-# AI는 시크릿 GROQ_API_KEY(GroqCloud Console에서 발급, 무료 티어)가 있어야 켜진다.
-# 2차 교차 검증은 시크릿 GEMINI_API_KEY가 있으면 Gemini로 하고, 없으면 Groq 재확인으로 대체한다.
-# 키가 없으면 "이미지가 바뀌었습니다" 알림만 보낸다.
+#
+# 1차 판독은 Python(scripts/parse-timetable.py, RapidOCR PP-OCRv5 mobile) — API 키가 필요 없다.
+# 2차 교차 검증(변경 칸 재확인)은 시크릿 DASHSCOPE_API_KEY(Qwen qwen3-vl-plus, DashScope 무료 쿼터
+# 100만 토큰/90일 — 콘솔의 "Free Quota Only"를 켜 두면 자동 과금 없음) → GROQ_API_KEY(Groq) 순으로
+# 시도하고, 둘 다 없으면 OCR 집중 재확인으로 검증한다.
+# 키가 없어도 OCR 판독은 계속 되며, 검증에 실패하면 사람 확인 Issue만 만든다.
 on:
   workflow_dispatch: {}
 
@@ -29,11 +32,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+      - name: Install OCR dependencies (RapidOCR)
+        run: pip install -r scripts/requirements.txt
       - name: Check and update boss schedule
         id: chk
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          PYTHON_BIN: python
         run: node scripts/update-boss-schedule.js
       - name: Commit if changed
         run: |
@@ -63,7 +74,7 @@ jobs:
           if [ "$NEEDS_REVIEW" = "true" ]; then
             TITLE="[우두머리 시간표] 자동 판독 실패 — 확인 필요 (${MODIFIED})"
           else
-            TITLE="[우두머리 시간표] AI가 시간표를 갱신했습니다 (${MODIFIED})"
+            TITLE="[우두머리 시간표] 자동 판독이 시간표를 갱신했습니다 (${MODIFIED})"
           fi
           # 같은 수정일시의 열린 Issue가 이미 있으면 중복 생성하지 않는다 (실패 시 매일 재시도되므로)
           if gh issue list --state open --limit 30 --json title --jq '.[].title' | grep -Fxq "$TITLE"; then
