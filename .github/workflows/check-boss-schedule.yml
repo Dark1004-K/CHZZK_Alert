@@ -44,6 +44,19 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           PYTHON_BIN: python
         run: node scripts/update-boss-schedule.js
+      - name: 판독 요약 로그
+        if: always()
+        env:
+          SUMMARY: ${{ steps.chk.outputs.summary }}
+          RESULT: ${{ job.status }}
+        run: |
+          echo "=== 시간표 판독 요약 (job: $RESULT) ==="
+          if [ -n "$SUMMARY" ]; then
+            printf '%s\n' "$SUMMARY"
+          else
+            echo "요약 없음 — 판독 단계가 시작되지 않았거나 출력을 남기지 못함"
+            echo "(상세는 위의 'Check and update boss schedule' 로그를 확인)"
+          fi
       - name: Commit if changed
         run: |
           git config user.name "github-actions[bot]"

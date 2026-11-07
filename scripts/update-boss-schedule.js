@@ -55,6 +55,14 @@ function setOutput(k, v) {
   else fs.appendFileSync(f, k + '=' + s + '\n');
 }
 
+// Actions 로그용 한 줄 요약. 워크플로우의 "판독 요약 로그" 단계가 steps.chk.outputs.summary를 찍는다.
+const SUMMARY = [];
+function note(s) { if (s) SUMMARY.push(s); }
+function flushSummary(prefix) {
+  const body = (prefix ? prefix : '') + (SUMMARY.length ? SUMMARY.join('\n') : '요약 없음 (판독 전에 중단됨)');
+  setOutput('summary', body);
+}
+
 function levenshtein(a, b) {
   const m = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
   for (let j = 0; j <= b.length; j++) m[0][j] = j;
@@ -427,6 +435,10 @@ function ocrRecheck(imgFile, gridFile, changed) {
 // 검증 실패 → 자동 커밋하지 않고 상태도 갱신하지 않아 다음 실행에서 재시도한다
 function emitReview(errors, schedule, imageUrl, modified) {
   console.error('판독 검증 실패:\n- ' + errors.join('\n- '));
+  note('판독 실패 — 검증 오류 ' + errors.length + '건, 파일 변경 없음');
+  for (const e of errors.slice(0, 5)) note('  · ' + e);
+  if (errors.length > 5) note('  · …외 ' + (errors.length - 5) + '건');
+  flushSummary();
   setOutput('changed', 'true');
   setOutput('needsReview', 'true');
   setOutput('aiUsed', 'true');
@@ -472,16 +484,21 @@ async function main() {
       fs.mkdirSync(path.dirname(STATE), { recursive: true });
       fs.writeFileSync(STATE, JSON.stringify({ source: SOURCE, imageUrl, modified, checkedAt: Date.now() }, null, 2) + '\n');
       console.log('상태 처음 기록 (' + modified + ')');
+      note('상태 처음 기록 (' + modified + ') — 판독 생략');
+      flushSummary();
       setOutput('changed', 'false');
       return;
     }
     console.log('상태 기록 없음 — dry-run이므로 판독 진행');
   } else if (!changed) {
     console.log('변경 없음 (' + modified + ')');
+    note('변경 없음 (' + modified + ') — 판독 생략');
+    flushSummary();
     setOutput('changed', 'false');
     return;
   } else {
     console.log('시간표 변경 감지: ' + prev.modified + ' → ' + modified);
+    note('시간표 변경 감지: ' + prev.modified + ' → ' + modified);
   }
 
   // ---- 2) 이미지 확보 → OCR 전체 판독
@@ -496,6 +513,8 @@ async function main() {
   const ocr = parsed.data;
   console.log('판독: 시각 ' + ocr.stats.times + '개, 머리글 ' + ocr.stats.header + '/7, 셀 ' + ocr.stats.cells
     + ', 빈칸 ' + ocr.stats.empties + ', 미인식 ' + ocr.stats.unread + ', 충돌 ' + ocr.stats.conflicts);
+  note('1차 판독(OCR): 시각 ' + ocr.stats.times + '개 · 머리글 ' + ocr.stats.header + '/7 · 셀 '
+    + ocr.stats.cells + ' · 빈칸 ' + ocr.stats.empties + ' · 미인식 ' + ocr.stats.unread + ' · 충돌 ' + ocr.stats.conflicts);
 
   // ---- 허용 목록: plugins.json + release/plugins.json + 기존 bosses.json + 위키 목차(OCR 사전)
   const knownSet = new Set();
@@ -545,6 +564,8 @@ async function main() {
   let finalSchedule = schedule;
   let usedVia = null;
   if (changedCells.length) {
+    note('기존과 달라진 칸 ' + changedCells.length + '개: '
+      + changedCells.map((c) => c.time + ' ' + c.day).join(', '));
     // OCR 집중 재확인은 항상 1회 돌린다 — 행 삭제(시각 소멸) 확정 + via='ocr' 때 C값으로 사용
     const rc = ocrRecheck(imgFile, parsed.out, changedCells);
     const resolutions = new Map();
@@ -554,6 +575,7 @@ async function main() {
         // 시각 자체가 이미지에 없음(좌측 시각 열 재확인에서도 못 찾음) → 행 삭제 확정
         resolutions.set(c.time + '|' + c.dayNo, []);
         console.log('행 삭제 확정: ' + c.time + ' ' + c.day + ' (이미지에 시각 없음)');
+        note('  행 삭제 확정: ' + c.time + ' ' + c.day);
       } else {
         rest.push(c);
       }
@@ -582,6 +604,7 @@ async function main() {
           } catch (e) {
             // Groq 장애·타임아웃·키 문제 → OCR 집중 재확인으로 즉시 대체하고 계속 진행
             console.log('Groq 2차 판독 실패(' + e.message + ') — OCR 집중 재확인으로 대체');
+            note('  Groq 2차 실패 → OCR 집중 재확인으로 대체');
             via = 'ocr';
             usedVia = 'ocr';
             second = ocrSecond();
@@ -625,21 +648,29 @@ async function main() {
         finalSchedule = applyResolutions(schedule, resolutions);
         console.log('2차 재확인 반영: ' + resolutions.size + '칸 확정'
           + (errors.length ? ', 미확정 ' + errors.filter((e) => e.startsWith('판독 불일치')).length + '칸' : ''));
+        note('2차 재확인(' + viaLabel(usedVia) + '): ' + resolutions.size + '칸 확정'
+          + (errors.length ? ', 미확정 ' + errors.filter((e) => e.startsWith('판독 불일치')).length + '칸' : ''));
       } catch (e) {
         errors.push('2차 판독 실패(' + via + '): ' + e.message);
+        note('2차 판독 실패(' + via + '): ' + e.message);
       }
     } else {
       finalSchedule = applyResolutions(schedule, resolutions);
       console.log('변경 칸 전부 행 삭제로 확정 — AI 2차 생략');
+      note('2차 재확인: 변경 칸 전부 행 삭제로 확정 (AI 생략)');
     }
   } else {
     console.log('기존 시간표와 동일한 판독 — 2차 판독 생략');
+    note('기존 시간표와 동일 — 2차 재확인 생략');
   }
 
   // 최종 확정 시간표 기준으로 새 보스를 다시 계산한다
   const finalNames = new Set(finalSchedule.flatMap((s) => Object.values(s.days).flat()));
   const newBosses = [...finalNames].filter((b) => !bosses.includes(b));
-  if (newBosses.length) console.log('목록에 없던 새 보스: ' + newBosses.join(', ') + ' (체크 목록에 자동 추가)');
+  if (newBosses.length) {
+    console.log('목록에 없던 새 보스: ' + newBosses.join(', ') + ' (체크 목록에 자동 추가)');
+    note('새 우두머리: ' + newBosses.join(', '));
+  }
   if (errors.length) emitReview(errors, finalSchedule, imageUrl, modified);
 
   const oldText = describe(old.schedule);
@@ -658,24 +689,30 @@ async function main() {
 
   if (oldText === newText && !pluginsChanged) {
     console.log('판독 결과가 기존 bosses.json과 동일 — 파일 변경 없음');
+    note('판독 결과 기존과 동일 — 파일 변경 없음');
+    flushSummary();
     setOutput('updated', 'false');
     return;
   }
   if (oldText !== newText) {
     if (dryRun) {
       console.log('[dry-run] bosses.json 갱신 예정');
+      note('갱신 예정(dry-run): bosses.json');
     } else {
       old.schedule = finalSchedule;
       old.updatedAt = Date.now();
       old.source = SOURCE;
       fs.writeFileSync(BOSSES, JSON.stringify(old, null, 2) + '\n');
       console.log('bosses.json 갱신 완료');
+      note('갱신: bosses.json');
     }
     setOutput('updated', 'true');
   } else {
     setOutput('updated', 'false');
     console.log('bosses.json 동일 — plugins.json 체크 목록만 동기화');
+    note('bosses.json 동일 — 체크 목록만 동기화');
   }
+  if (pluginsChanged) note('체크 목록 동기화: plugins.json · release/plugins.json');
   setOutput('modified', modified);
   setOutput('imageUrl', imageUrl);
   const removed = oldText.split('\n').filter((l) => !newText.includes(l.trim()));
@@ -683,6 +720,8 @@ async function main() {
   const diff = [...removed.map((l) => '-' + l), ...added.map((l) => '+' + l)].join('\n') || '(내부 순서만 바뀜)';
   setOutput('diff', diff);
   console.log('변경 내역:\n' + diff);
+  for (const l of diff.split('\n')) note('  ' + l);
+  flushSummary();
   const newNote = newBosses.length ? '- 새 우두머리(체크 목록에 자동 추가): **' + newBosses.join(', ') + '**\n' : '';
   const syncNote = pluginsChanged ? '- `plugins.json` / `release/plugins.json`의 체크 목록도 함께 동기화했습니다 (앱 업데이트 없이 반영)\n' : '';
   const viaNote = '- 1차 판독: OCR(RapidOCR PP-OCRv5) / 2차 재확인: ' + (usedVia ? viaLabel(usedVia) : '불필요(변경 없음)') + '\n';
@@ -695,4 +734,9 @@ async function main() {
     + '앱은 이 파일을 6시간마다 다시 받습니다. 값이 잘못됐다면 `bosses.json`을 고치고 이 Issue를 닫아 주세요.');
 }
 
-main().catch((e) => { console.error('실패:', e.message); process.exit(1); });
+main().catch((e) => {
+  console.error('실패:', e.message);
+  note('실패: ' + e.message); // 예외(네트워크·OCR 실행 실패 등) — 로그 상세는 위 스텝 참조
+  flushSummary();
+  process.exit(1);
+});
