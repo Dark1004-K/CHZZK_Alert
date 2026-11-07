@@ -8,10 +8,9 @@ name: check-boss-schedule
 # GAS가 위키 변경을 감지하면 이 워크플로우를 디스패치하고, 여기서 다시 확인한 뒤 판독한다.
 #
 # 1차 판독은 Python(scripts/parse-timetable.py, RapidOCR PP-OCRv5 mobile) — API 키가 필요 없다.
-# 2차 교차 검증(변경 칸 재확인)은 시크릿 DASHSCOPE_API_KEY(Qwen qwen3-vl-plus, DashScope 무료 쿼터
-# 100만 토큰/90일 — 콘솔의 "Free Quota Only"를 켜 두면 자동 과금 없음) → GROQ_API_KEY(Groq) 순으로
-# 시도하고, 둘 다 없으면 OCR 집중 재확인으로 검증한다.
-# 키가 없어도 OCR 판독은 계속 되며, 검증에 실패하면 사람 확인 Issue만 만든다.
+# 2차 교차 검증(변경 칸 재확인)은 시크릿 GROQ_API_KEY(Groq, 무료 티어)로 한다.
+# 키가 없거나 Groq 판독이 실패하면 OCR 집중 재확인으로 내려가며, 그대로 판독은 계속된다.
+# 검증에 실패하면 자동 커밋하지 않고 사람 확인 Issue만 만든다.
 on:
   workflow_dispatch: {}
 
@@ -43,7 +42,6 @@ jobs:
         id: chk
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
           PYTHON_BIN: python
         run: node scripts/update-boss-schedule.js
       - name: Commit if changed

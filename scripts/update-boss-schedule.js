@@ -12,8 +12,7 @@
 //      - 빈칸은 픽셀 잉크로 "진짜 빈칸 / 인식 실패"를 구분 → 오판으로 보스가 삭제되는 것을 막는다
 //   3) 검증: 시각(HH:MM), 요일(월~일), 보스명은 plugins.json의 choices와 정확히 일치해야 함
 //      + 기존과 달라진 칸은 "다른 판독기"로 2차 재확인 → 확정 규칙 적용
-//        2차 판독기 순서: AI(Qwen qwen3-vl-plus, DashScope 무료 쿼터) → Groq 폴백
-//                         → OCR 집중 재확인(--no-ai 이거나 키가 없을 때)
+//        2차 판독기: AI Groq(GROQ_API_KEY) → 실패하거나 키가 없으면 OCR 집중 재확인
 //        1차==2차 → 채택 / 2차==기존값 → 기존값 / 그 외 → 3판(행 열거, AI만) → 그래도 미확정이면 사람 확인
 //        — 같은 판독기 2회 판독은 오류가 상관됨(2026-11 실측 33%) → 2차는 반드시 다른 판독기
 //      + 이미지에서 시각 자체가 사라진 행(이벤트 종료 등)은 좌측 시각 열 재확인으로 삭제 확정
@@ -39,52 +38,11 @@ const UA = 'Mozilla/5.0 (compatible; ChzzkAlertBossScheduleBot)';
 const PYTHON = process.env.PYTHON_BIN || 'python';
 const PARSE = path.join(__dirname, 'parse-timetable.py');
 
-// ---- AI (2차/3판 교차 검증 전용): Qwen → Groq 순으로 시도한다
-// Qwen은 DashScope(알리바바) 싱가포르 리전 무료 쿼터(qwen3-vl-plus 100만 토큰/90일)를 쓴다.
-// 콘솔에서 "Free Quota Only"를 켜 두면 쿼터 소진 시 자동 과금되지 않는다.
-const QWEN_MODEL = process.env.QWEN_MODEL || 'qwen3-vl-plus';
-const QWEN_BASE = process.env.QWEN_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
-const MODEL = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b'; // Groq(폴백)
+// ---- AI (2차/3판 교차 검증 전용): Groq 한 곳만 쓴다 (무료 티어, GROQ_API_KEY)
+// 키가 없거나 Groq 판독이 실패하면 2차는 OCR 집중 재확인으로 내려간다 (오판 삭제 방지는 잉크 검사가 담당).
+const MODEL = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b';
 const API_BASE = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1';
 const TIMEOUT_MS = 60000; // 요청당 소켓 타임아웃 (멈춤으로 Job이 죽지 않도록)
-
-const DAY_ENUM = ['월', '화', '수', '목', '금', '토', '일'];
-// 2차/3판 판독 응답 스키마: 요청 칸 단위 / 행 단위 열거
-const CELLS_SCHEMA = {
-  type: 'OBJECT',
-  properties: {
-    schedule: {
-      type: 'ARRAY',
-      items: {
-        type: 'OBJECT',
-        properties: {
-          time: { type: 'STRING', description: 'HH:MM (24시간제, KST)' },
-          day: { type: 'STRING', enum: DAY_ENUM },
-          bosses: { type: 'ARRAY', items: { type: 'STRING' }, description: '그 칸의 보스 이름 (목록의 철자 그대로, 비어 있으면 빈 배열)' },
-        },
-        required: ['time', 'day', 'bosses'],
-      },
-    },
-  },
-  required: ['schedule'],
-};
-const ROWS_SCHEMA = {
-  type: 'OBJECT',
-  properties: {
-    rows: {
-      type: 'ARRAY',
-      items: {
-        type: 'OBJECT',
-        properties: {
-          time: { type: 'STRING', description: 'HH:MM (24시간제, KST)' },
-          cells: { type: 'ARRAY', items: { type: 'ARRAY', items: { type: 'STRING' } }, description: '월~일 7칸 (빈칸은 빈 배열), 순서 고정' },
-        },
-        required: ['time', 'cells'],
-      },
-    },
-  },
-  required: ['rows'],
-};
 
 // 이미지의 요일 순서(월~일) → bosses.json의 day 번호(0=일 1=월 … 6=토)
 const DAY_NO = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 };
@@ -225,99 +183,27 @@ async function callGroq(buf, prompt, maxTokens) {
   throw new Error(last + ' (재시도 소진)');
 }
 
-// ---------------------------------------------------------------- Qwen (2차 기본)
-// DashScope OpenAI 호환 엔드포인트. 무료 쿼터(100만 토큰/90일) 범위 안에서만 쓴다.
-// response_format json_object + 프롬프트에 스키마를 명시한다.
-async function callQwen(buf, prompt, maxTokens) {
-  if (!maxTokens) maxTokens = 4096;
-  let last = '응답 없음';
-  for (let attempt = 1; attempt <= 4; attempt++) {
-    let res;
-    try {
-      res = await fetch(QWEN_BASE + '/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + process.env.DASHSCOPE_API_KEY },
-        body: JSON.stringify({
-          model: QWEN_MODEL,
-          temperature: 0,
-          max_tokens: maxTokens,
-          response_format: { type: 'json_object' },
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: 'data:image/png;base64,' + buf.toString('base64') } },
-            ],
-          }],
-        }),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-    } catch (e) {
-      if (attempt === 4) throw new Error('Qwen 요청 실패(타임아웃/네트워크): ' + e.message);
-      const wait = 10000 * attempt;
-      console.log('Qwen 요청 오류(' + e.message + ') (시도 ' + attempt + '/4) — ' + wait + 'ms 후 재시도...');
-      await sleep(wait);
-      continue;
-    }
-    let raw = '';
-    try { raw = await res.text(); } catch (e) { raw = ''; }
-    if (res.status === 429 || res.status === 503) {
-      last = 'Qwen HTTP ' + res.status + (raw ? ': ' + raw.slice(0, 300) : '');
-      if (attempt === 4) break;
-      const wait = (res.status === 429 ? 20000 : 15000) * attempt;
-      console.log('Qwen HTTP ' + res.status + ' (시도 ' + attempt + '/4) — ' + (wait / 1000) + '초 대기 후 재시도...');
-      await sleep(wait);
-      continue;
-    }
-    if (!res.ok) throw new Error('Qwen HTTP ' + res.status + (raw ? ': ' + raw.slice(0, 300) : ''));
-    const data = JSON.parse(raw);
-    const text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-    if (!text) throw new Error('Qwen 응답에 텍스트 없음: ' + raw.slice(0, 300));
-    try { return JSON.parse(text); } catch (e) {
-      const m = text.match(/\{[\s\S]*\}/);
-      if (m) return JSON.parse(m[0]);
-      throw new Error('Qwen 응답 JSON 파싱 실패: ' + text.slice(0, 200));
-    }
-  }
-  throw new Error(last + ' (재시도 소진)');
-}
-
-// 2차·3판 판독용: 지정 제공사가 실패하면 Groq로 대체한다.
-async function sendWithFallback(via, run) {
-  try {
-    return await run(via);
-  } catch (e) {
-    const alt = via === 'qwen' && process.env.GROQ_API_KEY ? 'groq' : null;
-    if (!alt) throw e;
-    console.log(via + ' 판독 실패(' + e.message + ') — ' + alt + ' 재확인으로 대체');
-    return await run(alt);
-  }
-}
-
-// 2차 판독기 선택: Qwen(DashScope 키) → Groq(키) → OCR 재확인(--no-ai/키 없음)
+// 2차 판독기 선택: Groq(키 있음) → OCR 집중 재확인(--no-ai 이거나 키 없음)
 function pickVia(noAi) {
   if (noAi) return 'ocr';
-  if (process.env.DASHSCOPE_API_KEY) return 'qwen';
-  if (process.env.GROQ_API_KEY) return 'groq';
-  return 'ocr';
+  return process.env.GROQ_API_KEY ? 'groq' : 'ocr';
 }
 
 function viaLabel(via) {
-  if (via === 'qwen') return 'AI Qwen(' + QWEN_MODEL + ')';
   if (via === 'groq') return 'AI Groq(' + MODEL + ')';
   return 'OCR 집중 재확인';
 }
 
-async function send(via, buf, prompt, schema, maxTokens) {
-  if (via === 'qwen') return callQwen(buf, prompt, maxTokens);
+// 2차·3판 판독 요청 (Groq). OTPM 윈도우 대기까지 포함한다.
+async function send(buf, prompt, maxTokens) {
   await waitOtpmWindow();
   return callGroq(buf, prompt, maxTokens);
 }
 
 // 기존과 달라진 칸만 이미지에 집중해서 다시 읽게 한다 (2차 판독).
-// via: 'qwen' | 'groq' — 모든 요청 칸을 반드시 출력하게 하고, 빈 칸이면 bosses=[] 로 오게 한다.
+// 모든 요청 칸을 반드시 출력하게 하고, 빈 칸이면 bosses=[] 로 오게 한다.
 // 응답에 없는 칸은 undefined라 호출부에서 불일치로 다룬다.
-async function askCells(buf, known, changed, via) {
+async function askCells(buf, known, changed) {
   const prompt = [
     '이 이미지는 검은사막 한국 서버 위키의 "월드 우두머리 레이드" 시간표 표다.',
     '열 순서는 월, 화, 수, 목, 금, 토, 일 이며 각 열의 폭은 같다.',
@@ -332,7 +218,7 @@ async function askCells(buf, known, changed, via) {
     '- 한글은 끝글자까지 정확히 읽는다. "우"/"유", "ㅓ"/"ㅜ"처럼 비슷한 낱간 글자나 마지막 글자를 틀리기 쉬우니 보스명 목록의 철자와 대조해 확인한다.',
     '- JSON 객체만 출력하고 설명 텍스트는 붙이지 않는다.',
   ].join('\n');
-  const data = await send(via, buf, prompt, CELLS_SCHEMA, Math.min(900, 200 + changed.length * 60));
+  const data = await send(buf, prompt, Math.min(900, 200 + changed.length * 60));
   const out = new Map();
   for (const c of data.schedule || []) {
     if (!/^\d{2}:\d{2}$/.test(c.time || '')) continue;
@@ -344,7 +230,7 @@ async function askCells(buf, known, changed, via) {
 }
 
 // 3판용: 해당 시각의 "행 전체 7칸"을 요일 순서로 열거하게 한다 (프롬프트 구조를 바꿔 오류 상관을 끊는다).
-async function askRows(buf, known, times, via) {
+async function askRows(buf, known, times) {
   const prompt = [
     '이 이미지는 검은사막 한국 서버 위키의 "월드 우두머리 레이드" 시간표 표다.',
     '열 순서는 월, 화, 수, 목, 금, 토, 일 이며 각 열의 폭은 같다.',
@@ -357,7 +243,7 @@ async function askRows(buf, known, times, via) {
     '- 반드시 칸의 세로선으로 경계를 확인하고 이웃 칸의 내용을 옮기지 않는다.',
     '- JSON 객체만 출력하고 설명 텍스트는 붙이지 않는다.',
   ].join('\n');
-  const data = await send(via, buf, prompt, ROWS_SCHEMA, Math.min(900, 200 + times.length * 90));
+  const data = await send(buf, prompt, Math.min(900, 200 + times.length * 90));
   const out = new Map();
   const ORDER = [1, 2, 3, 4, 5, 6, 0]; // cells[0]=월 … cells[6]=일
   for (const r of data.rows || []) {
@@ -673,23 +559,35 @@ async function main() {
       }
     }
     if (rest.length) {
-      const via = pickVia(noAi);
+      let via = pickVia(noAi);
       usedVia = via;
       console.log('기존과 달라진 칸 ' + rest.length + '개 — 2차 판독(' + viaLabel(via) + '): '
         + rest.map((c) => c.time + ' ' + c.day).join(', '));
+      const buf = fs.readFileSync(imgFile);
+      // OCR 집중 재확인 결과 → Map. 잉크가 있는데 아무것도 못 읽으면 "빈칸 확정"으로 채택하지 않는다 (오판 삭제 방지)
+      const ocrSecond = () => {
+        const m = new Map();
+        for (const c of rest) {
+          const r = rc.map.get(c.time + '|' + c.dayNo);
+          if (!r) continue;
+          m.set(c.time + '|' + c.dayNo, r.bosses.length ? r.bosses : (r.emptyConfirmed ? [] : undefined));
+        }
+        return m;
+      };
       try {
         let second;
-        if (via === 'ocr') {
-          second = new Map();
-          for (const c of rest) {
-            const r = rc.map.get(c.time + '|' + c.dayNo);
-            if (!r) continue;
-            // 잉크가 있는데 아무것도 못 읽으면 "빈칸 확정"으로 채택하지 않는다 (오판 삭제 방지)
-            second.set(c.time + '|' + c.dayNo, r.bosses.length ? r.bosses : (r.emptyConfirmed ? [] : undefined));
+        if (via === 'groq') {
+          try {
+            second = await askCells(buf, bosses, rest);
+          } catch (e) {
+            // Groq 장애·타임아웃·키 문제 → OCR 집중 재확인으로 즉시 대체하고 계속 진행
+            console.log('Groq 2차 판독 실패(' + e.message + ') — OCR 집중 재확인으로 대체');
+            via = 'ocr';
+            usedVia = 'ocr';
+            second = ocrSecond();
           }
         } else {
-          const buf = fs.readFileSync(imgFile);
-          second = await sendWithFallback(via, (v) => askCells(buf, bosses, rest, v));
+          second = ocrSecond();
         }
         const fmt = (v) => (Array.isArray(v) ? (v.length ? v.join('+') : '(없음)') : '(확인 실패)');
         const unresolved = [];
@@ -702,7 +600,7 @@ async function main() {
         if (unresolved.length && via !== 'ocr') {
           console.log('2차 판독으로도 확정 못한 칸 ' + unresolved.length + '개 — 3판(행 열거): '
             + unresolved.map((u) => u.c.time + ' ' + u.c.day).join(', '));
-          const third = await sendWithFallback(via, (v) => askRows(buf, bosses, [...new Set(unresolved.map((u) => u.c.time))], v));
+          const third = await askRows(buf, bosses, [...new Set(unresolved.map((u) => u.c.time))]);
           for (const u of unresolved) {
             const k = u.c.time + '|' + u.c.dayNo;
             const d = third.get(k);
