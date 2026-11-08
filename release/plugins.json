@@ -12,6 +12,10 @@
       "name": "검은사막",
       "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/release/plugins/blackdesert.js",
       "on": true,
+      "requireCategory": [
+        "검은사막",
+        "BlackDesert"
+      ],
       "companion": {
         "label": "실시간 검색 브릿지",
         "url": "https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/chzzk_bridge.user.js",
