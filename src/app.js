@@ -65,6 +65,7 @@ function checkRoute() {
         lastCid = cid;
         allowState = 'pending';
         allowEntry = null; allowExpiry = null;
+        liveCat = null; liveCatCid = ''; // 이전 채널의 카테고리 조건을 새 채널에 적용하지 않도록 초기화
         try { stop(); } catch (e) {}
         try { teardownUi(); } catch (e) {} // 이전 채널 UI·확장 알림 흔적 걷어내기
         hitLog = []; hitTimes.clear(); clearSeen(); saveHits(); renderHitsList(); // 다른 채널: 불린 대화 초기화
@@ -89,6 +90,7 @@ const LS_PLUG = '__kw_plugins'; // { [id]: true|false } 사용자가 고른 상�
 let pluginList = null; // 매니페스트에서 받은 목록 (null이면 아직 못 받음)
 let pluginManifestState = 'pending'; // pending | ok | error (확장 목록 수신 상태, 건강 경고용)
 const pluginLoaded = {};
+const pluginLoading = {}; // 주입 요청 진행 중 (동시/중복 주입 방지)
 const pluginMeta = {}; // 플러그인 자기 신고 { [id]: { name, version } }
 let pluginInjecting = '';
 function pluginMetaOf(id) {
@@ -105,7 +107,8 @@ function pluginDisplayName(p) {
 function pluginStateMap() {
   try { return JSON.parse(localStorage.getItem(LS_PLUG)) || {}; } catch (e) { return {}; }
 }
-function pluginIsOn(p) {
+// 사용자·채널·매니페스트가 원하는 상태 (방송 카테고리 조건 제외 — 설정 > 확장의 체크박스 표시용)
+function pluginWantsOn(p) {
   if (p.noOwner && isOwner()) return false; // 방장이면 항상 꺼짐 (사용자 선택보다 우선)
   const cp = channelPlugins(); // 현재 채널의 플러그인 구성 (없으면 전역 동작)
   if (cp && (!(p.id in cp) || cp[p.id].on === false)) return false; // 채널 미제공·off는 사용 불가
@@ -113,6 +116,12 @@ function pluginIsOn(p) {
   if (p.id in m) return !!m[p.id]; // 사용자 선택 우선
   if (cp && cp[p.id] && typeof cp[p.id].on === 'boolean') return !!cp[p.id].on; // 채널 기본값
   return p.on !== false;
+}
+// 실제 실행 여부 = 의지 AND 방송 카테고리 조건(requireCategory).
+// 카테고리 조건 미충족은 저장값을 건드리지 않는 "자동 꺼짐"이라, 조건이 돌아오면 즉시 다시 켜진다.
+function pluginIsOn(p) {
+  if (!categoryMatched(p)) return false;
+  return pluginWantsOn(p);
 }
 // 현재 채널의 플러그인 구성 ({ [id]: { on?, options? } } 또는 null). 없으면 전역 동작.
 function channelPlugins() {
@@ -124,6 +133,58 @@ function channelPlugins() {
 function pluginIdIsOn(id) {
   const p = (pluginList || []).find((x) => x && x.id === id);
   return p ? pluginIsOn(p) : true;
+}
+// ---------- 방송 카테고리 감시 (requireCategory 조건형 확장 자동 on/off) ----------
+// live-detail API를 5초마다 읽어 현재 방송 카테고리를 유지한다.
+// 매니페스트의 requireCategory(문자열 배열)에 하나라도 맞는 카테고리에서만 해당 확장이 켜진다.
+// 조건 미충족은 저장된 on/off 값을 건드리지 않는 "자동 꺼짐"이므로, 카테고리가 돌아오면 그대로 다시 켜진다.
+const LIVE_DETAIL_API = 'https://api.chzzk.naver.com/service/v3.2/channels/';
+const CATEGORY_POLL_MS = 5000;
+let liveCat = null; // { value, name, status } 현재 방송 카테고리. null=아직 모름(막지 않음)
+let liveCatCid = ''; // liveCat을 읽은 채널 (채널이 바뀌면 이전 값은 무효)
+function pluginReqCategory(p) {
+  try { return (p && Array.isArray(p.requireCategory) && p.requireCategory.length) ? p.requireCategory.map(String) : null; } catch (e) { return null; }
+}
+// 조건형(requireCategory) 확장이 하나라도 있을 때만 API를 조회한다
+function anyReqCategory() {
+  try { return !!pluginList && pluginList.some(pluginReqCategory); } catch (e) { return false; }
+}
+// 확장의 requireCategory와 현재 카테고리가 맞는지. 조건이 없거나 아직 미확인(첫 폴링 전)이면 true = 막지 않음
+function categoryMatched(p) {
+  const req = pluginReqCategory(p);
+  if (!req) return true;
+  if (!liveCat) return true;
+  const hay = ((liveCat.value || '') + ' ' + (liveCat.name || '')).toLowerCase();
+  return req.some((k) => hay.includes(String(k).toLowerCase()));
+}
+// done은 첫 조회 완료를 알릴 때만 쓴다 (매니페스트 주입 전에 카테고리를 확보용). 실패해도 반드시 부른다.
+function pollLiveCategory(done) {
+  let finDone = false;
+  const fin = () => { if (finDone) return; finDone = true; if (typeof done === 'function') { try { done(); } catch (e) {} } };
+  if (typeof done === 'function') setTimeout(fin, 4000); // 조회가 끝나지 않아도 4초 안에는 주입 진행
+  try {
+    const cid = isLivePage() ? pageChannelId() : '';
+    if (!cid) { liveCat = null; liveCatCid = ''; fin(); return; } // 라이브 페이지 아님: 조건 해제
+    if (allowState !== 'ok' || !anyReqCategory()) { fin(); return; }
+    fetch(LIVE_DETAIL_API + cid + '/live-detail')
+      .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
+      .then((j) => {
+        const c = j && j.content;
+        if (!c || cid !== pageChannelId()) { fin(); return; } // 이미 다른 페이지로 이동
+        const next = { value: String(c.liveCategory || ''), name: String(c.liveCategoryValue || ''), status: String(c.status || '') };
+        const prev = (liveCatCid === cid) ? liveCat : null; // 채널이 바뀌었다면 이전 채널 값과 비교하지 않는다
+        liveCat = next; liveCatCid = cid;
+        if (prev && prev.value === next.value && prev.name === next.name && prev.status === next.status) { fin(); return; }
+        dlog('category', next.name || next.value || '(없음)', next.status);
+        if (typeof done !== 'function') { // 부팅 조회는 곧 이어질 주입 루프가 처리하므로 부수 작업 생략 (중복 주입 방지)
+          try { syncPlugins(); } catch (e) {} // 조건 충족으로 켜진 확장은 주입까지 지연 없이
+          try { if (setTab === 'ext' && setPanel && setPanel.isConnected) renderSettings(); } catch (e) {} // 확장 목록의 자동 꺼짐 표시 갱신
+          try { kwEmit('category', liveCat); } catch (e) {} // KW.on('category') 구독자에게 전달
+        }
+        fin();
+      })
+      .catch(() => fin());
+  } catch (e) { fin(); }
 }
 // 플러그인 옵션: plugins.json의 options 정의(key/label/type/default)를 설정 > 확장에 그리고, 값은 localStorage에 저장한다.
 const LS_PLUGOPT = '__kw_plugopt'; // { [pluginId]: { [key]: value } }
@@ -189,7 +250,7 @@ function setPluginOn(p, on) {
   const m = pluginStateMap();
   m[p.id] = !!on;
   try { localStorage.setItem(LS_PLUG, JSON.stringify(m)); } catch (e) {}
-  if (on && !pluginLoaded[p.id] && !limitedMode) injectPlugin(p);
+  if (on && !pluginLoaded[p.id] && !limitedMode && pluginIsOn(p)) injectPlugin(p); // 카테고리 조건 미충족이면 주입은 조건 회복 시 syncPlugins가 맡는다
   dlog('plugin-' + (on ? 'on' : 'off'), p.id);
 }
 // 켜져 있는 확장의 버전이 바뀌었으면 시작 시 토스트 (주입된=켜진 플러그인만 신고하므로 체크 조건은 자동 충족).
@@ -223,6 +284,7 @@ try {
     toast(nick, body, onClick) { if (allowState !== 'ok') return; showCallToast(nick, body, onClick); }, // 인가 안 된 채널에서는 플러그인 토스트도 차단
     option(id, key) { return pluginOptGet(id, key); }, // 설정 > 확장에서 사용자가 고른 옵션 값
     enabled(id) { return pluginIdIsOn(id); }, // 설정 > 확장에서 켜져 있는지
+    category() { try { return liveCat ? { value: liveCat.value, name: liveCat.name, status: liveCat.status } : null; } catch (e) { return null; } }, // 현재 방송 카테고리 (5초 폴링. requireCategory용, 없으면 null)
     setOption(id, key, v) { pluginOptSet(id, key, v); try { if (setPanel && setPanel.isConnected) renderSettings(); } catch (e) {} }, // 플러그인 창의 X 버튼이 옵션을 끌 때 (설정 화면도 갱신)
     setOptChoices(id, key, choices) { try { return pluginOptSetChoices(id, key, choices); } catch (e) { return false; } }, // 플러그인: 옵션의 선택 항목 목록을 런타임에 갱신 (우두머리 추가/삭제 등)
     openOpts(id) { try { optWinId = id; renderOptWin(); } catch (e) {} }, // 메인창 설정 버튼: 해당 확장의 옵션 창 열기
@@ -280,10 +342,15 @@ function loadPlugins() {
         const list = j && Array.isArray(j.plugins) ? j.plugins.filter((p) => p && p.id && p.url) : [];
         pluginList = list;
         pluginManifestState = 'ok';
-        for (const p of list) {
-          if (pluginIsOn(p)) injectPlugin(p);
-        }
-        if (setTab === 'ext') renderSettings();
+        const boot = () => {
+          for (const p of list) {
+            if (pluginIsOn(p)) injectPlugin(p);
+          }
+          if (setTab === 'ext') renderSettings();
+        };
+        // 조건형(requireCategory) 확장이 있으면 첫 주입 전에 방송 카테고리를 먼저 확인한다
+        // (시작하자마자 카테고리가 아니면 켜졌다가 몇 초 뒤 꺼지는 깜빡임을 막는다)
+        if (anyReqCategory()) pollLiveCategory(boot); else boot();
       })
       .catch(() => { try { pluginManifestState = 'error'; } catch (e) {} });
   } catch (e) {}
@@ -358,14 +425,17 @@ function refreshPluginsNow(done) {
 }
 function injectPlugin(p) {
   if (allowState !== 'ok') { dlog('plugin-skip-denied', p.id || ''); return; } // 인가되지 않은 채널: 확장을 아예 주입하지 않음
+  if (pluginLoaded[p.id] || pluginLoading[p.id]) return; // 이미 주입했거나 주입 요청이 진행 중
+  pluginLoading[p.id] = true;
+  const loadFail = () => { try { delete pluginLoading[p.id]; } catch (e) {} };
   try {
     fetch(p.url + (p.url.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' })
       .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.text(); })
       .then((code) => {
-        if (!code || code.length < 10) return;
+        if (!code || code.length < 10) { loadFail(); return; }
         const target = document.head || document.documentElement;
-        if (!target) return;
-        const mark = () => { pluginInjecting = p.id || ''; pluginLoaded[p.id] = true; };
+        if (!target) { loadFail(); return; }
+        const mark = () => { pluginInjecting = p.id || ''; pluginLoaded[p.id] = true; loadFail(); };
         const unmark = () => { pluginInjecting = ''; };
         // 방식1: 인라인 (기존. CSP가 허용하는 환경은 그대로 동작)
         try {
@@ -401,8 +471,8 @@ function injectPlugin(p) {
           } catch (e) {}
         }, 3000);
       })
-      .catch(() => {});
-  } catch (e) {}
+      .catch(loadFail);
+  } catch (e) { loadFail(); }
 }
 // 실행 확인: 플러그인은 시작할 때 KW.describe()를 호출한다 (없으면 주입 실패로 보고 폴백한다)
 function pluginDescribed(id) {
@@ -508,6 +578,8 @@ function initApp() {
   } catch (e) {}
   setupResumeWatch();
   setInterval(checkRoute, 1000);
+  setInterval(pollLiveCategory, CATEGORY_POLL_MS); // 방송 카테고리 감시 (requireCategory 자동 on/off)
+  try { pollLiveCategory(); } catch (e) {} // 조기 확인 (매니페스트 도착 전이면 다음 주기에 다시 시도)
 }
 
 // [BETA-TEST-ONLY:start] 베타 진단용 후크 (정식에서는 제거): 콘솔에서 __kwDebug.jump(0) 등으로 직접 검증 가능

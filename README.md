@@ -418,9 +418,11 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
   1. `plugins/` 아래에 `.js` 파일을 추가합니다. 이벤트를 받으려면 `window.__KW.on('hit', ({nick, text, kw}) => {...})`.
      * 이벤트: `hit`(호출), `drops`(드롭스 시간 충족), `ext:이름`(확장끼리 주고받는 이벤트, `window.__KW.emit('이름', 데이터)`)
      * 도우미: `window.__KW.toast(닉네임, 본문)`, `window.__KW.sound()`(설정의 알림 소리 재생),
-       `window.__KW.enabled('id')`(켜져 있는지), `window.__KW.option('id','키')`(옵션 값)
+       `window.__KW.enabled('id')`(켜져 있는지), `window.__KW.option('id','키')`(옵션 값),
+       `window.__KW.category()`(현재 방송 카테고리 `{value, name, status}` — 없으면 `null`)
   2. `plugins.json`의 `plugins` 배열에 `{id, name, desc, url(Raw 주소), on, options}`를 추가합니다.
      * `options`: `[{key, label, type: 'bool'|'number'|'multi', default, min, max, choices}]` 로 적으면 설정 화면에 입력칸이 자동으로 생깁니다.
+     * `requireCategory`: `["검은사막", "BlackDesert"]` 처럼 문자열 배열로 적으면 **방송 카테고리가 이 목록과 맞을 때만** 실행됩니다 (부분 일치, 대소문자 무관). 카테고리가 바뀌면 실시간(5초 폴링)으로 자동 꺼지고, 조건이 돌아오면 자동으로 다시 켜집니다 — 저장된 사용자 on/off 값은 건드리지 않습니다. 조건 미충족인 동안 설정 > 확장 목록에는 노란색 "자동 꺼짐" 안내가 표시됩니다.
   3. 별도 설치는 없습니다. 방송 페이지를 열면 시간 단위 캐시 후 자동으로 불러옵니다.
 * 예시: `plugins/tts.js`(음성 안내), `plugins/blackdesert.js`(우두머리 알림).
 * 제한: 사용자 스크립트 허용이 꺼진 환경에서는 확장이 동작하지 않습니다.

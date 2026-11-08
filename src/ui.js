@@ -986,7 +986,7 @@ function loadOptPos() {
 function renderOptWin() {
   const old = document.getElementById('__kw_optwin');
   const p = optWinId && (pluginList || []).find((x) => x.id === optWinId);
-  if (!p || !pluginHasOpts(p) || !pluginIsOn(p)) { if (old) old.remove(); optWinId = null; try { closeOptHelp(); } catch (e) {} return; }
+  if (!p || !pluginHasOpts(p) || !pluginWantsOn(p)) { if (old) old.remove(); optWinId = null; try { closeOptHelp(); } catch (e) {} return; } // 카테고리 자동 꺼짐 중에도 옵션은 열어 둔다
   const w = old || document.createElement('div');
   w.id = '__kw_optwin';
   let optKeepTop = 0;
@@ -1091,19 +1091,23 @@ function extListHtml() {
   if (!list.length) return '<div class="__kw_lbl">등록된 확장이 없습니다</div>';
   return list.map((p) => {
     const blocked = !!(p.noOwner && isOwner()); // 방장은 이 확장을 켤 수 없다
-    const note = blocked ? ' <span style="color:#ffd400">(방장은 사용할 수 없음)</span>' : (p.desc ? ` <span style="color:#888">${escapeHtml(p.desc)}</span>` : '');
-    const optBtn = pluginIsOn(p) && pluginHasOpts(p) ? ` <button class="__kw_ic __kw_popen" data-id="${escapeHtml(p.id)}" title="옵션" style="color:#ccc;padding:3px;float:right">${IC.sliders}</button>` : '';
+    // requireCategory 미충족 = 현재 방송 카테고리가 아니면 자동 꺼짐 (체크박스는 사용자 의지를 그대로 보여줌)
+    const gated = !categoryMatched(p);
+    const catNow = (liveCat && (liveCat.name || liveCat.value)) || '';
+    const catNote = gated ? ` <span style="color:#ffd400">(카테고리 조건 미충족${catNow ? ' · 현재: ' + escapeHtml(catNow) : ''} → 자동 꺼짐)</span>` : '';
+    const note = blocked ? ' <span style="color:#ffd400">(방장은 사용할 수 없음)</span>' : (catNote || (p.desc ? ` <span style="color:#888">${escapeHtml(p.desc)}</span>` : ''));
+    const optBtn = pluginWantsOn(p) && pluginHasOpts(p) ? ` <button class="__kw_ic __kw_popen" data-id="${escapeHtml(p.id)}" title="옵션" style="color:#ccc;padding:3px;float:right">${IC.sliders}</button>` : '';
     // 동반 필요 확장은 브릿지 확인 전에는 켤 수 없음 (이미 켜져 있으면 끌 수만 있음)
     const needComp = !blocked && p.companion;
     const compKnown = needComp && companionKnownOf(p);
-    const canChange = !needComp || compKnown || pluginIsOn(p);
+    const canChange = !needComp || compKnown || pluginWantsOn(p);
     // 미설치: 다운로드 아이콘을 윗줄 오른쪽에. 확인됨: 아래 줄에 이름·버전·휴지통.
     const compWrap = needComp
       ? (compKnown
         ? `<div class="__kw_lbl" data-compw="${escapeHtml(p.id)}" style="margin-top:2px;width:100%;box-sizing:border-box;display:flex;justify-content:flex-end;align-items:center;gap:6px;text-align:right">${companionHtml(p)}</div>`
         : ` <span data-compw="${escapeHtml(p.id)}" style="float:right">${companionHtml(p)}</span>`)
       : '';
-    return `<div class="__kw_lbl"><label style="cursor:${blocked || !canChange ? 'default' : 'pointer'}${blocked || !canChange ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" data-companion-need="${needComp ? escapeHtml(p.id) : ''}" ${pluginIsOn(p) ? 'checked' : ''} ${blocked || !canChange ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${compWrap}${note}</div>`;
+    return `<div class="__kw_lbl"><label style="cursor:${blocked || !canChange ? 'default' : 'pointer'}${blocked || !canChange ? ';opacity:.6' : ''}"><input type="checkbox" class="__kw_plug" data-id="${escapeHtml(p.id)}" data-companion-need="${needComp ? escapeHtml(p.id) : ''}" ${pluginWantsOn(p) ? 'checked' : ''} ${blocked || !canChange ? 'disabled' : ''}> ${escapeHtml(p.name || p.id)}</label>${optBtn}${compWrap}${note}</div>`;
   }).join('');
 }
 // ---------- 동반 미설치 안내 팝업 (방송 진입 시 1회) ----------
@@ -1339,7 +1343,7 @@ function paintCompanions() {
       if (!id) return;
       const p = companionOf(id);
       const known = p && p.companion && p.companion.ready && __kwCompanions[p.companion.ready];
-      const canChange = known || (p && pluginIsOn(p));
+      const canChange = known || (p && pluginWantsOn(p));
       c.disabled = !canChange;
       const label = c.closest ? c.closest('label') : null;
       if (label) {
