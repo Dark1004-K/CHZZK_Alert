@@ -406,11 +406,16 @@ function findElBySig(sig, kw) {
 }
 
 // ---------- 채팅 감시 ----------
-// 현재 페이지의 라이브 채널 ID (32자리 hex). 인가 목록과 대조한다.
+// 현재 페이지의 채널 ID (32자리 hex). 라이브(/live/…)뿐 아니라 채널 페이지(/{ID}, 방송 중 아닐 때)도 인식한다. 인가 목록과 대조한다.
 const pageChannelId = () => {
-  try { const m = location.pathname.match(/\/live\/([0-9a-f]{32})/i); return m ? m[1].toLowerCase() : ''; } catch (e) { return ''; }
+  try {
+    const p = location.pathname;
+    const m = /\/live\/([0-9a-f]{32})/i.exec(p) || /^\/([0-9a-f]{32})(?:\/|$)/i.exec(p);
+    return m ? m[1].toLowerCase() : '';
+  } catch (e) { return ''; }
 };
-const isLivePage = () => !!pageChannelId();
+// 라이브 시청 페이지(/live/…)에서만 true. 채널 페이지는 false — 채팅 감시·드롭스·선택버튼 등 라이브 전용 동작은 이 판정을 쓴다.
+const isLivePage = () => { try { return /\/live\//i.test(location.pathname) && !!pageChannelId(); } catch (e) { return false; } };
 // 페이지에 보이는 채널명. 채널 프로필 링크(`/채널ID`) 텍스트 우선, 없으면 탭 제목 첫 토막.
 const cleanChName = (t) => (t || '').replace(/\s*채널로 이동\s*/g, '').replace(/\s*LIVE\s*$/, '').trim();
 const getPageChannelName = () => {
@@ -687,7 +692,9 @@ function judgeAllow(entries, cid, silent, tag) {
   allowEntry = entry;
   let ok = !!entry;
   let why = ok ? 'id' : 'no-id';
-  if (ok && entry.name) {
+  // 등록명 대조는 라이브 페이지에서만. 채널 페이지(방송 중 아닐 때)는 탭 제목·링크로 표시명을 안정적으로 읽을 수 없어 ID만 본다
+  // (라이브에서 통과한 동일 ID 항목이므로 안전, 읽기 실패 시에도 ID만으로 허용하는 기존 방침과 같다).
+  if (ok && entry.name && isLivePage()) {
     const pn = getPageChannelName();
     if (pn) {
       ok = sameName(entry.name, pn);

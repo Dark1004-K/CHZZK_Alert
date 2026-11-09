@@ -21,7 +21,7 @@ function buildUi() {
   ensureStyle();
   ensureStack();
   ensureHistPanel();
-  if (dropsOn()) startDrops();
+  if (dropsOn() && isLivePage()) startDrops(); else try { stopDrops(); } catch (e) {} // 드롭스는 라이브에서만 (채널 페이지에서는 꺼짐)
   if (!panel || !panel.isConnected) buildPanel();
   ensureSettingsPanel();
   setupDragToAdd();
@@ -31,7 +31,7 @@ function buildUi() {
   applySetVisibility();
   try { maybeCompanionPrompt(); } catch (e) {}
   dlog('buildui', JSON.stringify({ running, dom: domMsgCount(), folded: isChatFolded() }));
-  if (!running) showAskPrompt();
+  if (!running && isLivePage()) showAskPrompt(); // 채널 페이지(방송 중 아닐 때)에는 채팅 호출 프롬프트를 띄우지 않는다 (채팅이 없기 때문)
 }
 
 // 탭이 얼었다 깨어남/버려졌다 다시 불러옴/가려졌다 다시 보임을 감지 → 그 직후 잠깐은 울리지 않음 (markResume)
@@ -77,6 +77,7 @@ function checkRoute() {
       lastCid = '';
       teardownUi();
     }
+    try { pollLiveCategory(); } catch (e) {} // 경로가 바뀌면 카테고리를 바로 확인 (5초 폴링까지 지연으로 게이트가 늦게 바뀌는 것 방지)
   }
 }
 
@@ -135,7 +136,7 @@ function pluginIdIsOn(id) {
   return p ? pluginIsOn(p) : true;
 }
 // ---------- 방송 카테고리 감시 (requireCategory 조건형 확장 자동 on/off) ----------
-// live-detail API를 5초마다 읽어 현재 방송 카테고리를 유지한다.
+// live-detail API를 5초마다 읽어 현재 방송 카테고리·방송 상태를 유지한다 (채널 페이지에서도 조회 — 오프라인 판정용).
 // 매니페스트의 requireCategory(문자열 배열)에 하나라도 맞는 카테고리에서만 해당 확장이 켜진다.
 // 조건 미충족은 저장된 on/off 값을 건드리지 않는 "자동 꺼짐"이므로, 카테고리가 돌아오면 그대로 다시 켜진다.
 const LIVE_DETAIL_API = 'https://api.chzzk.naver.com/service/v3.2/channels/';
@@ -149,11 +150,13 @@ function pluginReqCategory(p) {
 function anyReqCategory() {
   try { return !!pluginList && pluginList.some(pluginReqCategory); } catch (e) { return false; }
 }
-// 확장의 requireCategory와 현재 카테고리가 맞는지. 조건이 없거나 아직 미확인(첫 폴링 전)이면 true = 막지 않음
+// 확장의 requireCategory와 현재 카테고리가 맞는지.
+// 조건이 없거나, 아직 미확인(첫 폴링 전)이거나, 방송 중이 아니면 true = 막지 않음 (방송 중이 아닐 때는 모든 확장 실행)
 function categoryMatched(p) {
   const req = pluginReqCategory(p);
   if (!req) return true;
   if (!liveCat) return true;
+  if (liveCat.status !== 'OPEN') return true; // 오프라인(채널 페이지·방송 종료): 카테고리 조건 없이 모든 확장 실행
   const hay = ((liveCat.value || '') + ' ' + (liveCat.name || '')).toLowerCase();
   return req.some((k) => hay.includes(String(k).toLowerCase()));
 }
@@ -163,15 +166,18 @@ function pollLiveCategory(done) {
   const fin = () => { if (finDone) return; finDone = true; if (typeof done === 'function') { try { done(); } catch (e) {} } };
   if (typeof done === 'function') setTimeout(fin, 4000); // 조회가 끝나지 않아도 4초 안에는 주입 진행
   try {
-    const cid = isLivePage() ? pageChannelId() : '';
-    if (!cid) { liveCat = null; liveCatCid = ''; fin(); return; } // 라이브 페이지 아님: 조건 해제
+    const cid = pageChannelId(); // 라이브·채널 페이지 모두 조회 (방송 중 아닐 때는 status로 조건을 풀기 위해)
+    if (!cid) { liveCat = null; liveCatCid = ''; fin(); return; } // 채널 페이지가 아님(home 등): 조건 해제
     if (allowState !== 'ok' || !anyReqCategory()) { fin(); return; }
     fetch(LIVE_DETAIL_API + cid + '/live-detail')
-      .then((r) => { if (!r || !r.ok) throw new Error('http'); return r.json(); })
+      .then((r) => (r && r.ok ? r.json() : null)) // 실패·오류 응답도 "확인 불가"로 취급 (막지 않음)
       .then((j) => {
+        if (cid !== pageChannelId()) { fin(); return; } // 이미 다른 페이지로 이동
         const c = j && j.content;
-        if (!c || cid !== pageChannelId()) { fin(); return; } // 이미 다른 페이지로 이동
-        const next = { value: String(c.liveCategory || ''), name: String(c.liveCategoryValue || ''), status: String(c.status || '') };
+        // 방송 정보가 없으면 오프라인 → status !== 'OPEN' 게이트가 열려 모든 확장이 실행된다
+        const next = c
+          ? { value: String(c.liveCategory || ''), name: String(c.liveCategoryValue || ''), status: String(c.status || '') }
+          : { value: '', name: '', status: 'OFFLINE' };
         const prev = (liveCatCid === cid) ? liveCat : null; // 채널이 바뀌었다면 이전 채널 값과 비교하지 않는다
         liveCat = next; liveCatCid = cid;
         if (prev && prev.value === next.value && prev.name === next.name && prev.status === next.status) { fin(); return; }
@@ -183,7 +189,10 @@ function pollLiveCategory(done) {
         }
         fin();
       })
-      .catch(() => fin());
+      .catch(() => { // 조회 실패(네트워크 등) = 미확인 상태로 두어 막지 않는다 (확인 불가일 때 확장이 멈추지 않게)
+        if (cid === pageChannelId()) { liveCat = null; liveCatCid = ''; }
+        fin();
+      });
   } catch (e) { fin(); }
 }
 // 플러그인 옵션: plugins.json의 options 정의(key/label/type/default)를 설정 > 확장에 그리고, 값은 localStorage에 저장한다.
@@ -542,6 +551,8 @@ function startAllowed() {
     pluginsBootDone = true;
     loadPlugins();
     try { if (typeof watchPluginHealth === 'function') watchPluginHealth(); } catch (e) {}
+  } else {
+    try { pollLiveCategory(); } catch (e) {} // 채널을 이동해 온 경우: 카테고리 조건을 새 채널 기준으로 바로 갱신
   }
   try { buildUi(); } catch (e) {}
 }
@@ -556,12 +567,13 @@ function initApp() {
     }
     autoKeywordNick(myNick); // 내 닉네임은 호출 단어에 기본 등록 (중복 생략, ×삭제 후 재등록 안 함)
   } catch (e) {}
-  if (isLivePage()) {
+  if (pageChannelId()) {
+    // 라이브뿐 아니라 채널 페이지(방송 중 아닐 때)에서도 실행한다 — 감시 패널과 확장(플러그인) 모두.
     // 인가 확인 전에는 UI도 확장도 실행하지 않는다.
     // (인가 안 된 채널에서도 보스 알람이 울리고 확장 설치 안내가 뜨던 문제의 원인)
     refreshAllowlist(false, () => { if (allowState === 'ok') startAllowed(); });
   } else {
-    dlog('init-notlive', location.pathname);
+    dlog('init-nochannel', location.pathname); // 홈 등 채널이 없는 페이지: 실행하지 않음
   }
   runWorldProbe();
   try { if (typeof companionListen === 'function') companionListen(); } catch (e) {} // 설정을 열기 전에도 동반 감지되게 시작 시 수신 대기
