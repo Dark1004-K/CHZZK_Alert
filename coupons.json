@@ -1,7 +1,18 @@
 {
   "source": "https://www.kr.playblackdesert.com/ko-KR/News/Detail?groupContentNo=10748",
-  "updatedAt": 1794134169189,
+  "updatedAt": 1794357362652,
   "coupons": [
+    {
+      "name": "월간사막 새 단장 기념 쿠폰",
+      "code": "금손들의스크린샷팬아트는월간사막",
+      "rewards": [
+        "[이벤트] 강화 지원 상자 III",
+        "신기한 모험 상자 3개",
+        "아이템 획득 증가 주문서 5개"
+      ],
+      "expires": "2026년 11월 25일(수) 05:00",
+      "expiresAt": 1795550400000
+    },
     {
       "name": "2026 마스터 클래스 결승전 Day2",
       "code": "2026마스터클래스영광의주인공",
