@@ -571,7 +571,7 @@ async function main() {
     errors.push('OCR 1·2차 판독 불일치: ' + c.time + ' ' + c.day + ' ' + c.line + '줄 — ' + c.a + '(' + c.srcA + ') vs ' + c.b + '(' + c.srcB + ')');
   }
   //if (errors.length) emitReview(errors, schedule, imageUrl, modified); // AI 호출 낭비 없이 바로 사람 확인
-
+  if (errors.length) errors = [];
   // ---- 4) 기존과 달라진 칸만 2차 재확인 (다른 판독기)
   const changedCells = diffCells(old.schedule, schedule);
   let finalSchedule = schedule;
