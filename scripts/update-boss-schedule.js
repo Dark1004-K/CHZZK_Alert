@@ -564,8 +564,8 @@ async function main() {
   for (const u of ocr.unread || []) {
     const key = u.time + '|' + DAY_NO[u.day];
     if (prevMap.has(key) && prevMap.get(key).length) continue; // 기존값 있음 → 2차 재확인이 재판독
-   // errors.push('이미지에 글자가 있으나 인식 실패: ' + u.time + ' ' + u.day
-   //   + (u.line > 1 ? ' ' + u.line + '줄' : '') + (u.raw ? ' (원본 "' + u.raw + '")' : '') + ' — 사람이 확인 필요');
+    errors.push('이미지에 글자가 있으나 인식 실패: ' + u.time + ' ' + u.day
+      + (u.line > 1 ? ' ' + u.line + '줄' : '') + (u.raw ? ' (원본 "' + u.raw + '")' : '') + ' — 사람이 확인 필요');
   }
   for (const c of ocr.conflicts || []) {
     errors.push('OCR 1·2차 판독 불일치: ' + c.time + ' ' + c.day + ' ' + c.line + '줄 — ' + c.a + '(' + c.srcA + ') vs ' + c.b + '(' + c.srcB + ')');
