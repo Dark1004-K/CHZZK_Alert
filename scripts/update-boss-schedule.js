@@ -599,15 +599,21 @@ async function main() {
     const rc = ocrRecheck(imgFile, parsed.out, changedCells);
     const resolutions = new Map();
     const rest = [];
+    const deletedTimes = new Set(); // 행 삭제는 같은 OCR 재확인뿐 → 사람에게 보여 준다
     for (const c of changedCells) {
       if (rc.missingTimes.includes(c.time)) {
         // 시각 자체가 이미지에 없음(좌측 시각 열 재확인에서도 못 찾음) → 행 삭제 확정
         resolutions.set(c.time + '|' + c.dayNo, []);
+        deletedTimes.add(c.time + ' ' + c.day);
         console.log('행 삭제 확정: ' + c.time + ' ' + c.day + ' (이미지에 시각 없음)');
         note('  행 삭제 확정: ' + c.time + ' ' + c.day);
       } else {
         rest.push(c);
       }
+    }
+    if (deletedTimes.size) {
+      flags.push('행 삭제로 반영 — 이미지에 시각이 없어 ' + deletedTimes.size + '칸을 지움: '
+        + [...deletedTimes].join(', ') + ' (같은 OCR 재확인 결과라 확인 필요)');
     }
     if (rest.length) {
       let via = pickVia(noAi);
