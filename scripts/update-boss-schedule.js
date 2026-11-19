@@ -584,7 +584,6 @@ async function main() {
   if (flags.length) console.log('확인 필요 ' + flags.length + '건 (갱신은 계속 진행):\n- ' + flags.join('\n- '));
   // 표를 거의 못 읽은 경우만 기존처럼 차단 — 그 외 오류는 전부 인식된 값으로 통과시킨다
   if (fatal) emitFatal([fatal].concat(flags), schedule, imageUrl, modified);
-
   // ---- 4) 기존과 달라진 칸만 2차 재확인 (다른 판독기)
   const changedCells = diffCells(old.schedule, schedule);
   let finalSchedule = schedule;
