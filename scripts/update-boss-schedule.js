@@ -10,15 +10,17 @@
 //      - 보스명 사전은 "매 판독 전" 위키 목차(table_contents)에서 새로 추출
 //      - 1차 전체 이미지 OCR + 2차 행 밴드 재인식 + 3차 머리글 직접크롭 (요일은 구조상 월~일 고정)
 //      - 빈칸은 픽셀 잉크로 "진짜 빈칸 / 인식 실패"를 구분 → 오판으로 보스가 삭제되는 것을 막는다
-//   3) 검증: 시각(HH:MM), 요일(월~일), 보스명은 plugins.json의 choices와 정확히 일치해야 함
+//   3) 검증: 시각(HH:MM)·요일(월~일)·보스명이 그대로인지 확인하되, 확정 실패는 막지 않는다
 //      + 기존과 달라진 칸은 "다른 판독기"로 2차 재확인 → 확정 규칙 적용
 //        2차 판독기: AI Groq(GROQ_API_KEY) → 실패하거나 키가 없으면 OCR 집중 재확인
-//        1차==2차 → 채택 / 2차==기존값 → 기존값 / 그 외 → 3판(행 열거, AI만) → 그래도 미확정이면 사람 확인
+//        1차==2차 → 채택 / 2차==기존값 → 기존값 / 그 외 → 3판(행 열거, AI만)
+//        그래도 미확정이면 "1차 인식값"으로 통과하고 확인 필요 표시만 남긴다
 //        — 같은 판독기 2회 판독은 오류가 상관됨(2026-11 실측 33%) → 2차는 반드시 다른 판독기
 //      + 이미지에서 시각 자체가 사라진 행(이벤트 종료 등)은 좌측 시각 열 재확인으로 삭제 확정
-//      + 이벤트 종료로 칸이 사라진 정상 삭제는 1차·2차 모두 "없음"이라 자동 통과
-//   4) 통과하면 bosses.json을 갱신하고 변경 내역을 GITHUB_OUTPUT으로 알림
-//   5) 판독이 실패하면 자동 커밋하지 않고 needsReview=true로 사람을 부른다
+//      + 잉크는 있으나 아무것도 못 읽은 칸은 기존값을 유지한다 (읽은 값이 없으므로)
+//   4) 인식된 값을 그대로 bosses.json에 기록하고 상태도 갱신한다. 확정하지 못한 항목은
+//      "확인 필요"로 모아 Issue에 남긴다 → 갱신이 멈추지 않고, 사람이 결과를 보고 수정한다
+//   5) 표를 거의 못 읽은 경우(시각 5개 미만 등)만 기존처럼 파일을 건드리지 않고 사람을 부른다
 //   6) AI 키가 없어도 OCR 판독은 계속 된다 (--no-ai와 동일 동작, 2차는 OCR 재확인)
 //
 // 기존(Groq 전체 판독 + Gemini 교차 검증) 방식은 scripts/update-boss-schedule.legacy.js 로 보관했다.
@@ -264,9 +266,12 @@ async function askRows(buf, known, times) {
 }
 
 // ---------------------------------------------------------------- 검증·조립 (기존 로직 유지)
-// 판독 결과 검증 + {time: {dayNo: [bosses]}} 로 조립. errors에 사유를 담는다.
+// 판독 결과 검증 + {time: {dayNo: [bosses]}} 로 조립.
+// errors는 "사람이 나중에 확인할 항목"이고 갱신을 막지 않는다.
+// fatal(표를 거의 못 읽음)이 있을 때만 갱신을 멈춘다 — 알람 시간표가 통째로 지워지는 것을 막기 위해.
 function buildSchedule(cells, known) {
   const errors = [];
+  let fatal = null;
   const byTime = new Map();
   for (const c of cells || []) {
     if (!/^\d{2}:\d{2}$/.test(c.time || '') || +c.time.slice(0, 2) > 23 || +c.time.slice(3) > 59) {
@@ -294,7 +299,7 @@ function buildSchedule(cells, known) {
     day[dayNo] = bosses;
     byTime.set(c.time, day);
   }
-  if (byTime.size < 5) errors.push('시각이 너무 적음 (' + byTime.size + '개) — 표를 다 못 읽었을 수 있음');
+  if (byTime.size < 5) fatal = '시각이 너무 적음 (' + byTime.size + '개) — 표를 다 못 읽었을 수 있음';
   const schedule = [...byTime.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([time, days]) => {
@@ -302,7 +307,7 @@ function buildSchedule(cells, known) {
       for (const k of Object.keys(days).sort((a, b) => a - b)) d[k] = days[k];
       return { time, days: d };
     });
-  return { schedule, errors };
+  return { schedule, errors, fatal };
 }
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
@@ -432,21 +437,23 @@ function ocrRecheck(imgFile, gridFile, changed) {
   return { map, missingTimes: data.missingTimes || [] };
 }
 
-// 검증 실패 → 자동 커밋하지 않고 상태도 갱신하지 않아 다음 실행에서 재시도한다
-function emitReview(errors, schedule, imageUrl, modified) {
-  console.error('판독 검증 실패:\n- ' + errors.join('\n- '));
-  note('판독 실패 — 검증 오류 ' + errors.length + '건, 파일 변경 없음');
+// 표를 거의 못 읽은 경우(치명적 오류) → 파일을 건드리지 않고 사람을 부른다.
+// 이때만 상태도 갱신하지 않아 다음 실행에서 다시 판독한다 (GAS가 위키 변경 시 매번 디스패치).
+function emitFatal(errors, schedule, imageUrl, modified) {
+  console.error('판독 실패:\n- ' + errors.join('\n- '));
+  note('판독 실패 — 파일 변경 없음');
   for (const e of errors.slice(0, 5)) note('  · ' + e);
   if (errors.length > 5) note('  · …외 ' + (errors.length - 5) + '건');
   flushSummary();
   setOutput('changed', 'true');
   setOutput('needsReview', 'true');
+  setOutput('blocked', 'true');
   setOutput('aiUsed', 'true');
   setOutput('modified', modified);
   setOutput('imageUrl', imageUrl);
-  setOutput('body', '자동 판독에 실패했습니다. 아래 오류를 보고 `bosses.json`을 확인해 주세요.\n\n'
+  setOutput('body', '자동 판독이 표를 거의 못 읽어 파일을 변경하지 않았습니다. 아래 오류를 보고 `bosses.json`을 확인해 주세요.\n\n'
     + '- 새 이미지(공식 사이트): ' + imageUrl + '\n- 수정 일시: ' + modified + '\n\n'
-    + '검증 오류:\n' + errors.map((e) => '- ' + e).join('\n') + '\n\n'
+    + '판독 오류:\n' + errors.map((e) => '- ' + e).join('\n') + '\n\n'
     + '판독 원본(JSON):\n```json\n' + JSON.stringify(schedule, null, 2) + '\n```\n\n'
     + '확인 후 `data/boss-schedule-state.json`의 `modified` 값을 임의로 바꿔 저장하면 다음 실행에서 다시 판독합니다. (파일을 지우면 "처음 기록" 모드가 되어 판독하지 않음)');
   process.exit(0); // 실패해도 워크플로우는 Issue만 만들고 커밋하지 않음
@@ -555,22 +562,28 @@ async function main() {
     if (!merged.has(key)) merged.set(key, { time: c.time, day: c.day, bosses: [] });
     for (const b of c.bosses || []) if (!merged.get(key).bosses.includes(b)) merged.get(key).bosses.push(b);
   }
-  const { schedule, errors } = buildSchedule([...merged.values()], bosses);
+  const { schedule, errors: buildFlags, fatal } = buildSchedule([...merged.values()], bosses);
+  const flags = buildFlags.slice(); // 갱신을 막지 않는 "확인 필요" 항목
 
   // OCR 구조 오류: 머리글 누락 / 잉크 있는데 인식 실패 / 1·2차 충돌
   // — 기존 값이 있는 칸은 아래 2차 재확인이 처리하므로 여기서는 건너뛴다(오판 삭제 방지는 2차가 담당).
+  // 모두 "확인 필요"로만 남기고 판독은 계속 진행한다 (갱신을 멈추지 않는다).
   const prevMap = cellMap(old.schedule);
-  for (const h of ocr.headerMissing || []) errors.push('머리글 요일 "' + h + '" 인식 실패');
+  const unreadKeys = new Set(); // 잉크는 있으나 인식 못 한 칸 ('time|dayNo')
+  for (const h of ocr.headerMissing || []) flags.push('머리글 요일 "' + h + '" 인식 실패');
   for (const u of ocr.unread || []) {
     const key = u.time + '|' + DAY_NO[u.day];
-    if (prevMap.has(key) && prevMap.get(key).length) continue; // 기존값 있음 → 2차 재확인이 재판독
-    errors.push('이미지에 글자가 있으나 인식 실패: ' + u.time + ' ' + u.day
+    unreadKeys.add(key);
+    if (prevMap.has(key) && prevMap.get(key).length) continue; // 기존값 있음 → 2차 재확인이 재판독, 실패 시 아래에서 플래그
+    flags.push('이미지에 글자가 있으나 인식 실패: ' + u.time + ' ' + u.day
       + (u.line > 1 ? ' ' + u.line + '줄' : '') + (u.raw ? ' (원본 "' + u.raw + '")' : '') + ' — 사람이 확인 필요');
   }
   for (const c of ocr.conflicts || []) {
-    errors.push('OCR 1·2차 판독 불일치: ' + c.time + ' ' + c.day + ' ' + c.line + '줄 — ' + c.a + '(' + c.srcA + ') vs ' + c.b + '(' + c.srcB + ')');
+    flags.push('OCR 1·2차 판독 불일치: ' + c.time + ' ' + c.day + ' ' + c.line + '줄 — ' + c.a + '(' + c.srcA + ') vs ' + c.b + '(' + c.srcB + ')');
   }
-  if (errors.length) emitReview(errors, schedule, imageUrl, modified); // AI 호출 낭비 없이 바로 사람 확인
+  if (flags.length) console.log('확인 필요 ' + flags.length + '건 (갱신은 계속 진행):\n- ' + flags.join('\n- '));
+  // 표를 거의 못 읽은 경우만 기존처럼 차단 — 그 외 오류는 전부 인식된 값으로 통과시킨다
+  if (fatal) emitFatal([fatal].concat(flags), schedule, imageUrl, modified);
 
   // ---- 4) 기존과 달라진 칸만 2차 재확인 (다른 판독기)
   const changedCells = diffCells(old.schedule, schedule);
@@ -637,9 +650,11 @@ async function main() {
           console.log('2차 판독으로도 확정 못한 칸 ' + unresolved.length + '개 — 3판(행 열거): '
             + unresolved.map((u) => u.c.time + ' ' + u.c.day).join(', '));
           const third = await askRows(buf, bosses, [...new Set(unresolved.map((u) => u.c.time))]);
+          const left = [];
           for (const u of unresolved) {
             const k = u.c.time + '|' + u.c.dayNo;
             const d = third.get(k);
+            u.third = d;
             let r = null;
             if (Array.isArray(d)) {
               if (sameBosses(d, u.c.now)) r = u.c.now;
@@ -647,25 +662,44 @@ async function main() {
               else if (Array.isArray(u.got) && sameBosses(d, u.got)) r = u.got;
             }
             if (r) resolutions.set(k, r);
-            else errors.push('판독 불일치(미확정): ' + u.c.time + ' ' + u.c.day
-              + ' — 1차=' + fmt(u.c.now) + ' / 2차=' + fmt(u.got) + ' / 3판=' + fmt(d)
-              + ' / 기존값=' + fmt(u.c.was));
+            else left.push(u);
           }
-        } else {
-          for (const u of unresolved) {
-            errors.push('판독 불일치(미확정): ' + u.c.time + ' ' + u.c.day
-              + ' — 1차=' + fmt(u.c.now) + ' / 2차=' + fmt(u.got) + ' / 기존값=' + fmt(u.c.was)
-              + ' (OCR 재확인으로는 확정 불가 — 사람이 확인 필요)');
-          }
+          unresolved.length = 0;
+          unresolved.push(...left);
+        }
+        // 그래도 미확정인 칸은 "인식된 값"으로 통과시킨다 — 갱신을 멈추지 않고 확인 필요로 남긴다.
+        //   · 잉크는 있으나 아무것도 못 읽었거나(unreadKeys) 1차가 기록이 없으면 → 기존값 유지
+        //   · 그 외 → 1차 OCR이 인식한 값을 그대로 채택
+        for (const u of unresolved) {
+          const k = u.c.time + '|' + u.c.dayNo;
+          const keepPrev = !!u.c.was.length && (unreadKeys.has(k) || !u.c.now.length);
+          const val = keepPrev ? u.c.was : u.c.now;
+          resolutions.set(k, val);
+          const msg = '판독 불일치 → ' + (keepPrev ? '기존값 유지' : '1차 인식값으로 통과')
+            + ': ' + u.c.time + ' ' + u.c.day
+            + ' — 1차=' + fmt(u.c.now) + ' / 2차=' + fmt(u.got)
+            + (u.third !== undefined ? ' / 3판=' + fmt(u.third) : '') + ' / 기존값=' + fmt(u.c.was);
+          flags.push(msg);
+          console.log(msg);
         }
         finalSchedule = applyResolutions(schedule, resolutions);
         console.log('2차 재확인 반영: ' + resolutions.size + '칸 확정'
-          + (errors.length ? ', 미확정 ' + errors.filter((e) => e.startsWith('판독 불일치')).length + '칸' : ''));
+          + (unresolved.length ? ', 확인 필요 ' + unresolved.length + '칸(인식값으로 통과)' : ''));
         note('2차 재확인(' + viaLabel(usedVia) + '): ' + resolutions.size + '칸 확정'
-          + (errors.length ? ', 미확정 ' + errors.filter((e) => e.startsWith('판독 불일치')).length + '칸' : ''));
+          + (unresolved.length ? ', 확인 필요 ' + unresolved.length + '칸' : ''));
       } catch (e) {
-        errors.push('2차 판독 실패(' + via + '): ' + e.message);
-        note('2차 판독 실패(' + via + '): ' + e.message);
+        // 2차 판독 자체가 실패 → 이미 확정된 칸까지는 반영하고 나머지는 1차 인식값으로 통과시킨다
+        console.log('2차 판독 실패(' + via + '): ' + e.message + ' — 1차 인식값으로 통과');
+        note('2차 판독 실패(' + via + '): ' + e.message + ' — 1차 인식값으로 통과');
+        flags.push('2차 판독 실패(' + via + '): ' + e.message);
+        for (const c of rest) {
+          const k = c.time + '|' + c.dayNo;
+          if (resolutions.has(k)) continue;
+          const keepPrev = !!c.was.length && (unreadKeys.has(k) || !c.now.length);
+          resolutions.set(k, keepPrev ? c.was : c.now);
+          flags.push('2차 확인 못 함 → ' + (keepPrev ? '기존값 유지' : '1차 인식값으로 통과') + ': ' + c.time + ' ' + c.day);
+        }
+        finalSchedule = applyResolutions(schedule, resolutions);
       }
     } else {
       finalSchedule = applyResolutions(schedule, resolutions);
@@ -684,7 +718,10 @@ async function main() {
     console.log('목록에 없던 새 보스: ' + newBosses.join(', ') + ' (체크 목록에 자동 추가)');
     note('새 우두머리: ' + newBosses.join(', '));
   }
-  if (errors.length) emitReview(errors, finalSchedule, imageUrl, modified);
+  if (flags.length) {
+    note('확인 필요 ' + flags.length + '건 — 인식된 값으로 갱신했고 Issue로 사람을 부릅니다');
+    for (const f of flags) note('  · ' + f);
+  }
 
   const oldText = describe(old.schedule);
   const newText = describe(finalSchedule);
@@ -696,13 +733,30 @@ async function main() {
   }
   setOutput('changed', 'true');
   setOutput('aiUsed', 'true');
+  setOutput('modified', modified);
+  setOutput('imageUrl', imageUrl);
+  if (flags.length) setOutput('needsReview', 'true'); // 워크플로우가 "확인 필요" Issue를 만든다
 
   // 체크 목록도 함께 맞춘다 (배포된 앱이 plugins.json을 원격으로 받으므로 플러그인 코드 불필요)
   const pluginsChanged = syncBossChoices(finalSchedule, dryRun);
 
+  // 확인 필요 항목이 있으면 Issue 본문 맨 앞에 남긴다 (사람이 결과를 보고 수정할 수 있도록)
+  const reviewSection = flags.length
+    ? '⚠️ **확인 필요 항목 ' + flags.length + '건** — 아래 항목은 자동으로 확정하지 못해 **인식된 값 그대로** 반영했습니다.'
+      + ' 틀린 값이 있으면 `bosses.json`을 고치고 이 Issue를 닫아 주세요.\n\n'
+      + flags.map((f) => '- ' + f).join('\n') + '\n\n'
+    : '';
+
   if (oldText === newText && !pluginsChanged) {
     console.log('판독 결과가 기존 bosses.json과 동일 — 파일 변경 없음');
     note('판독 결과 기존과 동일 — 파일 변경 없음');
+    if (flags.length) {
+      setOutput('body', '- 새 이미지(공식 사이트): ' + imageUrl + '\n- 수정 일시: ' + modified + '\n\n'
+        + reviewSection
+        + '변경 내역: 없습니다 (판독 결과가 기존 `bosses.json`과 동일합니다).\n\n'
+        + '시간대별 전체 시간표:\n```\n' + newText + '\n```\n\n'
+        + '확인 후 이 Issue를 닫아 주세요.');
+    }
     flushSummary();
     setOutput('updated', 'false');
     return;
@@ -726,8 +780,6 @@ async function main() {
     note('bosses.json 동일 — 체크 목록만 동기화');
   }
   if (pluginsChanged) note('체크 목록 동기화: plugins.json · release/plugins.json');
-  setOutput('modified', modified);
-  setOutput('imageUrl', imageUrl);
   const removed = oldText.split('\n').filter((l) => !newText.includes(l.trim()));
   const added = newText.split('\n').filter((l) => !oldText.includes(l.trim()));
   const diff = [...removed.map((l) => '-' + l), ...added.map((l) => '+' + l)].join('\n') || '(내부 순서만 바뀜)';
@@ -738,8 +790,11 @@ async function main() {
   const newNote = newBosses.length ? '- 새 우두머리(체크 목록에 자동 추가): **' + newBosses.join(', ') + '**\n' : '';
   const syncNote = pluginsChanged ? '- `plugins.json` / `release/plugins.json`의 체크 목록도 함께 동기화했습니다 (앱 업데이트 없이 반영)\n' : '';
   const viaNote = '- 1차 판독: OCR(RapidOCR PP-OCRv5) / 2차 재확인: ' + (usedVia ? viaLabel(usedVia) : '불필요(변경 없음)') + '\n';
-  setOutput('body', 'OCR 판독 + 변경 칸 재확인을 거쳐 `bosses.json`을 자동 갱신했습니다.\n\n'
+  setOutput('body', (flags.length
+    ? '자동 판독이 시간표를 갱신했지만 **확정하지 못한 항목이 있습니다** — 아래 내용을 확인해 주세요.\n\n'
+    : 'OCR 판독 + 변경 칸 재확인을 거쳐 `bosses.json`을 자동 갱신했습니다.\n\n')
     + '- 새 이미지(공식 사이트): ' + imageUrl + '\n- 수정 일시: ' + modified + '\n\n'
+    + reviewSection
     + viaNote
     + (newNote || syncNote ? newNote + syncNote + '\n' : '')
     + '변경 내역:\n```\n' + diff + '\n```\n\n'
