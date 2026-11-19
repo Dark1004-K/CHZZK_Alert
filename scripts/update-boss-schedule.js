@@ -569,11 +569,15 @@ async function main() {
   // — 기존 값이 있는 칸은 아래 2차 재확인이 처리하므로 여기서는 건너뛴다(오판 삭제 방지는 2차가 담당).
   // 모두 "확인 필요"로만 남기고 판독은 계속 진행한다 (갱신을 멈추지 않는다).
   const prevMap = cellMap(old.schedule);
-  const unreadKeys = new Set(); // 잉크는 있으나 인식 못 한 칸 ('time|dayNo')
-  for (const h of ocr.headerMissing || []) flags.push('머리글 요일 "' + h + '" 인식 실패');
+  const headerMissing = ocr.headerMissing || [];
+  if (headerMissing.length) {
+    // 열은 인덱스(월~일 고정)로 배정되므로 머리글만 못 읽어도 값은 반영된다 → 3개 이상일 때만 사람 확인
+    const msg = '머리글 요일 ' + headerMissing.map((h) => '"' + h + '"').join(', ') + ' 인식 실패 (열은 고정 순서라 값은 반영됨)';
+    if (headerMissing.length >= 3) flags.push(msg + ' — 표 구조가 바뀌었을 수 있음');
+    else { console.log(msg); note(msg); }
+  }
   for (const u of ocr.unread || []) {
     const key = u.time + '|' + DAY_NO[u.day];
-    unreadKeys.add(key);
     if (prevMap.has(key) && prevMap.get(key).length) continue; // 기존값 있음 → 2차 재확인이 재판독, 실패 시 아래에서 플래그
     flags.push('이미지에 글자가 있으나 인식 실패: ' + u.time + ' ' + u.day
       + (u.line > 1 ? ' ' + u.line + '줄' : '') + (u.raw ? ' (원본 "' + u.raw + '")' : '') + ' — 사람이 확인 필요');
@@ -666,17 +670,30 @@ async function main() {
           unresolved.length = 0;
           unresolved.push(...left);
         }
-        // 그래도 미확정인 칸은 "인식된 값"으로 통과시킨다 — 갱신을 멈추지 않고 확인 필요로 남긴다.
-        //   · 잉크는 있으나 아무것도 못 읽었거나(unreadKeys) 1차가 기록이 없으면 → 기존값 유지
-        //   · 그 외 → 1차 OCR이 인식한 값을 그대로 채택
+        // 그래도 미확정인 칸은 "읽은 값"으로 통과시킨다 — 갱신을 멈추지 않고 확인 필요로 남긴다.
+        //   1) 1차는 못 읽고 2차는 읽었으면 → 2차 값
+        //   2) 1차가 읽었으면 → 1차 값 (단, 1차가 사전 밖 이름이고 2차가 알려진 이름이면 → 2차 값)
+        //   3) 아무것도 못 읽었고 재확인도 빈칸으로 확정 못 했으면 → 기존값 유지 (오판 삭제 방지)
+        const knownAll = (arr) => arr.every((n) => bosses.includes(n));
         for (const u of unresolved) {
           const k = u.c.time + '|' + u.c.dayNo;
-          const keepPrev = !!u.c.was.length && (unreadKeys.has(k) || !u.c.now.length);
-          const val = keepPrev ? u.c.was : u.c.now;
+          const a = u.c.now;
+          const c = Array.isArray(u.got) ? u.got : null; // null = 2차 재확인 정보 없음
+          let val, how;
+          if (a.length && c && c.length && !sameBosses(a, c) && !knownAll(a) && knownAll(c)) {
+            val = c; how = '2차 판독값 채택(알려진 보스명)';
+          } else if (a.length) {
+            val = a; how = '1차 인식값으로 통과';
+          } else if (c && c.length) {
+            val = c; how = '2차 판독값 채택(1차 미기록)';
+          } else if (c === null && u.c.was.length) {
+            val = u.c.was; how = '기존값 유지(읽지 못함)';
+          } else {
+            val = c || a; how = '빈칸으로 통과';
+          }
           resolutions.set(k, val);
-          const msg = '판독 불일치 → ' + (keepPrev ? '기존값 유지' : '1차 인식값으로 통과')
-            + ': ' + u.c.time + ' ' + u.c.day
-            + ' — 1차=' + fmt(u.c.now) + ' / 2차=' + fmt(u.got)
+          const msg = '판독 불일치 → ' + how + ': ' + u.c.time + ' ' + u.c.day
+            + ' — 1차=' + fmt(a) + ' / 2차=' + fmt(u.got)
             + (u.third !== undefined ? ' / 3판=' + fmt(u.third) : '') + ' / 기존값=' + fmt(u.c.was);
           flags.push(msg);
           console.log(msg);
@@ -694,7 +711,8 @@ async function main() {
         for (const c of rest) {
           const k = c.time + '|' + c.dayNo;
           if (resolutions.has(k)) continue;
-          const keepPrev = !!c.was.length && (unreadKeys.has(k) || !c.now.length);
+          // 2차 판독 자체가 실패 → 1차가 못 읽었으면 기존값 유지(오판 삭제 방지), 읽었으면 1차 값
+          const keepPrev = !!c.was.length && !c.now.length;
           resolutions.set(k, keepPrev ? c.was : c.now);
           flags.push('2차 확인 못 함 → ' + (keepPrev ? '기존값 유지' : '1차 인식값으로 통과') + ': ' + c.time + ' ' + c.day);
         }

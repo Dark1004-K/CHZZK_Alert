@@ -37,6 +37,9 @@ from rapidocr import RapidOCR, OCRVersion, ModelType
 WIKI_URL_DEFAULT = "https://www.kr.playblackdesert.com/ko-kr/Wiki?wikiNo=167"
 DAYS = ["월", "화", "수", "목", "금", "토", "일"]  # 이미지 열 순서
 TIME_RE = re.compile(r"^\d{1,2}:\d{2}$")
+# 사전에 없는 "완전히 새 이름" 통과 판정용 (예: 신규 우두머리 "타르가르고").
+# 순수 한글 2~12자리만 허용 → 숫자·깨진 글자·영문 조각 등 OCR 잡티는 걸러낸다.
+NAME_RE = re.compile(r"^[가-힣]{2,12}$")
 CELL_X_PAD = 50      # 열 중심 좌우 (열 간격 104px 기준)
 INK_MIN = 6          # 이 픽셀 수 이상이면 "글자가 있음"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -81,7 +84,7 @@ def lev(a, b):
 
 
 def make_accept(vocab):
-    """사전 통과 판정. 정확 일치 / 편집거리 1 고유 교정만 허용."""
+    """사전 통과 판정. 정확 일치 / 편집거리 1 고유 교정 / 완전히 새 이름 허용."""
     def accept(txt):
         if txt in vocab:
             return True, txt
@@ -94,6 +97,14 @@ def make_accept(vocab):
                 cnt += 1
         if bd == 1 and cnt == 1:
             return True, best
+        # 기존 이름을 그렇게 틀려 읽은 것으로 보이면(거리 2 이하) 버린다 → unread로 가서
+        # JS가 기존값을 유지하고 사람 확인으로 넘긴다.
+        if bd <= 2:
+            return False, txt
+        # 사전에 없는 "완전히 새 이름"(예: 신규 우두머리 타르가르고) → 오판으로 버리지 않고
+        # 그대로 통과시킨다. 갱신이 멈추지 않도록 하고, 틀린 값은 사람이 나중에 고친다.
+        if NAME_RE.match(txt):
+            return True, txt
         return False, txt
     return accept
 
@@ -342,8 +353,13 @@ def parse_all(args):
         ink = ink_count(gray, box)
         t, d = r["time"], DAYS[ci]
         if v is not None and not str(v[0]).startswith("?"):
-            cells.append({"time": t, "day": d, "line": li + 1,
-                          "bosses": [v[0]], "score": round(v[1], 3), "source": v[2]})
+            # 사전 밖 "새 이름"(예: 타르가르고)은 잉크가 실제로 있는 칸에서만 받아들인다
+            # → 빈 칸의 OCR 잡티가 시간표 데이터로 들어가는 것을 막는다.
+            if str(v[0]) in vocab or ink >= INK_MIN:
+                cells.append({"time": t, "day": d, "line": li + 1,
+                              "bosses": [v[0]], "score": round(v[1], 3), "source": v[2]})
+            else:
+                empties.append({"time": t, "day": d, "line": li + 1, "ink": ink})
         elif v is not None and str(v[0]).startswith("?"):
             unread.append({"time": t, "day": d, "line": li + 1, "ink": ink, "raw": v[0][1:]})
         elif ink >= INK_MIN:
@@ -458,6 +474,11 @@ def parse_recheck(args):
             upper, lower = line_bounds(r["lines"], r["lines"].index(ly))
             ink = max(ink, ink_count(gray, (cols[ci] - CELL_X_PAD, upper,
                                             cols[ci] + CELL_X_PAD, lower)))
+        # 사전 밖 "새 이름"은 잉크가 실제로 있는 칸에서만 채택 → 빈 칸의 OCR 잡티 방지
+        if ink < INK_MIN and any(f not in vocab for f in found):
+            found = [f for f in found if f in vocab]
+            if not found:
+                raw, src = None, None
         results.append({"time": t, "day": d, "bosses": found, "raw": raw,
                         "source": src, "ink": ink,
                         "emptyConfirmed": (not found and ink < INK_MIN)})
