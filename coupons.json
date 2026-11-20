@@ -1,7 +1,34 @@
 {
   "source": "https://www.kr.playblackdesert.com/ko-KR/News/Detail?groupContentNo=10748",
-  "updatedAt": 1794958562819,
+  "updatedAt": 1795163761379,
   "coupons": [
+    {
+      "name": "[11월은 샤카투의 달] 암호로 완성되는 첫 번째 비밀 쿠폰",
+      "code": "TRADEWITHSHAKATU",
+      "rewards": [
+        "[이벤트] 샤카투의 눈부신 상자"
+      ],
+      "expires": "",
+      "expiresAt": null
+    },
+    {
+      "name": "[11월은 샤카투의 달] 암호로 완성되는 두 번째 비밀 쿠폰",
+      "code": "CHOOSEYOURREWARD",
+      "rewards": [
+        "[이벤트] 영롱한 강화 지원 선택 상자"
+      ],
+      "expires": "",
+      "expiresAt": null
+    },
+    {
+      "name": "[11월은 샤카투의 달] 암호로 완성되는 세 번째 비밀 쿠폰",
+      "code": "SHAREYOURREWARDS",
+      "rewards": [
+        "[이벤트] 감사한 마음의 프리미엄 의상 상자"
+      ],
+      "expires": "2026년 12월 9일(수) 05:00",
+      "expiresAt": 1796760000000
+    },
     {
       "name": "월간사막 새 단장 기념 쿠폰",
       "code": "금손들의스크린샷팬아트는월간사막",
