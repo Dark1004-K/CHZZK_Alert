@@ -1,7 +1,21 @@
 {
   "source": "https://www.kr.playblackdesert.com/ko-KR/News/Detail?groupContentNo=10748",
-  "updatedAt": 1795163761379,
+  "updatedAt": 1795250162973,
   "coupons": [
+    {
+      "name": "[마스터 클래스] 월드 파이널 선발전 Day1",
+      "code": "월드파이널한국대표는누구",
+      "rewards": [
+        "크론석 1000개",
+        "신비한 묘약 상자",
+        "[이벤트] 성장의 도약",
+        "[이벤트] 현명한 살림꾼",
+        "[이벤트] 희미한 어둠 포식의 기원 5개",
+        "[이벤트] 2026 마스터 클래스 : 전투의 함성 3개"
+      ],
+      "expires": "2026년 12월 8일(화) 23:59",
+      "expiresAt": 1796741940000
+    },
     {
       "name": "[11월은 샤카투의 달] 암호로 완성되는 첫 번째 비밀 쿠폰",
       "code": "TRADEWITHSHAKATU",
