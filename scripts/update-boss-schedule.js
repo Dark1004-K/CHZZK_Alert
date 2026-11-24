@@ -470,7 +470,8 @@ async function syncDb(schedule, imageUrl, modified, bossNote) {
     const sorted = schedule.slice().sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
     const r = await fetch(url + '/rest/v1/rpc/bdo_sync_bosses', {
       method: 'POST',
-      headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+      // 새 방식 키(sb_secret_…)는 JWT가 아니라 apikey 헤더로만 보낸다 (레거시 service_role JWT는 둘 다)
+      headers: Object.assign({ 'Content-Type': 'application/json' }, key.startsWith('sb_') ? { apikey: key } : { apikey: key, Authorization: 'Bearer ' + key }),
       body: JSON.stringify({ p_source: SOURCE, p_extra: { imageUrl, modified, note: bossNote || '' }, p_schedule: sorted }),
       signal: AbortSignal.timeout(30000),
     });
