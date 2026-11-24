@@ -24,6 +24,27 @@ const GITHUB_TOKEN = ''; // ← 여기에 토큰 붙여넣기
 const OWNER = 'Dark1004-K';
 const REPO = 'CHZZK_Alert';
 const PATH = 'coupons.json';
+
+// ---- BDO_Alert(Vercel) 호출 — 쿠폰·이벤트를 Vercel 크롤러가 읽어 Supabase에 저장하게 한다 ----
+// VERCEL_BASE: Vercel 배포 주소 (끝 슬래시 없이) / CRON_SECRET: Vercel 환경변수 CRON_SECRET 과 같은 값
+// 둘 중 하나라도 비어 있으면 호출을 건너뛰고 기존 GitHub Actions 흐름만 동작한다.
+// 스크립트 속성(프로젝트 설정 → 스크립트 속성)에 넣으면 코드에 비밀이 남지 않는다: VERCEL_BASE, CRON_SECRET
+const VERCEL_BASE = PropertiesService.getScriptProperties().getProperty('VERCEL_BASE') || '';
+const CRON_SECRET = PropertiesService.getScriptProperties().getProperty('CRON_SECRET') || '';
+
+function callVercel_(job) {
+  if (!VERCEL_BASE || !CRON_SECRET) { Logger.log('[Vercel] VERCEL_BASE/CRON_SECRET 미설정 — ' + job + ' 건너뜀'); return; }
+  try {
+    const res = UrlFetchApp.fetch(VERCEL_BASE.replace(/\/+$/, '') + '/api/cron/' + job, {
+      method: 'get',
+      headers: { 'Authorization': 'Bearer ' + CRON_SECRET },
+      muteHttpExceptions: true,
+    });
+    Logger.log('[Vercel] ' + job + ' → HTTP ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 160));
+  } catch (e) {
+    Logger.log('[Vercel] ' + job + ' 호출 실패: ' + e.message); // 실패해도 GitHub 흐름은 계속
+  }
+}
 const SOURCE = 'https://www.kr.playblackdesert.com/ko-KR/News/Detail?groupContentNo=10748';
 
 // Actions 워크플로우를 실행시킨다 (workflow_dispatch API, 성공 코드는 204)
@@ -112,6 +133,7 @@ function parse_(html) {
 }
 
 function couponsCrawl() {
+  callVercel_('coupons'); // Vercel 크롤러 → Supabase (실패해도 아래 GitHub 흐름은 계속)
   if (!GITHUB_TOKEN) throw new Error('GITHUB_TOKEN을 입력하세요 (코드 맨 위)');
   // 1) 공식 페이지 읽기 (최대 3회 재시도)
   let html = '';
@@ -256,6 +278,7 @@ function parseEvents_(html) {
 }
 
 function eventsCrawl() {
+  callVercel_('events'); // Vercel 크롤러 → Supabase (실패해도 아래 GitHub 흐름은 계속)
   if (!GITHUB_TOKEN) throw new Error('GITHUB_TOKEN을 입력하세요 (코드 맨 위)');
   // 1) 공식 페이지 읽기 (최대 3회 재시도)
   let html = '';

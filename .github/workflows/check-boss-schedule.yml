@@ -12,6 +12,9 @@ name: check-boss-schedule
 # 1차 판독은 Python(scripts/parse-timetable.py, RapidOCR PP-OCRv5 mobile) — API 키가 필요 없다.
 # 2차 교차 검증(변경 칸 재확인)은 시크릿 GROQ_API_KEY(Groq, 무료 티어)로 한다.
 # 키가 없거나 Groq 판독이 실패하면 OCR 집중 재확인으로 내려가며, 그대로 판독은 계속된다.
+#
+# 갱신된 시간표는 bosses.json 커밋과 함께 Supabase(bdo_sync_bosses)에도 기록된다 (BDO_Alert용).
+# 시크릿 SUPABASE_URL · SUPABASE_SERVICE_ROLE_KEY 가 없으면 DB 동기화만 건너뛴다.
 on:
   workflow_dispatch: {}
 
@@ -44,6 +47,9 @@ jobs:
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           PYTHON_BIN: python
+          # (선택) BDO_Alert DB 동기화 — 시크릿이 없으면 건너뜀. Supabase service_role 키는 서버 전용!
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node scripts/update-boss-schedule.js
       - name: 판독 요약 로그
         if: always()

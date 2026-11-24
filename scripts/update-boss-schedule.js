@@ -459,6 +459,31 @@ function emitFatal(errors, schedule, imageUrl, modified) {
   process.exit(0); // 실패해도 워크플로우는 Issue만 만들고 커밋하지 않음
 }
 
+// ---- Supabase 동기화 (BDO_Alert 봇·대시보드가 읽는 DB) ----
+// bosses.json 을 갱신한 직후 같은 시간표를 DB(bdo_sync_bosses RPC)에도 반영한다.
+// SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 시크릿이 없으면 건너뛴다. 실패해도 판독·커밋은 계속한다(경고만).
+async function syncDb(schedule, imageUrl, modified, bossNote) {
+  const url = String(process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
+  const key = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  if (!url || !key) { console.log('Supabase 시크릿 없음 — DB 동기화 건너뜀'); note('DB 동기화: 건너뜀(시크릿 없음)'); return; }
+  try {
+    const sorted = schedule.slice().sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+    const r = await fetch(url + '/rest/v1/rpc/bdo_sync_bosses', {
+      method: 'POST',
+      headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_source: SOURCE, p_extra: { imageUrl, modified, note: bossNote || '' }, p_schedule: sorted }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + (await r.text().catch(() => '')).slice(0, 160));
+    const j = await r.json();
+    console.log('Supabase 동기화 완료: ' + JSON.stringify(j));
+    note('DB 동기화: ' + (j && j.changed ? '반영' : '변경 없음') + ' (' + (j && j.count) + '개 시간대)');
+  } catch (e) {
+    console.log('::warning::Supabase 동기화 실패 — ' + e.message);
+    note('DB 동기화 실패(커밋은 계속): ' + e.message);
+  }
+}
+
 async function main() {
   const noAi = process.argv.includes('--no-ai');
   const dryRun = process.argv.includes('--dry-run');
@@ -795,6 +820,7 @@ async function main() {
       fs.writeFileSync(BOSSES, JSON.stringify(old, null, 2) + '\n');
       console.log('bosses.json 갱신 완료');
       note('갱신: bosses.json');
+      await syncDb(finalSchedule, imageUrl, modified, old.note);
     }
     setOutput('updated', 'true');
   } else {
