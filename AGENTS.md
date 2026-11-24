@@ -16,3 +16,10 @@
 
 테스트용 코드는 반드시 `[BETA-TEST-ONLY:start]` ~ `[BETA-TEST-ONLY:end]`로 감싼다.
 정식 변환(`--release`)에서 제거되므로, 릴리즈 strip 후에도 문법이 유효해야 한다.
+
+## BDO_Alert(DB) 연동 메모
+
+- 쿠폰·이벤트·우두머리 시간표는 BDO_Alert의 Supabase에도 저장된다. 구조·환경변수·운영 정본은 BDO_Alert 저장소의 `docs/ARCHITECTURE.md`.
+- 이 저장소는 여전히 치지직 userscript용 GitHub raw JSON(`coupons.json`/`events.json`/`bosses.json`)을 커밋한다 — 지우지 않는다.
+- `scripts/update-boss-schedule.js`의 `syncDb()`: 시간표 갱신 시 Supabase RPC `bdo_sync_bosses`에도 기록(시크릿 `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` 없으면 건너뜀, 실패해도 커밋은 계속). `sb_` 새 방식 키는 `apikey` 헤더로만 보낸다.
+- `workers/coupon-cron/chzzk-cron.gs`: `couponsCrawl()`/`eventsCrawl()`이 먼저 Vercel `/api/cron/*`을 호출(스크립트 속성 `VERCEL_BASE`, `CRON_SECRET`), 이후 기존 GitHub Actions 디스패치는 그대로. 공식 페이지 파서는 BDO_Alert `src/crawl/`와 동일 규칙 — 구조 변경 시 함께 수정.
