@@ -1,7 +1,7 @@
 // CHZZK Alert plugin: 검은사막 — 월드 우두머리 레이드 출현 N분 전에 주황색 알림을 띄우고, 출현 시각까지 유지한다.
 // 시간표 출처: https://www.kr.playblackdesert.com/ko-kr/Wiki?wikiNo=167 (표가 이미지라 직접 옮겨 적음)
-// 시간표는 저장소의 bosses.json에서 받아온다(6시간마다 + 매주 수요일 12:27). 받지 못하면 아래 DEFAULT_SCHEDULE(코드에 적힌 값)을 쓴다.
-// 위키 시간표 이미지가 바뀌면 GitHub Actions(check-boss-schedule)가 알려 주고, bosses.json을 고치면 앱이 따라간다.
+// 시간표는 bdo-alert.vercel.app/data/bosses.json 에서 받아온다(6시간마다 + 매주 수요일 12:27). 받지 못하면 아래 DEFAULT_SCHEDULE(코드에 적힌 값)을 쓴다.
+// 위키 시간표 이미지가 바뀌면 GitHub Actions(check-boss-schedule)가 알려 주고, DB 시간표가 갱신되면 앱이 따라간다.
 // 옵션(설정 > 확장): lead(몇 분 전), sound(알림음), bosses(알림받을 우두머리)
 (function () {
   const KW = window.__KW;
@@ -56,7 +56,7 @@
     ['23:30', { 1: ['오핀', '불가살'], 2: ['카란다', '우투리'], 3: ['크자카', '우투리'], 4: ['쿠툼', '금돼지왕'], 5: ['오핀', '산군'], 0: ['누베르', '금돼지왕'] }],
   ];
   const KST = 9 * 3600 * 1000;
-  // 원격 시간표(bosses.json). 형식: { schedule: [ { time: '02:00', days: { '1': ['크자카', ...], ... } }, ... ] }
+  // 원격 시간표(/data/bosses.json). 형식: { schedule: [ { time: '02:00', days: { '1': ['크자카', ...], ... } }, ... ] }
   // 게임 데이터(우두머리·쿠폰·이벤트)는 BDO_Alert의 Vercel(/data, Supabase 정본)에서 받는다.
   // (v4.3.2 부터 GitHub raw JSON 폴백 없음 — 실패하면 현재 값을 유지하고 다음 주기에 다시 시도)
   const DATA_BASE = 'https://bdo-alert.vercel.app/data/';

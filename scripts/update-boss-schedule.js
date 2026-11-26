@@ -1,5 +1,5 @@
 // 검은사막 "시간표 > 월드 우두머리 레이드" 위키 페이지의 시간표 이미지가 바뀌었으면
-// 로컬 OCR(Python RapidOCR)로 표를 읽어 bosses.json을 갱신한다.
+// 로컬 OCR(Python RapidOCR)로 표를 읽어 Supabase(bdo_sync_bosses)의 우두머리 시간표를 갱신한다.
 //   node scripts/update-boss-schedule.js                 (변경 감지 → OCR 판독 → 검증 → 갱신)
 //   node scripts/update-boss-schedule.js --no-ai         (AI 교차 검증 생략, OCR 재확인만)
 //   node scripts/update-boss-schedule.js --image <png> --force --dry-run   (로컬 테스트, 파일 미기록)
@@ -18,7 +18,7 @@
 //        — 같은 판독기 2회 판독은 오류가 상관됨(2026-11 실측 33%) → 2차는 반드시 다른 판독기
 //      + 이미지에서 시각 자체가 사라진 행(이벤트 종료 등)은 좌측 시각 열 재확인으로 삭제 확정
 //      + 잉크는 있으나 아무것도 못 읽은 칸은 기존값을 유지한다 (읽은 값이 없으므로)
-//   4) 인식된 값을 그대로 bosses.json에 기록하고 상태도 갱신한다. 확정하지 못한 항목은
+//   4) 인식된 값을 그대로 DB에 기록하고 상태도 갱신한다. 확정하지 못한 항목은
 //      "확인 필요"로 모아 Issue에 남긴다 → 갱신이 멈추지 않고, 사람이 결과를 보고 수정한다
 //   5) 표를 거의 못 읽은 경우(시각 5개 미만 등)만 기존처럼 파일을 건드리지 않고 사람을 부른다
 //   6) AI 키가 없어도 OCR 판독은 계속 된다 (--no-ai와 동일 동작, 2차는 OCR 재확인)
@@ -32,7 +32,7 @@ const { spawnSync } = require('child_process');
 const SOURCE = 'https://www.kr.playblackdesert.com/ko-kr/Wiki?wikiNo=167';
 const ROOT = path.join(__dirname, '..');
 const STATE = path.join(ROOT, 'data', 'boss-schedule-state.json');
-const BOSSES = path.join(ROOT, 'bosses.json');
+const DATA_URL = process.env.BOSSES_DATA_URL || 'https://bdo-alert.vercel.app/data/bosses.json';
 const PLUGINS = path.join(ROOT, 'plugins.json');
 const UA = 'Mozilla/5.0 (compatible; ChzzkAlertBossScheduleBot)';
 
@@ -46,7 +46,7 @@ const MODEL = process.env.GROQ_MODEL || 'qwen/qwen3.8-27b';
 const API_BASE = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1';
 const TIMEOUT_MS = 60000; // 요청당 소켓 타임아웃 (멈춤으로 Job이 죽지 않도록)
 
-// 이미지의 요일 순서(월~일) → bosses.json의 day 번호(0=일 1=월 … 6=토)
+// 이미지의 요일 순서(월~일) → 시간표의 day 번호(0=일 1=월 … 6=토)
 const DAY_NO = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 };
 
 function setOutput(k, v) {
@@ -376,7 +376,7 @@ function applyResolutions(schedule, resolutions) {
     });
 }
 
-// bosses.json의 schedule 배열 → 사람이 읽는 비교용 텍스트
+// schedule 배열 → 사람이 읽는 비교용 텍스트
 function describe(schedule) {
   return schedule.map((s) => '  ' + s.time + ' ' + Object.keys(s.days)
     .sort((a, b) => a - b)
@@ -441,7 +441,7 @@ function ocrRecheck(imgFile, gridFile, changed) {
 // 이때만 상태도 갱신하지 않아 다음 실행에서 다시 판독한다 (GAS가 위키 변경 시 매번 디스패치).
 function emitFatal(errors, schedule, imageUrl, modified) {
   console.error('판독 실패:\n- ' + errors.join('\n- '));
-  note('판독 실패 — 파일 변경 없음');
+  note('판독 실패 — 변경 없음');
   for (const e of errors.slice(0, 5)) note('  · ' + e);
   if (errors.length > 5) note('  · …외 ' + (errors.length - 5) + '건');
   flushSummary();
@@ -451,7 +451,7 @@ function emitFatal(errors, schedule, imageUrl, modified) {
   setOutput('aiUsed', 'true');
   setOutput('modified', modified);
   setOutput('imageUrl', imageUrl);
-  setOutput('body', '자동 판독이 표를 거의 못 읽어 파일을 변경하지 않았습니다. 아래 오류를 보고 `bosses.json`을 확인해 주세요.\n\n'
+  setOutput('body', '자동 판독이 표를 거의 못 읽어 DB를 변경하지 않았습니다. 아래 오류를 보고 DB 시간표(`/data/bosses.json`)를 확인해 주세요.\n\n'
     + '- 새 이미지(공식 사이트): ' + imageUrl + '\n- 수정 일시: ' + modified + '\n\n'
     + '판독 오류:\n' + errors.map((e) => '- ' + e).join('\n') + '\n\n'
     + '판독 원본(JSON):\n```json\n' + JSON.stringify(schedule, null, 2) + '\n```\n\n'
@@ -459,30 +459,50 @@ function emitFatal(errors, schedule, imageUrl, modified) {
   process.exit(0); // 실패해도 워크플로우는 Issue만 만들고 커밋하지 않음
 }
 
+// ---- 이전 시간표 로드 (v4.3.3~: bosses.json 파일 없음 — Supabase가 유일한 저장소) ----
+// 1) service_role 시크릿이 있으면 RPC bdo_bosses_json  2) 없거나 실패하면 공개 /data/bosses.json.
+// 둘 다 실패하면 비교 기준이 없으므로 중단한다(빈 시간표로 덮어쓰기 방지).
+function supaHeaders(key) {
+  // 새 방식 키(sb_secret_…)는 JWT가 아니라 apikey 헤더로만 보낸다 (레거시 service_role JWT는 둘 다)
+  return Object.assign({ 'Content-Type': 'application/json' }, key.startsWith('sb_') ? { apikey: key } : { apikey: key, Authorization: 'Bearer ' + key });
+}
+async function loadPrev() {
+  const url = String(process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
+  const key = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  const ok = (j) => j && Array.isArray(j.schedule) && j.schedule.length > 0;
+  if (url && key) {
+    try {
+      const r = await fetch(url + '/rest/v1/rpc/bdo_bosses_json', { method: 'POST', headers: supaHeaders(key), body: '{}', signal: AbortSignal.timeout(30000) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      if (ok(j)) return j;
+      throw new Error('빈 시간표');
+    } catch (e) { console.log('::warning::DB에서 이전 시간표 로드 실패(' + e.message + ') — 공개 /data로 대체'); }
+  }
+  const r = await fetch(DATA_URL + '?t=' + Date.now(), { signal: AbortSignal.timeout(30000) });
+  if (!r.ok) throw new Error('이전 시간표 로드 실패: HTTP ' + r.status);
+  const j = await r.json();
+  if (!ok(j)) throw new Error('이전 시간표 로드 실패: 형식 오류/빈 시간표');
+  return j;
+}
+
 // ---- Supabase 동기화 (BDO_Alert 봇·대시보드가 읽는 DB) ----
-// bosses.json 을 갱신한 직후 같은 시간표를 DB(bdo_sync_bosses RPC)에도 반영한다.
-// SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 시크릿이 없으면 건너뛴다. 실패해도 판독·커밋은 계속한다(경고만).
+// 판독한 시간표를 DB(bdo_sync_bosses RPC)에 반영한다. DB가 유일한 저장소이므로 시크릿이 없거나 실패하면 오류로 중단한다.
 async function syncDb(schedule, imageUrl, modified, bossNote) {
   const url = String(process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
   const key = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
-  if (!url || !key) { console.log('Supabase 시크릿 없음 — DB 동기화 건너뜀'); note('DB 동기화: 건너뜀(시크릿 없음)'); return; }
-  try {
-    const sorted = schedule.slice().sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
-    const r = await fetch(url + '/rest/v1/rpc/bdo_sync_bosses', {
-      method: 'POST',
-      // 새 방식 키(sb_secret_…)는 JWT가 아니라 apikey 헤더로만 보낸다 (레거시 service_role JWT는 둘 다)
-      headers: Object.assign({ 'Content-Type': 'application/json' }, key.startsWith('sb_') ? { apikey: key } : { apikey: key, Authorization: 'Bearer ' + key }),
-      body: JSON.stringify({ p_source: SOURCE, p_extra: { imageUrl, modified, note: bossNote || '' }, p_schedule: sorted }),
-      signal: AbortSignal.timeout(30000),
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + (await r.text().catch(() => '')).slice(0, 160));
-    const j = await r.json();
-    console.log('Supabase 동기화 완료: ' + JSON.stringify(j));
-    note('DB 동기화: ' + (j && j.changed ? '반영' : '변경 없음') + ' (' + (j && j.count) + '개 시간대)');
-  } catch (e) {
-    console.log('::warning::Supabase 동기화 실패 — ' + e.message);
-    note('DB 동기화 실패(커밋은 계속): ' + e.message);
-  }
+  if (!url || !key) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 시크릿이 없어 DB에 저장할 수 없습니다');
+  const sorted = schedule.slice().sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+  const r = await fetch(url + '/rest/v1/rpc/bdo_sync_bosses', {
+    method: 'POST',
+    headers: supaHeaders(key),
+    body: JSON.stringify({ p_source: SOURCE, p_extra: { imageUrl, modified, note: bossNote || '' }, p_schedule: sorted }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!r.ok) throw new Error('DB 동기화 실패: HTTP ' + r.status + ' ' + (await r.text().catch(() => '')).slice(0, 160));
+  const j = await r.json();
+  console.log('Supabase 동기화 완료: ' + JSON.stringify(j));
+  note('DB 동기화: ' + (j && j.changed ? '반영' : '변경 없음') + ' (' + (j && j.count) + '개 시간대)');
 }
 
 async function main() {
@@ -562,7 +582,7 @@ async function main() {
   note('1차 판독(OCR): 시각 ' + ocr.stats.times + '개 · 머리글 ' + ocr.stats.header + '/7 · 셀 '
     + ocr.stats.cells + ' · 빈칸 ' + ocr.stats.empties + ' · 미인식 ' + ocr.stats.unread + ' · 충돌 ' + ocr.stats.conflicts);
 
-  // ---- 허용 목록: plugins.json + release/plugins.json + 기존 bosses.json + 위키 목차(OCR 사전)
+  // ---- 허용 목록: plugins.json + release/plugins.json + 기존 DB 시간표 + 위키 목차(OCR 사전)
   const knownSet = new Set();
   for (const mp of [PLUGINS, path.join(ROOT, 'release', 'plugins.json')]) {
     try {
@@ -572,16 +592,13 @@ async function main() {
         .forEach((o) => o.choices.forEach((c) => knownSet.add(c)));
     } catch (e) {}
   }
-  try {
-    JSON.parse(fs.readFileSync(BOSSES, 'utf8')).schedule
-      .forEach((s) => Object.keys(s.days).forEach((k) => s.days[k].forEach((n) => knownSet.add(n))));
-  } catch (e) {}
+  const old = await loadPrev();
+  old.schedule.forEach((s) => Object.keys(s.days).forEach((k) => s.days[k].forEach((n) => knownSet.add(n))));
   (ocr.vocab || []).forEach((v) => knownSet.add(v)); // 매 판독 전 위키 목차에서 추출한 사전
   const bosses = [...knownSet];
   if (!bosses.length) throw new Error('보스 목록을 찾지 못함 (plugins.json + 위키 목차)');
 
   // ---- 3) 검증용 조립 (같은 time+day의 2줄은 하나의 칸으로 병합)
-  const old = JSON.parse(fs.readFileSync(BOSSES, 'utf8'));
   const merged = new Map();
   for (const c of ocr.cells) {
     const key = c.time + '|' + c.day;
@@ -792,17 +809,17 @@ async function main() {
   // 확인 필요 항목이 있으면 Issue 본문 맨 앞에 남긴다 (사람이 결과를 보고 수정할 수 있도록)
   const reviewSection = flags.length
     ? '⚠️ **확인 필요 항목 ' + flags.length + '건** — 아래 항목은 자동으로 확정하지 못해 **인식된 값 그대로** 반영했습니다.'
-      + ' 틀린 값이 있으면 `bosses.json`을 고치고 이 Issue를 닫아 주세요.\n\n'
+      + ' 틀린 값이 있으면 Supabase `bdo_boss_slots`를 고치고 이 Issue를 닫아 주세요.\n\n'
       + flags.map((f) => '- ' + f).join('\n') + '\n\n'
     : '';
 
   if (oldText === newText && !pluginsChanged) {
-    console.log('판독 결과가 기존 bosses.json과 동일 — 파일 변경 없음');
+    console.log('판독 결과가 기존 시간표와 동일 — 변경 없음');
     note('판독 결과 기존과 동일 — 파일 변경 없음');
     if (flags.length) {
       setOutput('body', '- 새 이미지(공식 사이트): ' + imageUrl + '\n- 수정 일시: ' + modified + '\n\n'
         + reviewSection
-        + '변경 내역: 없습니다 (판독 결과가 기존 `bosses.json`과 동일합니다).\n\n'
+        + '변경 내역: 없습니다 (판독 결과가 기존 시간표와 동일합니다).\n\n'
         + '시간대별 전체 시간표:\n```\n' + newText + '\n```\n\n'
         + '확인 후 이 Issue를 닫아 주세요.');
     }
@@ -812,22 +829,16 @@ async function main() {
   }
   if (oldText !== newText) {
     if (dryRun) {
-      console.log('[dry-run] bosses.json 갱신 예정');
-      note('갱신 예정(dry-run): bosses.json');
+      console.log('[dry-run] DB 시간표 갱신 예정');
+      note('갱신 예정(dry-run): DB 시간표');
     } else {
-      old.schedule = finalSchedule;
-      old.updatedAt = Date.now();
-      old.source = SOURCE;
-      fs.writeFileSync(BOSSES, JSON.stringify(old, null, 2) + '\n');
-      console.log('bosses.json 갱신 완료');
-      note('갱신: bosses.json');
       await syncDb(finalSchedule, imageUrl, modified, old.note);
     }
     setOutput('updated', 'true');
   } else {
     setOutput('updated', 'false');
-    console.log('bosses.json 동일 — plugins.json 체크 목록만 동기화');
-    note('bosses.json 동일 — 체크 목록만 동기화');
+    console.log('시간표 동일 — plugins.json 체크 목록만 동기화');
+    note('시간표 동일 — 체크 목록만 동기화');
   }
   if (pluginsChanged) note('체크 목록 동기화: plugins.json · release/plugins.json');
   const removed = oldText.split('\n').filter((l) => !newText.includes(l.trim()));
@@ -842,14 +853,14 @@ async function main() {
   const viaNote = '- 1차 판독: OCR(RapidOCR PP-OCRv5) / 2차 재확인: ' + (usedVia ? viaLabel(usedVia) : '불필요(변경 없음)') + '\n';
   setOutput('body', (flags.length
     ? '자동 판독이 시간표를 갱신했지만 **확정하지 못한 항목이 있습니다** — 아래 내용을 확인해 주세요.\n\n'
-    : 'OCR 판독 + 변경 칸 재확인을 거쳐 `bosses.json`을 자동 갱신했습니다.\n\n')
+    : 'OCR 판독 + 변경 칸 재확인을 거쳐 DB 시간표를 자동 갱신했습니다.\n\n')
     + '- 새 이미지(공식 사이트): ' + imageUrl + '\n- 수정 일시: ' + modified + '\n\n'
     + reviewSection
     + viaNote
     + (newNote || syncNote ? newNote + syncNote + '\n' : '')
     + '변경 내역:\n```\n' + diff + '\n```\n\n'
     + '시간대별 전체 시간표:\n```\n' + newText + '\n```\n\n'
-    + '앱은 이 파일을 6시간마다 다시 받습니다. 값이 잘못됐다면 `bosses.json`을 고치고 이 Issue를 닫아 주세요.');
+    + '앱은 이 데이터를 6시간마다 다시 받습니다. 값이 잘못됐다면 Supabase `bdo_boss_slots`를 고치고 이 Issue를 닫아 주세요.');
 }
 
 main().catch((e) => {

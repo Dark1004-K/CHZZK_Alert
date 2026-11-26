@@ -20,6 +20,6 @@
 ## BDO_Alert(DB) 연동 메모
 
 - 쿠폰·이벤트·우두머리 시간표는 BDO_Alert의 Supabase에도 저장된다. 구조·환경변수·운영 정본은 BDO_Alert 저장소의 `docs/ARCHITECTURE.md`.
-- v4.3.2 부터 userscript 는 `bdo-alert.vercel.app/data/*.json`만 읽는다. 쿠폰·이벤트 크롤러(`crawl-*` 워크플로우·스크립트)와 `coupons.json`/`events.json` 은 삭제했다. 우두머리 OCR 이 커밋하는 `bosses.json` 만 구버전 userscript 호환용으로 유지한다(정리 가능 시점: 구버전 사용자가 없을 때).
+- v4.3.2 부터 userscript 는 `bdo-alert.vercel.app/data/*.json`만 읽는다. 쿠폰·이벤트 크롤러(`crawl-*` 워크플로우·스크립트)와 `coupons.json`/`events.json` 은 삭제했다. v4.3.3 부터 `bosses.json` 도 삭제했다 — 우두머리 시간표는 Supabase 가 유일한 저장소이고 OCR(`update-boss-schedule.js`)이 `bdo_sync_bosses` RPC 로 직접 기록한다(이전 시간표는 RPC `bdo_bosses_json` → 실패 시 공개 `/data/bosses.json`).
 - `scripts/update-boss-schedule.js`의 `syncDb()`: 시간표 갱신 시 Supabase RPC `bdo_sync_bosses`에도 기록(시크릿 `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` 없으면 건너뜀, 실패해도 커밋은 계속). `sb_` 새 방식 키는 `apikey` 헤더로만 보낸다.
 - `workers/coupon-cron/chzzk-cron.gs`: `couponsCrawl()`/`eventsCrawl()`은 Vercel `/api/cron/*` 호출만 한다(스크립트 속성 `VERCEL_BASE`, `CRON_SECRET`). `bossCheck()`만 GitHub Actions(`check-boss-schedule`)를 디스패치하며 스크립트 속성 `GITHUB_TOKEN`이 필요하다. 공식 페이지 파서는 BDO_Alert `src/crawl/` 한 곳뿐.
