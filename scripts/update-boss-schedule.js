@@ -23,7 +23,7 @@
 //   5) 표를 거의 못 읽은 경우(시각 5개 미만 등)만 기존처럼 파일을 건드리지 않고 사람을 부른다
 //   6) AI 키가 없어도 OCR 판독은 계속 된다 (--no-ai와 동일 동작, 2차는 OCR 재확인)
 //
-// 기존(Groq 전체 판독 + Gemini 교차 검증) 방식은 scripts/update-boss-schedule.legacy.js 로 보관했다.
+// 기존(Groq 전체 판독 + Gemini 교차 검증) 방식은 제거했다(git 히스토리에서 확인 가능).
 const fs = require('fs');
 const path = require('path');
 const os = require('os');

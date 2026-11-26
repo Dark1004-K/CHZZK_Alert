@@ -6,7 +6,6 @@ name: crawl-coupons
 # 정기 실행은 Google Apps Script(workers/coupon-cron/chzzk-cron.gs의 couponsCrawl, 매시간)가 맡는다.
 # GitHub 예약 실행(schedule)은 몇 시간씩 밀려서 시각 보장이 안 되기 때문이다.
 # GAS가 변경을 감지하면 이 워크플로우를 디스패치하고, 여기서 파싱·커밋·실패 이슈를 처리한다.
-# (Cloudflare 워커 worker.js를 쓰면 그것도 같은 역할을 디스패치한다 — 둘 중 하나만 켜 두면 된다)
 on:
   workflow_dispatch: {}
 
