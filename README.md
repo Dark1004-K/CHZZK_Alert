@@ -303,10 +303,10 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
   * 새 쿠폰·새 이벤트가 등록되면 **쿠폰 알림·이벤트 알림** 옵션(기본 켜짐)이 토스트·알림음·TTS로 알립니다. 창이 숨어있어도 메인창의 해당 버튼이 반짝이고, 토스트를 누르면 그 창이 열립니다.
   * 보라색 **"쿠폰 모아보기" 창**: 검은사막 공식 "[GM노트] 쿠폰 모두 모아보기" 글의 쿠폰(이름, 코드, 보상, 유효 기간)을 보여줍니다. 쿠폰 이름, 코드, **만료일**만 보여주고, 코드 옆 **복사 아이콘**을 누르면 복사됩니다. 기간이 지난 쿠폰은 자동으로 숨깁니다. 만료까지 하루 이하로 남으면 해당 쿠폰이 깜빡입니다(접혀 있으면 창 전체, 🔕 버튼으로 끄기).
     * 앱이 켜질 때 한 번 불러오고, **매시 17분에 자동으로** 다시 불러옵니다. 창의 **새로고침(↻)** 으로 바로 불러올 수도 있습니다. ▾/▸ 로 접고 펼 수 있습니다.
-    * 검은사막 사이트는 치지직 페이지에서 직접 읽을 수 없어서, 저장소의 `coupons.json`을 불러옵니다. 이 파일은 `scripts/crawl-coupons.js`가 해당 글을 읽어 갱신합니다(GitHub Actions가 20분 간격으로 실행, 부록 D 참고). 그래서 새 쿠폰이 반영되기까지 시간이 걸릴 수 있습니다.
+    * 검은사막 사이트는 치지직 페이지에서 직접 읽을 수 없어서, BDO_Alert의 `https://bdo-alert.vercel.app/data/coupons.json`을 불러옵니다. 이 데이터는 BDO_Alert(Vercel) 크롤러가 해당 글을 읽어 Supabase에 갱신합니다(Google Apps Script가 매시간 호출). 그래서 새 쿠폰이 반영되기까지 시간이 걸릴 수 있습니다.
   * 청록색 **"이벤트 모아보기" 창**: 검은사막 공식 "진행중인 이벤트 모아보기" 글의 이벤트(카테고리, 제목, 기간, 요약)를 보여줍니다. 항목을 누르면 상세 페이지가 팝업 창으로 열립니다(알람은 울리지 않습니다). 종료까지 하루 이하로 남으면 해당 항목이 깜빡입니다(접혀 있으면 창 전체, 🔕 버튼으로 끄기).
     * 앱이 켜질 때 한 번 불러오고, **6시간마다 + 매주 수요일 12:27에 자동으로** 다시 불러옵니다. 창의 **새로고침(↻)** 으로 바로 불러올 수도 있습니다. ▾/▸ 로 접고 펼 수 있습니다.
-    * 검은사막 사이트는 치지직 페이지에서 직접 읽을 수 없어서, 저장소의 `events.json`을 불러옵니다. 이 파일은 `scripts/crawl-events.js`가 해당 글을 읽어 갱신합니다(Google Apps Script `workers/coupon-cron/chzzk-cron.gs`의 `eventsCrawl`이 매주 수요일 실행, 수동 백업용으로만 GitHub Actions 유지). 그래서 새 이벤트가 반영되기까지 시간이 걸릴 수 있습니다.
+    * 검은사막 사이트는 치지직 페이지에서 직접 읽을 수 없어서, BDO_Alert의 `https://bdo-alert.vercel.app/data/events.json`을 불러옵니다. 이 데이터는 BDO_Alert(Vercel) 크롤러가 해당 글을 읽어 Supabase에 갱신합니다(Google Apps Script `workers/coupon-cron/chzzk-cron.gs`의 `eventsCrawl`이 매일 오전 11시대 호출). 그래서 새 이벤트가 반영되기까지 시간이 걸릴 수 있습니다.
   * 분홍색 **"가문검색" 창**: 입력칸에 가문명·길드명·아이템명을 쓰고 검색하면 오른쪽 **결과창 하나**에 나옵니다(종류가 둘 이상이면 상단 탭으로 전환). 가문: 캐릭터 목록(이름 · 직업 · 레벨), 길드: 길드원 목록(가문명 · 직위), 아이템: bdolytics 목록(dbType item만, 등급색 이름 + 썸네일, 누르면 목록 옆에 상세: 1차 기본·효과 먼저 표시 후 bdocodex 설명 2차 로딩·중복 제거 병합). 동반 브릿지(chzzk_bridge, 실시간 검색용)를 설치해야 동작합니다. 브릿지가 없으면 결과창에 안내가 나옵니다.
   * 시간표는 게임 공식 위키(<https://www.kr.playblackdesert.com/ko-kr/Wiki?wikiNo=167>)의 이미지를 보고 옮겨 적은 값이고, 저장소의 `bosses.json`에서 **6시간마다** 받아옵니다(받지 못하면 코드에 들어 있는 기본값 사용). 그래서 시간표가 바뀌어도 앱 업데이트 없이 파일만 고치면 반영됩니다.
     위키의 시간표는 글자가 아니라 이미지라서 자동으로 읽을 수 없습니다. 대신 **매주 수요일 12:10(한국시간)** 에 GitHub이 이미지가 바뀌었는지 확인하고, 바뀌었으면 새 이미지를 저장한 뒤 Issue로 알려 줍니다. 그러면 이미지를 보고 `bosses.json`을 고칩니다.
@@ -459,9 +459,8 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
     베타 전용 코드를 새로 넣을 때는 반드시 위 표식으로 감싸세요.
   * **난독화**: `javascript-obfuscator`(개발용 의존성). 먼저 `npm install`이 필요합니다. 모듈들이 최상위 함수·변수 이름을 서로 공유하므로 최상위 이름은 바꾸지 않고(`renameGlobals: false`),
     문자열(RC4)·지역 이름·제어 흐름·죽은 코드 삽입 등을 적용합니다. 결과는 원본보다 훨씬 커집니다(약 100KB → 1.2MB). 디버깅용으로 `--no-obfuscate`를 줄 수 있지만 그 결과는 배포하지 않습니다.
-* **쿠폰 크롤러**: `node scripts/crawl-coupons.js`가 검은사막 쿠폰 글을 읽어 `coupons.json`을 만듭니다. 정기 실행은 Google Apps Script(`workers/coupon-cron/chzzk-cron.gs`의 `couponsCrawl`, 매시간 정각 무렵 트리거)가 페이지를 확인해 쿠폰이 바뀌었을 때만 GitHub Actions(`crawl-coupons`)를 디스패치합니다(GitHub 예약 실행은 시각 보장이 안 되기 때문). 파싱·커밋·실패 이슈는 Actions가 맡습니다. 읽기에 실패하거나 쿠폰이 하나도 없으면 기존 파일을 그대로 둡니다.
+* **쿠폰·이벤트 크롤러**: v4.3.2부터 이 저장소에 없습니다. BDO_Alert 저장소의 `src/crawl/`(Vercel `/api/cron/{coupons|events}`)가 공식 페이지를 읽어 Supabase에 저장하고, `workers/coupon-cron/chzzk-cron.gs`(Google Apps Script)가 `couponsCrawl`(매시간)·`eventsCrawl`(매일 오전 11시대)로 호출합니다. userscript는 `bdo-alert.vercel.app/data/*.json`만 읽습니다.
 * **시간표 자동 갱신**: `node scripts/update-boss-schedule.js`가 위키 시간표 이미지의 주소와 "최근 수정 일시"를 이전 기록(`data/boss-schedule-state.json`)과 비교하고, 바뀌었으면 로컬 OCR(`scripts/parse-timetable.py`, Python RapidOCR PP-OCRv5 — API 키 불필요, 보스명 사전은 매 판독 전 위키 목차에서 추출)로 표를 읽어 `bosses.json`을 갱신합니다. (2026-11에 Groq 전체 판독을 OCR로 교체 — Groq/Gemini 토큰 한도·429 대기 지연 등 병목 제거.) 빈 칸은 픽셀 잉크로 "진짜 빈칸/인식 실패"를 구분해 오판 삭제를 막고, 기존과 달라진 칸만 다시 재확인합니다. 2차 교차 검증은 시크릿 `GROQ_API_KEY`(Groq, 무료 티어)로 하고, 키가 없거나 Groq 판독이 실패하면(`--no-ai` 포함) OCR 집중 재확인으로 내려갑니다. 판독 결과는 형식(HH:MM·요일)과 보스명(`plugins.json`의 choices 목록)으로 확인하되, 확정하지 못한 항목(오탈자 의심·칸 불일치·인식 실패)은 **인식된 값 그대로** `bosses.json`에 갱신하고 "확인 필요" Issue를 남깁니다 → 사람이 갱신 결과를 보고 틀린 값을 고칩니다(갱신이 멈추지 않도록). 잉크는 있으나 아무것도 못 읽은 칸은 기존값을 유지합니다. 표를 거의 못 읽은 경우(시각 5개 미만)만 파일을 건드리지 않고 실패 Issue를 만듭니다(상태를 갱신하지 않아 다음 실행에서 다시 시도). 로컬 테스트: `node scripts/update-boss-schedule.js --image <png> --force --dry-run`. 정기 실행은 Google Apps Script(`workers/coupon-cron/chzzk-cron.gs`의 `bossCheck`, 매일 오전 11시대)가 위키 변경을 감지해 이 워크플로우를 디스패치합니다(GitHub 예약 실행은 몇 시간씩 밀려서 시각을 못 지키기 때문). (`PYTHON_BIN` 환경변수로 파이썬 경로 지정 가능)
-* **이벤트 크롤러**: `node scripts/crawl-events.js`가 "진행중인 이벤트 모아보기" 글을 읽어 `events.json`을 만듭니다. 정기 실행은 Google Apps Script(`workers/coupon-cron/chzzk-cron.gs`의 `eventsCrawl`, 보스와 같은 매일 오전 11시대)가 페이지를 확인해 내용이 바뀌었을 때만 GitHub Actions(`crawl-events`)를 디스패치합니다. 파싱·커밋·실패 이슈는 Actions가 맡습니다. 읽기에 실패하거나 이벤트가 하나도 없으면 기존 파일을 그대로 둡니다.
 * 콘솔 로그(`[KW-BETA]`) 등 진단 정보는 베타에만 있습니다.
 
 * 콘솔 로그(`[KW-BETA]`) 등 진단 정보는 베타에만 있습니다.
@@ -476,6 +475,6 @@ edge://extensions/?id=iikmkjmpaadaobahmlepeloendndfphd
 * 콘솔에서 바로 테스트할 수 있습니다: `window.bdoSearch.searchGuild("미리내")`
 * 파싱 규칙이 바뀌면 검은사막 플러그인(`plugins/blackdesert.js`)만 고치면 됩니다. 브릿지는 `fetch`로 읽기만 대신합니다.
 * 역할 분담 (원칙):
-  1. 우두머리 시간표·쿠폰 등 주기가 넓은 데이터 수집은 GitHub Actions.
+  1. 우두머리 시간표 수집은 GitHub Actions(OCR), 쿠폰·이벤트 수집은 BDO_Alert(Vercel) 크롤러.
   2. 브릿지는 실시간 검색에만 사용.
 * 콘솔 로그(`[KW-BETA]`) 등 진단 정보는 베타에만 있습니다.

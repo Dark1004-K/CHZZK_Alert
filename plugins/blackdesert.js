@@ -57,17 +57,14 @@
   ];
   const KST = 9 * 3600 * 1000;
   // 원격 시간표(bosses.json). 형식: { schedule: [ { time: '02:00', days: { '1': ['크자카', ...], ... } }, ... ] }
-  // 게임 데이터(우두머리·쿠폰·이벤트)는 BDO_Alert의 Vercel(/data, Supabase 정본)에서 먼저 받고,
-  // 실패(오류·형식 불일치)하면 저장소의 GitHub raw JSON으로 폴백한다.
+  // 게임 데이터(우두머리·쿠폰·이벤트)는 BDO_Alert의 Vercel(/data, Supabase 정본)에서 받는다.
+  // (v4.3.2 부터 GitHub raw JSON 폴백 없음 — 실패하면 현재 값을 유지하고 다음 주기에 다시 시도)
   const DATA_BASE = 'https://bdo-alert.vercel.app/data/';
-  function fetchData(name, rawUrl, valid) {
-    const t = '?t=' + Date.now();
-    const get = (u) => fetch(u + t, { cache: 'no-store' })
+  function fetchData(name, valid) {
+    return fetch(DATA_BASE + name + '.json?t=' + Date.now(), { cache: 'no-store' })
       .then((r) => { if (!r.ok) throw new Error('http'); return r.json(); })
       .then((j) => { if (valid && !valid(j)) throw new Error('format'); return j; });
-    return get(DATA_BASE + name + '.json').catch(() => get(rawUrl));
   }
-  const BOSS_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/bosses.json';
   const BOSS_REFRESH_MS = 6 * 3600000;
   let schedule = DEFAULT_SCHEDULE;
   let bossFetchedAt = 0;
@@ -87,7 +84,7 @@
   }
   function loadSchedule() {
     bossFetchedAt = Date.now(); // 실패해도 6시간 뒤에 다시 시도
-    fetchData('bosses', BOSS_URL, parseSchedule)
+    fetchData('bosses', parseSchedule)
       .then((j) => { const s = parseSchedule(j); if (s) { schedule = s; syncBossList(); } })
       .catch(() => {}); // 실패하면 현재 시간표(처음엔 코드 기본값)를 유지
   }
@@ -443,10 +440,9 @@
     return '<button data-urg-off="' + esc(key) + '" title="' + (all ? '깜빡임 모두 끄기' : '깜빡임 끄기') + '" style="border:0;background:transparent;color:#ff9a9a;cursor:pointer;padding:2px;display:inline-flex;align-items:center;flex:none">' + URG_OFF_SVG + '</button>';
   }
   // ---------- 쿠폰 모아보기 (#__kw_cpn) ----------
-  // 검은사막 사이트는 다른 사이트(치지직 페이지)에서 직접 읽을 수 없어서(CORS), Vercel(/data/coupons.json, 실패 시 저장소 coupons.json)을 받아온다.
-  // coupons.json은 scripts/crawl-coupons.js가 "쿠폰 모두 모아보기" 페이지를 읽어 갱신한다.
-  // 앱이 켜질 때 한 번 받고, 이후 매시 17분에 자동으로 다시 받는다 (액션은 20분 간격 실행).
-  const CPN_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/coupons.json';
+  // 검은사막 사이트는 다른 사이트(치지직 페이지)에서 직접 읽을 수 없어서(CORS), Vercel(/data/coupons.json)을 받아온다.
+  // 데이터는 BDO_Alert의 Vercel 크롤러가 "쿠폰 모두 모아보기" 페이지를 읽어 Supabase에 갱신한다 (GAS가 매시간 호출).
+  // 앱이 켜질 때 한 번 받고, 이후 매시 17분에 자동으로 다시 받는다.
   const LS_CPN_FOLD = '__kw_cpn_fold';
   let cpnEl = null;
   let cpnData = null; // 마지막으로 받은 coupons.json
@@ -629,7 +625,7 @@
     cpnState = 'loading';
     if (manual) cpnBusyUntil = Date.now() + 700;
     cpnSig = '';
-    fetchData('coupons', CPN_URL, (j) => !!j && Array.isArray(j.coupons))
+    fetchData('coupons', (j) => !!j && Array.isArray(j.coupons))
       .then((j) => {
         if (!j || !Array.isArray(j.coupons)) throw new Error('format');
         cpnData = j; cpnState = 'ok';
@@ -833,11 +829,10 @@
   }
 
   // ---------- 이벤트 모아보기 (#__kw_evt) ----------
-  // 검은사막 사이트는 다른 사이트(치지직 페이지)에서 직접 읽을 수 없어서(CORS), Vercel(/data/events.json, 실패 시 저장소 events.json)을 받아온다.
-  // events.json은 scripts/crawl-events.js가 "진행중인 이벤트 모아보기" 페이지를 읽어 갱신한다.
+  // 검은사막 사이트는 다른 사이트(치지직 페이지)에서 직접 읽을 수 없어서(CORS), Vercel(/data/events.json)을 받아온다.
+  // 데이터는 BDO_Alert의 Vercel 크롤러가 "진행중인 이벤트 모아보기" 페이지를 읽어 Supabase에 갱신한다.
   // 보스와 같은 스케줄: 켜질 때 한 번 받고, 이후 6시간마다 + 매주 수요일 12:27 슬롯에 다시 받는다.
   // 알람은 울리지 않고 목록만 보여준다. 항목을 누르면 상세 페이지가 팝업 창으로 열린다.
-  const EVT_URL = 'https://raw.githubusercontent.com/Dark1004-K/Chzzk_Alert/main/events.json';
   const EVT_COLOR = '#2dd4bf';
   const LS_EVT_FOLD = '__kw_evt_fold';
   const LS_EVTPOS = '__kw_evt_pos';
@@ -946,7 +941,7 @@
     evtState = 'loading';
     if (manual) evtBusyUntil = Date.now() + 700;
     evtSig = '';
-    fetchData('events', EVT_URL, (j) => !!j && Array.isArray(j.events))
+    fetchData('events', (j) => !!j && Array.isArray(j.events))
       .then((j) => {
         if (!j || !Array.isArray(j.events)) throw new Error('format');
         evtData = j; evtState = 'ok';

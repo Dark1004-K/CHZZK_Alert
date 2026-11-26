@@ -1,51 +1,48 @@
-// Google Apps Script — 크지직 알림 크론 (쿠폰 + 보스 + 이벤트, 한 프로젝트)
+// Google Apps Script — 크지직 알림 크론 (쿠폰 + 이벤트 + 우두머리, 한 프로젝트)
 // 같은 프로젝트에 이 파일 1개만 넣는다.
 //
-// 역할: "정확한 시각"에 공식 페이지를 확인(감지)하고, 내용이 실제로 바뀌었을 때만
-//       GitHub Actions를 디스패처한다. 파싱 확정·AI 판독·커밋·이슈는 Actions가 맡는다.
-//       (GitHub의 예약 실행(schedule)은 몇 시간씩 밀릴 수 있어서, 시각은 이 GAS 타이머가 보장한다)
+// 역할: "정확한 시각"에 아래 작업을 깨운다 (GitHub 예약 실행(schedule)은 몇 시간씩 밀릴 수 있어서 시각은 이 GAS 타이머가 보장한다).
+//   - couponsCrawl / eventsCrawl : BDO_Alert(Vercel) 크롤러 /api/cron/{coupons|events} 호출 → Supabase 에 저장. (GitHub Actions·coupons.json·events.json 은 v2.0.1 에서 제거)
+//   - bossCheck : 위키 시간표 이미지가 바뀌었을 때만 GitHub Actions(check-boss-schedule, OCR)를 디스패치한다.
 //
-// 설치:
-//   1. script.google.com → 새 프로젝트 → 이 파일 내용 전체 붙여넣기
-//   2. 아래 GITHUB_TOKEN에 토큰 입력 후 저장(Ctrl+S).
+// 설치/갱신:
+//   1. script.google.com → 기존 프로젝트 → 이 파일 내용 전체 붙여넣기 (함수 이름이 같아 기존 트리거는 그대로 동작)
+//   2. 스크립트 속성(프로젝트 설정 → 스크립트 속성): VERCEL_BASE, CRON_SECRET (Vercel 환경변수 CRON_SECRET 과 같은 값)
+//   3. bossCheck 전용 GitHub 토큰: 스크립트 속성 GITHUB_TOKEN 에 입력 (기존 코드에 직접 넣어 둔 값을 옮기면 된다).
 //      GitHub Fine-grained PAT, 대상 repo CHZZK_Alert 1개:
-//      - Contents: 읽기 (coupons.json / state 파일 비교용)
+//      - Contents: 읽기 (data/boss-schedule-state.json 비교용)
 //      - Actions: 읽기·쓰기 (workflow_dispatch 호출용) ← 꼭 필요
-//   3. couponsCrawl() 1회 실행 → 권한 승인 → 로그에 변경 없음 또는 디스패치 확인
-//   4. bossCheck() 1회 실행 → 로그에 변경 없음 또는 디스패치 확인
-//   5. eventsCrawl() 1회 실행 → 로그에 변경 없음 또는 디스패치 확인
-//   6. 트리거 추가 3개:
+//   4. couponsCrawl() · eventsCrawl() · bossCheck() 각각 1회 실행 → 로그 확인
+//   5. 트리거 3개:
 //      - couponsCrawl / 시간 기반 / 시간 타이머 / 매시간 (매시 00분 무렵)
+//      - eventsCrawl / 시간 기반 / 일 타이머 / 오전 11시~12시
 //      - bossCheck / 시간 기반 / 일 타이머 / 오전 11시~12시
-//      - eventsCrawl / 시간 기반 / 일 타이머 / 오전 11시~12시 (보스와 동일)
-//   7. 프로젝트 시간대 확인: 왼쪽 톱니 → (GMT+09:00) 서울
+//   6. 프로젝트 시간대 확인: 왼쪽 톱니 → (GMT+09:00) 서울
 
-const GITHUB_TOKEN = ''; // ← 여기에 토큰 붙여넣기
+const GITHUB_TOKEN = PropertiesService.getScriptProperties().getProperty('GITHUB_TOKEN') || ''; // 스크립트 속성 GITHUB_TOKEN (또는 '' 자리에 직접 입력) — bossCheck 에서만 사용
 const OWNER = 'Dark1004-K';
 const REPO = 'CHZZK_Alert';
-const PATH = 'coupons.json';
 
 // ---- BDO_Alert(Vercel) 호출 — 쿠폰·이벤트를 Vercel 크롤러가 읽어 Supabase에 저장하게 한다 ----
-// VERCEL_BASE: Vercel 배포 주소 (끝 슬래시 없이) / CRON_SECRET: Vercel 환경변수 CRON_SECRET 과 같은 값
-// 둘 중 하나라도 비어 있으면 호출을 건너뛰고 기존 GitHub Actions 흐름만 동작한다.
-// 스크립트 속성(프로젝트 설정 → 스크립트 속성)에 넣으면 코드에 비밀이 남지 않는다: VERCEL_BASE, CRON_SECRET
+// 스크립트 속성에 넣으면 코드에 비밀이 남지 않는다: VERCEL_BASE (끝 슬래시 없이), CRON_SECRET
 const VERCEL_BASE = PropertiesService.getScriptProperties().getProperty('VERCEL_BASE') || '';
 const CRON_SECRET = PropertiesService.getScriptProperties().getProperty('CRON_SECRET') || '';
 
+// 실패하면 예외를 던진다 → GAS 트리거 실패 알림(메일)으로 알 수 있다
 function callVercel_(job) {
-  if (!VERCEL_BASE || !CRON_SECRET) { Logger.log('[Vercel] VERCEL_BASE/CRON_SECRET 미설정 — ' + job + ' 건너뜀'); return; }
-  try {
-    const res = UrlFetchApp.fetch(VERCEL_BASE.replace(/\/+$/, '') + '/api/cron/' + job, {
-      method: 'get',
-      headers: { 'Authorization': 'Bearer ' + CRON_SECRET },
-      muteHttpExceptions: true,
-    });
-    Logger.log('[Vercel] ' + job + ' → HTTP ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 160));
-  } catch (e) {
-    Logger.log('[Vercel] ' + job + ' 호출 실패: ' + e.message); // 실패해도 GitHub 흐름은 계속
-  }
+  if (!VERCEL_BASE || !CRON_SECRET) throw new Error('스크립트 속성 VERCEL_BASE / CRON_SECRET 을 설정하세요');
+  const res = UrlFetchApp.fetch(VERCEL_BASE.replace(/\/+$/, '') + '/api/cron/' + job, {
+    method: 'get',
+    headers: { 'Authorization': 'Bearer ' + CRON_SECRET },
+    muteHttpExceptions: true,
+  });
+  const code = res.getResponseCode();
+  Logger.log('[Vercel] ' + job + ' → HTTP ' + code + ' ' + res.getContentText().slice(0, 160));
+  if (code < 200 || code >= 300) throw new Error('Vercel ' + job + ' 실패 HTTP ' + code);
 }
-const SOURCE = 'https://www.kr.playblackdesert.com/ko-KR/News/Detail?groupContentNo=10748';
+
+function couponsCrawl() { callVercel_('coupons'); } // 매시간
+function eventsCrawl() { callVercel_('events'); }   // 매일 오전 11시대
 
 // Actions 워크플로우를 실행시킨다 (workflow_dispatch API, 성공 코드는 204)
 function dispatch_(workflowFile) {
@@ -82,89 +79,6 @@ function readFile_(path) {
   } catch (e) {
     return null;
   }
-}
-
-// ---- 쿠폰 (매시간): 페이지가 바뀌었을 때만 crawl-coupons Actions를 실행 ----
-function decode_(s) {
-  return String(s)
-    .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;|&#160;/g, ' ')
-    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-function parseExpire_(text) {
-  const m = /(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일(?:\([^)]*\))?\s*(\d{1,2}):(\d{2})/.exec(text);
-  if (!m) return null;
-  const y = +m[1], mo = +m[2], d = +m[3], h = +m[4], mi = +m[5];
-  return Date.UTC(y, mo - 1, d, h, mi) - 9 * 3600 * 1000;
-}
-function parse_(html) {
-  const start = html.indexOf('editor_area');
-  if (start < 0) throw new Error('본문(editor_area)을 찾지 못함');
-  const body = html.slice(start);
-  const re = /<h3[^>]*glance_subject_title[^>]*>([\s\S]*?)<\/h3>|<span class="js-couponNumber">([^<]*)<\/span>|<p[^>]*glance_reward_detail_text[^>]*>([\s\S]*?)<\/p>|쿠폰 유효 기간\s*:\s*([^<]+)</g;
-  const coupons = [];
-  let title = '';
-  let cur = null;
-  let m;
-  while ((m = re.exec(body))) {
-    if (m[1] !== undefined) {
-      const t = decode_(m[1]);
-      if (t && !/쿠폰을 한눈에|풍성한 보상/.test(t)) title = t;
-    } else if (m[2] !== undefined) {
-      cur = { name: title, code: decode_(m[2]), rewards: [], expires: '', expiresAt: null };
-      coupons.push(cur);
-      title = '';
-    } else if (m[3] !== undefined) {
-      const r = decode_(m[3]);
-      if (cur && r) cur.rewards.push(r);
-    } else if (m[4] !== undefined) {
-      if (cur && !cur.expires) {
-        // "정기점검 전"은 통상 그날 오전 05:00
-        cur.expires = decode_(m[4]).replace(/정기점검\s*전/g, '05:00');
-        cur.expiresAt = parseExpire_(cur.expires);
-      }
-    }
-  }
-  return coupons.filter(function (c) { return c.code; });
-}
-
-function couponsCrawl() {
-  callVercel_('coupons'); // Vercel 크롤러 → Supabase (실패해도 아래 GitHub 흐름은 계속)
-  if (!GITHUB_TOKEN) throw new Error('GITHUB_TOKEN을 입력하세요 (코드 맨 위)');
-  // 1) 공식 페이지 읽기 (최대 3회 재시도)
-  let html = '';
-  let lastErr = null;
-  for (let a = 1; a <= 3; a++) {
-    try {
-      const res = UrlFetchApp.fetch(SOURCE, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ChzzkAlertCouponBot)', 'Accept-Language': 'ko-KR' },
-        muteHttpExceptions: true,
-      });
-      if (res.getResponseCode() !== 200) throw new Error('HTTP ' + res.getResponseCode());
-      html = res.getContentText('UTF-8');
-      lastErr = null;
-      break;
-    } catch (e) {
-      lastErr = e;
-      if (a < 3) Utilities.sleep(3000 * a);
-    }
-  }
-  if (lastErr) throw lastErr;
-  // 2) 파싱해서 저장소의 coupons.json과 비교
-  const coupons = parse_(html);
-  if (!coupons.length) throw new Error('쿠폰을 하나도 읽지 못함 (페이지 구조가 바뀌었을 수 있음)');
-  const prev = readFile_(PATH);
-  if (prev && JSON.stringify(prev.coupons) === JSON.stringify(coupons)) {
-    Logger.log('[쿠폰] 변경 없음 (' + coupons.length + '개)');
-    return;
-  }
-  // 3) 바뀌었으면 Actions를 실행시킨다 (정확한 파싱·커밋·이슈는 거기서)
-  dispatch_('crawl-coupons.yml');
-  Logger.log('[쿠폰] 변경 감지 → crawl-coupons Actions 디스패치 (' + coupons.length + '개)');
 }
 
 // ---- 우두머리 시간표 (매일): 위키 이미지가 바뀌었을 때만 check-boss-schedule Actions를 실행 ----
@@ -213,101 +127,4 @@ function bossCheck() {
   // 3) 바뀌었으면 Actions를 실행시킨다 (AI 판독·검증·커밋·이슈는 거기서)
   dispatch_('check-boss-schedule.yml');
   Logger.log('[보스] 시간표 변경 감지 (' + prev.modified + ' → ' + modified + ') → check-boss-schedule Actions 디스패치');
-}
-
-// ---- 진행중인 이벤트 모아보기 (매일): 내용이 바뀌었을 때만 crawl-events Actions를 실행 ----
-const EVENTS_PATH = 'events.json';
-const EVENTS_SOURCE = 'https://www.kr.playblackdesert.com/ko-KR/News/Detail?groupContentNo=13733';
-function isPeriod_(s) {
-  return /(\d{4}\s*년|\d{1,2}\s*월\s*\d{1,2}\s*일|^~)/.test(s);
-}
-function parseEvents_(html) {
-  const wrap = html.indexOf('tpl_glance_wrap');
-  if (wrap < 0) throw new Error('모아보기 본문(tpl_glance_wrap)을 찾지 못함');
-  const body = html.slice(wrap);
-  const h3re = /<h3[^>]*>([\s\S]*?)<\/h3>/g;
-  const h3s = [];
-  let m;
-  while ((m = h3re.exec(body))) h3s.push({ title: decode_(m[1]), start: m.index, end: m.index + m[0].length });
-  if (!h3s.length) throw new Error('이벤트 카드(h3)를 찾지 못함');
-  const cats = [];
-  const catRe = /(NEW 이벤트|HOT 이벤트|상시 이벤트)/g;
-  while ((m = catRe.exec(body))) cats.push({ name: m[1], at: m.index });
-  const events = [];
-  for (let i = 0; i < h3s.length; i++) {
-    const segEnd = i + 1 < h3s.length ? h3s[i + 1].start : h3s[i].end + 12000;
-    let seg = body.slice(h3s[i].end, segEnd);
-    let link = '';
-    const linkRe = /<a[^>]+href="([^"]*News\/Detail[^"]*)"/g;
-    let lm;
-    while ((lm = linkRe.exec(seg))) {
-      const href = lm[1];
-      if (/countryType=/.test(href)) continue;
-      link = href.indexOf('http') === 0 ? href : 'https://www.kr.playblackdesert.com' + href;
-      break;
-    }
-    if (!link) continue;
-    let category = '';
-    for (const c of cats) { if (c.at < h3s[i].start) category = c.name; else break; }
-    seg = seg.replace(/<a[\s\S]*?<\/a>/gi, ' ');
-    let period = '';
-    const extra = [];
-    const pRe = /<p[^>]*>([\s\S]*?)<\/p>/g;
-    let pm;
-    while ((pm = pRe.exec(seg))) {
-      // "정기점검 전"은 통상 그날 오전 05:00
-      const t = decode_(pm[1]).replace(/정기점검\s*전/g, '05:00');
-      if (!t || /^(NEW|HOT)$/.test(t)) continue;
-      if (!period && isPeriod_(t)) period = t;
-      else extra.push(t);
-    }
-    const contentLines = [];
-    const flat = seg.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(div|p|li)>/gi, '\n').replace(/<[^>]+>/g, ' ');
-    const flatLines = flat.split('\n');
-    for (let li = 0; li < flatLines.length; li++) {
-      const t = decode_(flatLines[li]);
-      if (!t || /^(NEW|HOT)$/.test(t)) continue;
-      if (t === decode_(h3s[i].title) || (period && t === period) || extra.indexOf(t) >= 0) continue;
-      contentLines.push(t);
-    }
-    const title = h3s[i].title;
-    if (!title) continue;
-    events.push({ category: category, title: title, period: period, summary: extra.concat(contentLines).join(' / '), link: link });
-  }
-  return events;
-}
-
-function eventsCrawl() {
-  callVercel_('events'); // Vercel 크롤러 → Supabase (실패해도 아래 GitHub 흐름은 계속)
-  if (!GITHUB_TOKEN) throw new Error('GITHUB_TOKEN을 입력하세요 (코드 맨 위)');
-  // 1) 공식 페이지 읽기 (최대 3회 재시도)
-  let html = '';
-  let lastErr = null;
-  for (let a = 1; a <= 3; a++) {
-    try {
-      const res = UrlFetchApp.fetch(EVENTS_SOURCE, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ChzzkAlertEventBot)', 'Accept-Language': 'ko-KR' },
-        muteHttpExceptions: true,
-      });
-      if (res.getResponseCode() !== 200) throw new Error('HTTP ' + res.getResponseCode());
-      html = res.getContentText('UTF-8');
-      lastErr = null;
-      break;
-    } catch (e) {
-      lastErr = e;
-      if (a < 3) Utilities.sleep(3000 * a);
-    }
-  }
-  if (lastErr) throw lastErr;
-  // 2) 파싱해서 저장소의 events.json과 비교
-  const events = parseEvents_(html);
-  if (!events.length) throw new Error('이벤트를 하나도 읽지 못함 (페이지 구조가 바뀌었을 수 있음)');
-  const prev = readFile_(EVENTS_PATH);
-  if (prev && JSON.stringify(prev.events) === JSON.stringify(events)) {
-    Logger.log('[이벤트] 변경 없음 (' + events.length + '개)');
-    return;
-  }
-  // 3) 바뀌었으면 Actions를 실행시킨다
-  dispatch_('crawl-events.yml');
-  Logger.log('[이벤트] 변경 감지 → crawl-events Actions 디스패치 (' + events.length + '개)');
 }
