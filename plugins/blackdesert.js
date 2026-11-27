@@ -61,7 +61,8 @@
   // (v4.3.2 부터 GitHub raw JSON 폴백 없음 — 실패하면 현재 값을 유지하고 다음 주기에 다시 시도)
   const DATA_BASE = 'https://bdo-alert.vercel.app/data/';
   function fetchData(name, valid) {
-    return fetch(DATA_BASE + name + '.json?t=' + Date.now(), { cache: 'no-store' })
+    // ?t= 없이 요청 — 서버(Vercel CDN)가 60초 캐시하므로 같은 시간대의 요청은 DB를 다시 조회하지 않는다 (브라우저 캐시는 no-store 로 우회)
+    return fetch(DATA_BASE + name + '.json', { cache: 'no-store' })
       .then((r) => { if (!r.ok) throw new Error('http'); return r.json(); })
       .then((j) => { if (valid && !valid(j)) throw new Error('format'); return j; });
   }
