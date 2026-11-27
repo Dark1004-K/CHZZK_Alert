@@ -787,26 +787,6 @@
       if (r) { r.awaitingKey = false; roomSig = null; }
     } catch (e) { notice('키 생성 실패. 브라우저를 확인하세요.'); }
   }
-  async function invitePeer() {
-    try {
-      const inp = roomEl && roomEl.querySelector('[data-cr-invite-peer]');
-      const raw = String((inp && inp.value) || '').trim();
-      if (!raw) { notice('상대 이름을 입력하세요.'); return; }
-      // 여러 명이면 쉼표로 구분. 공백 닉은 따옴표 그대로 두면 자동 인식.
-      const peers = /[,;]/.test(raw) ? splitPeerList(raw) : [unquotePeer(raw)].filter(Boolean);
-      if (!peers.length) { notice('상대 이름을 입력하세요.'); return; }
-      if (peers.includes(myNick())) { notice('자기 자신은 초대할 수 없습니다.'); return; }
-      pruneInvites(Date.now());
-      for (const peer of peers) {
-        invites.push({ from: myNick(), peer, pub: '', t: Date.now() });
-        touchRoom(peer, false);
-        if (!selPeer) selPeer = peer;
-      }
-      rlog('invite-click', 'to=' + peers.join(','));
-      copyText('#채팅 ' + peers.map(quotePeer).join(', '), '복사됨. 채팅창에 붙여넣고 Enter를 누르세요. 상대가 [참가]를 누르면 자동으로 연결됩니다.');
-      roomSig = null;
-    } catch (e) { notice('초대에 실패했습니다.'); }
-  }
   async function sendSecure() {
     try {
       const r = rooms[selPeer];
