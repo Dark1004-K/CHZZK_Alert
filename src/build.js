@@ -31,6 +31,23 @@ function stripBetaMarkers(t) {
   return t.replace(/^[^\n]*\[BETA-ONLY-LINE\][^\n]*\n/gm, '');
 }
 
+// 큰 플러그인은 plugins/<이름>/NN-*.js 조각으로 나눠 관리한다 — 이름순으로 이어 붙여 plugins/<이름>.js 를 만든다.
+// (조각은 파일 하나(IIFE)를 기능별로 자른 것이라 단독으로는 실행되지 않는다. 조각을 고친 뒤 이 빌드를 실행하면 plugins/<이름>.js 가 갱신된다.)
+//   node src/build.js --plugins   → 플러그인 조립만
+function assemblePlugins() {
+  const pdir = path.join(ROOT, 'plugins');
+  for (const d of fs.readdirSync(pdir, { withFileTypes: true })) {
+    if (!d.isDirectory()) continue;
+    const parts = fs.readdirSync(path.join(pdir, d.name)).filter((f) => /^\d+-.+\.js$/.test(f)).sort();
+    if (!parts.length) continue;
+    const out = parts.map((f) => fs.readFileSync(path.join(pdir, d.name, f), 'utf8')).join('');
+    const target = path.join(pdir, d.name + '.js');
+    const cur = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : null;
+    if (cur !== out) { fs.writeFileSync(target, out); console.log('assembled plugins/' + d.name + '.js (' + parts.length + '개 조각)'); }
+    checkSyntax('plugins/' + d.name + '.js', out);
+  }
+}
+
 function buildBeta() {
   const ver = (header.match(/@version\s+(\S+)/) || [])[1];
   if (!ver) throw new Error('header.txt에 @version이 없음');
@@ -160,6 +177,8 @@ function buildRelease(ver, doObfuscate) {
     (doObfuscate ? '난독화' : '난독화 안 함') + ', 모듈 ' + size + ' bytes)');
 }
 
+assemblePlugins();
+if (process.argv.includes('--plugins')) process.exit(0);
 const ri = process.argv.indexOf('--release');
 if (ri >= 0) buildRelease(process.argv[ri + 1], !process.argv.includes('--no-obfuscate'));
 else buildBeta();

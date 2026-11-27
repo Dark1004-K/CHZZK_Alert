@@ -6,6 +6,10 @@
 **기준 버전(`3.1.0` 부분)이 바뀌면 베타 번호는 `001`부터 다시 시작해서 누적한다.** (예: `3.2.0-beta001` → `3.2.0-beta002`)
 정식 릴리즈로 승격되면 접미사를 떼고(`3.1.0`) 요약을 루트 UPDATE.md로 옮긴다.
 
+## v3.6.0-beta056
+
+* **소스 그룹화**: 3,200줄짜리 `plugins/blackdesert.js`를 기능별 10개 조각(`plugins/blackdesert/01-head.js` … `10-market-tick.js`)으로 나눔. 빌드(`node src/build.js`)가 이어 붙여 `plugins/blackdesert.js`를 만들며 결과 파일은 이전과 **바이트 단위로 동일**(동작 변화 없음). 구조 설명은 `plugins/blackdesert/README.md`.
+
 ## v3.6.0-beta055
 
 * **데이터 요청 최적화**: 우두머리·쿠폰·이벤트 요청에서 매번 바뀌던 `?t=` 값을 제거해 서버 CDN 캐시(60초)가 적용되도록 함 (DB 조회 감소). 동작 변화 없음.
